@@ -27,6 +27,13 @@ Read the report-level `providers` too when a widened scope matters.
 The rules of the envelope, the flags, and the exit codes: [references/output.md](references/output.md).
 Exact provider JSON names and their state sources: [references/providers.md](references/providers.md).
 
+## Terminal browser
+
+`spacequery ui` opens an interactive browser for tables and named queries.
+Use `--root DIR`, `--scope root|agents|all`, and `--me PANE` to set its initial context.
+The browser fetches data when you press `r`.
+See [references/ui.md](references/ui.md) for its keys and observation rules.
+
 ## Workflow
 
 1. **Before you start work in a repository**: `here` (one call: who else is here with `in-dir`, the checkout with `git-status` and `worktrees`, its pull request with `branch-pull-requests`, ports with `ports-in-dir`, processes with `processes-in-dir`, Docker containers with `containers-in-dir` and `container-ports-in-dir`, tools with `tools-in-dir`, issues, and the workflow). The rows exclude your own pane. As a gate: `spacequery here --expect-empty --strict` exits 0 only when nobody else is here and every provider answered.

@@ -42,6 +42,10 @@ export function loadUserQueries(env: Readonly<Record<string, string | undefined>
       warn(`${path} is not a query file named [a-z][a-z0-9-]*.sql`);
       continue;
     }
+    if (name === "ui") {
+      warn(`${path} uses the reserved terminal browser name ui`);
+      continue;
+    }
     if (Object.hasOwn(catalog, name)) {
       warn(`${path} shadows the built-in query ${name}; the built-in wins`);
       continue;

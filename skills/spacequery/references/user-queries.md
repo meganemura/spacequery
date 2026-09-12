@@ -25,3 +25,6 @@ When the required data has no table, declare a [user provider](user-providers.md
 
 An agent may call a user query like a built-in one and reads its description from `--help`.
 An agent does not write query files on its own; it asks the user, with the statement it wants.
+
+The name `ui` is reserved for the terminal browser.
+A file named `ui.sql` is skipped with a warning.

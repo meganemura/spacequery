@@ -11,6 +11,6 @@
     "skipLibCheck": true,
     "types": ["node"]
   },
-  "include": ["*.ts", "core/**/*.ts", "providers/**/*.ts", "migrations/**/*.ts", "test/**/*.ts"],
+  "include": ["*.ts", "core/**/*.ts", "ui/**/*.ts", "providers/**/*.ts", "migrations/**/*.ts", "test/**/*.ts"],
   "exclude": ["node_modules"]
 }

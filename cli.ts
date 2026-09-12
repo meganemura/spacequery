@@ -59,6 +59,8 @@ function usage(userQueries: readonly UserQuery[], userProviders: readonly UserPr
     "usage: spacequery <query|report> [--root DIR] [--scope root|agents|all] [--me PANE] [--json|--tsv] [--trace] [--expect-empty] [--strict]",
     "       spacequery --sql <text> [--root DIR] [--me PANE] [--scope root|agents|all] [--json|--tsv] [--trace] [--expect-empty] [--strict]",
     "",
+    "terminal browser: spacequery ui [--root DIR] [--scope root|agents|all] [--me PANE]",
+    "",
     "queries:",
     ...lines,
     ...(userQueries.length === 0 ? [] : ["", `user queries (${dirname(userQueries[0]!.path)}):`, ...userLines]),
@@ -188,6 +190,11 @@ export function exitCodeFor(result: Pick<RunResult<unknown>, "rows" | "providers
 }
 
 async function main(argv: string[]): Promise<number> {
+  if (argv[0] === "ui") {
+    const { startUi } = await import("./ui/main.ts");
+    await startUi(argv.slice(1));
+    return 0;
+  }
   const userQueries = loadUserQueries(process.env);
   const userProviders = loadUserProviders(process.env, loaders);
   const { values, positionals } = parseArgs({

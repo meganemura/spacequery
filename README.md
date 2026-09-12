@@ -20,6 +20,13 @@ spacequery agents-with-sessions
 spacequery --help
 ```
 
+## Terminal Browser
+
+`spacequery ui` opens Tables and Queries in the terminal.
+Inspect columns and SQL, follow related tables and queries, then press `r` to fetch rows.
+The result includes provider status and observation times.
+See the [browser keys and scope rules](skills/spacequery/references/ui.md).
+
 ## A First Use
 
 Run this before work starts in a repository:

@@ -92,6 +92,13 @@ Read activity in this order: `agent_status` from herdr describes the present.
 `updated_at` and `last_turn_at` belong to the session record. `idle_minutes`
 derives from `updated_at`.
 
+## Terminal browser
+
+`spacequery ui [--root DIR] [--scope root|agents|all] [--me PANE]` requires an interactive terminal.
+`spacequery ui --help` also works with redirected output.
+The browser displays definitions before it runs a query.
+Its keys and result semantics are in [ui.md](ui.md).
+
 ## Flags
 
 | Flag | Meaning |

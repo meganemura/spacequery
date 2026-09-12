@@ -33,6 +33,7 @@
     "catalog.ts",
     "spacequery.config.ts",
     "core",
+    "ui",
     "providers",
     "migrations",
     "skills",
@@ -48,11 +49,14 @@
     "prepublishOnly": "npm run check && npm test"
   },
   "dependencies": {
+    "ink": "7.1.1",
+    "react": "19.2.8",
     "solarsql": "0.3.0"
   },
   "devDependencies": {
     "@hegeldev/hegel": "0.4.5",
     "@types/node": "26.4.0",
+    "@types/react": "19.2.18",
     "typescript": "7.0.2"
   }
 }
