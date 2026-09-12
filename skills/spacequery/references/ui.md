@@ -8,6 +8,8 @@ Tables shows built-in and user provider tables with their column types, nullable
 Queries shows built-in and user queries with descriptions, SQL, parameters, and result columns.
 Definition opens when an entry is selected or the catalog is switched.
 It combines SQL, column types, and links between tables and queries.
+Section headings, blank lines, and aligned column types separate these definitions.
+Active catalog and view tabs use a cyan background and brackets; inactive tabs use dim text.
 Execution opens Results, which contains observed values with column headings and source status.
 Column definitions stay in Definition; an unexecuted Results view shows an execution hint.
 A broken user query keeps its SQL and an error message in the catalog.

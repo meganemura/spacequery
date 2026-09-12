@@ -57,6 +57,7 @@ test("a search parameter, result detail, catalog search, and related table form 
     assert.match(ui.frame(), /1:\[Definition\]/);
     await ui.key("1");
     await ui.key("j");
+    await ui.key("j");
     await ui.key("\r");
     assert.match(ui.frame(), /\[Tables\]/);
     assert.match(ui.frame(), /sample_rows/);

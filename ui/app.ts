@@ -155,7 +155,7 @@ export function Browser({ items, initial, execute = observe }: { items: Item[]; 
     if (focus === "list") { setFocus("detail"); return; }
     if (sourcesFocused) return;
     if (view === "Definition") {
-      const target = related[offset - 1];
+      const target = definitionRows[offset]?.target;
       if (target) {
         setKind(target.kind); setSearch(""); setSelected(items.filter((i) => i.kind === target.kind).indexOf(target));
         setOffset(0); setTextColumn(0); setColumn(0); setExpanded(false); setError(""); changeView("Definition");
@@ -170,18 +170,27 @@ export function Browser({ items, initial, execute = observe }: { items: Item[]; 
     ? observation.providers.flatMap((provider) => lines(`${provider.ok ? "OK" : "FAILED"} ${provider.name} | ${provider.ms} ms | ${new Date(provider.observed_at).toISOString()}${provider.error ? `\n${provider.error}` : ""}`))
     : ["This call ran no provider."]);
   const sourceStart = Math.min(sourceOffset, Math.max(0, sourceLines.length - (sourceHeight - 1)));
-  const definitionLines = item ? [
-    item.kind === "table" ? "Queries using this table (Enter opens)" : "Tables used by this query (Enter opens)",
-    ...related.map((entry) => `  ${entry.name}`),
-    "", "SQL", ...lines(item.sql.trim()), "", "Columns",
-    ...item.columns.map((column) => `${column.name}  ${column.type}${item.kind === "table" ? `${column.nullable ? "?" : ""}${column.key ? "  KEY" : ""}` : ""}`),
+  const columnWidth = Math.max(0, ...(item?.columns.map((column) => column.name.length) ?? []));
+  const definitionRows: { text: string; heading?: boolean; target?: Item }[] = item ? [
+    { text: item.kind === "table" ? "Queries using this table" : "Tables used by this query", heading: true },
+    { text: "" },
+    ...(related.length ? related.map((entry) => ({ text: `  ${entry.name}`, target: entry })) : [{ text: "  (none)" }]),
+    { text: "" }, { text: "SQL", heading: true }, { text: "" },
+    ...lines(item.sql.trim()).map((text) => ({ text: `  ${text}` })),
+    { text: "" }, { text: "Columns", heading: true }, { text: "" },
+    ...item.columns.map((column) => ({ text: `  ${column.name.padEnd(columnWidth)}  ${column.type}${item.kind === "table" ? `${column.nullable ? "?" : ""}${column.key ? "  KEY" : ""}` : ""}` })),
   ] : [];
+  const definitionLines = definitionRows.map((row) => row.text);
   const rowLines = expanded && observation ? Object.entries(observation.rows[offset] ?? {}).flatMap(([name, value]) =>
     lines(`${name}: ${value === null ? "NULL" : typeof value === "object" ? JSON.stringify(value) : String(value)}`)) : [];
   const contentLines = expanded ? rowLines : view === "Definition" ? definitionLines : sourceLines;
   const contentCount = view === "Definition" ? definitionLines.length
     : observation ? observation.rows.length : 0;
   const text = (value: unknown, options: Record<string, unknown> = {}) => h(Text, { wrap: "truncate-end", ...options }, lineText(value));
+  const tab = (label: string, active: boolean) => text(label, {
+    color: active ? "black" : undefined, backgroundColor: active ? "cyan" : undefined,
+    bold: active, dimColor: !active,
+  });
   const listStart = Math.floor(selected / pageSize) * pageSize;
   const failed = observation?.providers.filter((provider) => !provider.ok) ?? [];
   const detail: ReturnType<typeof h>[] = [];
@@ -190,9 +199,10 @@ export function Browser({ items, initial, execute = observe }: { items: Item[]; 
     if (expanded) detail.push(text(`Row ${offset + 1} / ${observation!.rows.length}  |  Esc closes`, { bold: true }));
     const start = expanded ? detailOffset : offset;
     detail.push(...contentLines.slice(start, start + pageSize).map((line, i) => {
-      const link = !expanded && start + i > 0 && start + i <= related.length;
+      const row = !expanded ? definitionRows[start + i] : undefined;
+      const link = row?.target !== undefined;
       const value = Array.from(line).slice(textColumn).join("");
-      return text(link && i === 0 ? `> ${value.trimStart()}` : value, { color: link ? "cyan" : undefined });
+      return text(link && i === 0 ? `> ${value.trimStart()}` : value || " ", { color: row?.heading ? "cyan" : link ? "blueBright" : undefined, bold: row?.heading || (link && i === 0) });
     }));
   } else if (!observation) {
     detail.push(text(busy ? "Fetching rows..." : "No result yet. Press r to run.", { color: "yellow" }));
@@ -209,7 +219,12 @@ export function Browser({ items, initial, execute = observe }: { items: Item[]; 
   }
   if (size.width < 60 || size.height < 16) return h(Box, { flexDirection: "column" }, text("spacequery ui needs at least 60 columns and 16 rows."), text("Resize the terminal, or press q to quit."));
   return h(Box, { flexDirection: "column", width: size.width, height: size.height - 1 },
-    text(`spacequery   ${kind === "table" ? "[Tables]  Queries" : "Tables  [Queries]"}   scope: ${inputs.scope}${busy ? "   Loading..." : ""}`, { bold: true, color: "cyan" }),
+    h(Text, { wrap: "truncate-end" },
+      text("spacequery   ", { bold: true }),
+      tab(kind === "table" ? "[Tables]" : "Tables", kind === "table"), text("  "),
+      tab(kind === "query" ? "[Queries]" : "Queries", kind === "query"),
+      text("  t switch", { dimColor: true }),
+      text(`   scope: ${inputs.scope}${busy ? "   Loading..." : ""}`, { dimColor: !busy, color: busy ? "yellow" : undefined })),
     text(`root: ${inputs.root}  |  me: ${inputs.me === undefined ? "auto" : inputs.me || "all"}  [c edit]`, { dimColor: true }),
     text(`Search: ${search || "(all)"}   |   ${filtered.length} entries`, { dimColor: true }),
     h(Box, { flexDirection: "row", height: bodyHeight },
@@ -218,7 +233,9 @@ export function Browser({ items, initial, execute = observe }: { items: Item[]; 
       h(Box, { flexDirection: "column", flexGrow: 1, borderStyle: "round", borderColor: focus === "detail" ? "cyan" : "gray", paddingX: 1 },
         ...(compactResults ? [] : [text(`${item?.name ?? ""}  ${item?.source ?? ""}`, { bold: true }),
           text(item?.description ?? "", { dimColor: true })]),
-        text(views.map((name, i) => `${i + 1}:${name === view ? `[${name}]` : name}`).join(" "), { color: "cyan" }),
+        h(Text, { wrap: "truncate-end" }, ...views.flatMap((name, i) => [
+          ...(i ? [text(" ")] : []), tab(`${i + 1}:${name === view ? `[${name}]` : name}`, name === view),
+        ])),
         h(Box, { flexDirection: "column", height: detailHeight, flexShrink: 0 }, ...detail),
         ...(view === "Results" ? [h(Box, { flexDirection: "column", height: sourceHeight, flexShrink: 0 },
           text(`Sources${sourcesFocused && focus === "detail" ? " [focused]" : ""}  ${sourceStart + 1}/${sourceLines.length}  [s focus]`, { bold: true, color: sourcesFocused && focus === "detail" ? "cyan" : "gray" }),

@@ -18,6 +18,8 @@ Catalog navigation starts no provider.
 The Definition view connects table names and query read metadata.
 Two detail views separate definitions from observations.
 Selection opens Definition with SQL, related entries, and column types.
+Colored headings and blank lines separate these sections; column names and types align.
+Active tabs use a contrasting background and brackets so selection remains visible without color.
 Execution opens Results with observed values, column headings, and source status.
 Required parameters are prompted before execution; context and parameter editing use explicit shortcuts.
 Source status stays fixed at the bottom of Results while rows scroll above it.
