@@ -13,7 +13,7 @@ A broken user query keeps its SQL and an error message in the catalog.
 
 | Key | Action |
 | --- | --- |
-| `t`, `g` | Open Tables or Queries. |
+| `t` | Toggle between Tables and Queries. |
 | `/` | Edit the catalog search; Enter applies it and Esc cancels it. |
 | Tab | Move focus between the catalog and the detail pane. |
 | Up/Down or `k`/`j` | Select an entry, row, field, or text line in the focused pane. |
@@ -22,7 +22,7 @@ A broken user query keeps its SQL and an error message in the catalog.
 | Left/Right | Change the first visible result column. |
 | Enter | Focus the selected entry, open a row, edit an input, or follow a related entry. |
 | `r` | Fetch fresh data for the selected entry. |
-| Esc | Close a row, cancel an edit, or return to the catalog and clear its search. |
+| Esc | Close a row, cancel an edit, or return to the catalog with its selection and search intact. |
 | `q` | Cancel the current execution and quit. |
 | Ctrl+C | Cancel the current execution and quit. |
 

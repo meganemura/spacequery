@@ -88,15 +88,15 @@ export function Browser({ items, initial, execute = observe }: { items: Item[]; 
     if (input === "q") { controller.current?.abort(); exit(); return; }
     if (busy) return;
     if (input === "/") { setEditing({ kind: "search" }); setDraft(search); return; }
-    if (input === "t" || input === "g") {
-      setKind(input === "t" ? "table" : "query"); setSearch(""); select(0); changeView("Results"); setFocus("list"); return;
+    if (input === "t") {
+      setKind(kind === "query" ? "table" : "query"); setSearch(""); select(0); changeView("Results"); setFocus("list"); return;
     }
     if (key.tab) { setFocus(focus === "list" ? "detail" : "list"); return; }
     if (input === "r") { void run(); return; }
     if (/[1-5]/.test(input) && input.length === 1) { changeView(views[Number(input) - 1]!); setFocus("detail"); return; }
     if (key.escape) {
       if (expanded) { setExpanded(false); setDetailOffset(0); }
-      else { setFocus("list"); setSearch(""); select(0); }
+      else { setFocus("list"); }
       return;
     }
     if (key.leftArrow || key.rightArrow) {
@@ -194,6 +194,6 @@ export function Browser({ items, initial, execute = observe }: { items: Item[]; 
         ...detail)),
     text(observation ? `${observation.rows.length} rows | scope: ${observation.scope} | ${observation.ms} ms | received ${new Date(observation.receivedAt).toLocaleTimeString()}` : busy ? "Fetching a fresh observation..." : "Definition only; data loads when you press r."),
     text(error || item?.error || (failed.length ? `Incomplete: ${failed.map((p) => p.name).join(", ")} failed. Press 5 for details.` : ""), { color: "yellow" }),
-    text(editing !== null ? `${editing.kind === "search" ? "Search" : editing.name}: ${draft}█  (Enter saves, Esc cancels)` : "t Tables  g Queries  / Search  Tab Focus  1-5 View  r Run  q Quit"),
+    text(editing !== null ? `${editing.kind === "search" ? "Search" : editing.name}: ${draft}█  (Enter saves, Esc cancels)` : "t Tables/Queries  / Search  Tab Focus  1-5 View  r Run  q Quit"),
     text("↑↓ Move  ←→ Columns  Enter Open/Edit  PgUp/PgDn Scroll  Esc Back", { dimColor: true }));
 }

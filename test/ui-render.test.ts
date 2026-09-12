@@ -100,3 +100,29 @@ test("a scope parameter uses the explicit context scope", async () => {
     assert.equal(chosen, "root");
   } finally { await ui.close(); }
 });
+
+
+test("t toggles catalogs and Esc preserves the selected entry and search", async () => {
+  const entries = [query, { ...query, name: "second_query" }, table, { ...table, name: "second_table" }];
+  const ui = await screen(entries, async () => observation);
+  try {
+    for (const [kind, name] of [["Queries", "second_query"], ["Tables", "second_table"]]) {
+      if (kind === "Tables") await ui.key("t");
+      assert.match(ui.frame(), new RegExp(`\\[${kind}\\]`));
+      await ui.key("j");
+      assert.ok(ui.frame().includes(`> ${name}`));
+      await ui.key("\r");
+      await ui.key("\u001b");
+      assert.ok(ui.frame().includes(`> ${name}`));
+      await ui.key("/");
+      await ui.key("second");
+      await ui.key("\r");
+      await ui.key("\r");
+      await ui.key("\u001b");
+      assert.match(ui.frame(), /Search: second/);
+      assert.ok(ui.frame().includes(`> ${name}`));
+    }
+    await ui.key("t");
+    assert.match(ui.frame(), /\[Queries\]/);
+  } finally { await ui.close(); }
+});

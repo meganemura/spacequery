@@ -13,7 +13,7 @@ export async function startUi(args: string[]): Promise<void> {
     root: { type: "string" }, scope: { type: "string" }, me: { type: "string" }, help: { type: "boolean", short: "h" },
   } });
   if (values.help) {
-    console.log("usage: spacequery ui [--root DIR] [--scope root|agents|all] [--me PANE]\n\nBrowse tables, query SQL, parameters, results, and provider status.\nData loads only when you press r. Use t/g for Tables/Queries and 1-5 for views.");
+    console.log("usage: spacequery ui [--root DIR] [--scope root|agents|all] [--me PANE]\n\nBrowse tables, query SQL, parameters, results, and provider status.\nData loads only when you press r. Use t to toggle Tables/Queries and 1-5 for views.");
     return;
   }
   if (positionals.length) throw new Error("spacequery ui takes options only");
