@@ -23,12 +23,13 @@ async function screen(items: Item[], execute: typeof observe, height = 24) {
   const input = new PassThrough();
   Object.assign(input, { isTTY: true, setRawMode() {}, ref() {}, unref() {} });
   const app = render(createElement(Browser, { items, initial, execute }), { stdout: output as unknown as NodeJS.WriteStream, stdin: input as unknown as NodeJS.ReadStream, debug: true, patchConsole: false, exitOnCtrlC: false });
+  const exited = app.waitUntilExit();
   const flush = async () => { await delay(40); await app.waitUntilRenderFlush(); };
   await flush();
   return {
     frame: () => frame,
     async key(key: string) { input.write(key); await flush(); },
-    async close() { app.unmount(); await app.waitUntilExit(); input.destroy(); output.destroy(); },
+    async close() { app.unmount(); await exited; input.destroy(); output.destroy(); },
   };
 }
 
@@ -38,16 +39,14 @@ test("a search parameter, result detail, catalog search, and related table form 
   try {
     assert.equal(calls.length, 0);
     await ui.key("r");
-    assert.match(ui.frame(), /Enter search/);
-    await ui.key("\r");
+    assert.match(ui.frame(), /search:/);
     await ui.key("日本語");
     await ui.key("\r");
-    await ui.key("r");
     assert.equal(calls[0]!.params.search, "日本語");
     assert.match(ui.frame(), /Incomplete: sample/);
     assert.match(ui.frame(), /scope: root/);
     assert.match(ui.frame(), /received/);
-    await ui.key("1");
+    await ui.key("2");
     await ui.key("\r");
     assert.match(ui.frame(), /Row 1/);
     assert.match(ui.frame(), /nullable: NULL/);
@@ -55,8 +54,8 @@ test("a search parameter, result detail, catalog search, and related table form 
     await ui.key("other");
     await ui.key("\r");
     assert.doesNotMatch(ui.frame(), /Row 1/);
-    assert.match(ui.frame(), /Press r to fetch/);
-    await ui.key("2");
+    assert.match(ui.frame(), /1:\[Definition\]/);
+    await ui.key("1");
     await ui.key("j");
     await ui.key("\r");
     assert.match(ui.frame(), /\[Tables\]/);
@@ -65,14 +64,21 @@ test("a search parameter, result detail, catalog search, and related table form 
   } finally { await ui.close(); }
 });
 
-test("parameter pages stay within a small terminal", async () => {
+test("required parameters are prompted one at a time before execution", async () => {
   const item = { ...query, params: Array.from({ length: 12 }, (_, i) => `p${i}`) };
-  const ui = await screen([item], async () => observation, 16);
+  let values: Inputs | undefined;
+  const ui = await screen([item], async (_item, inputs) => { values = inputs; return observation; }, 16);
   try {
-    await ui.key("3");
-    for (let i = 0; i < 7; i++) await ui.key("\u001b[6~");
-    assert.match(ui.frame(), /p11/);
-    assert.ok(ui.frame().split("\n").length <= 17, ui.frame());
+    await ui.key("r");
+    for (let i = 0; i < 12; i++) {
+      assert.match(ui.frame(), new RegExp(`p${i}:`));
+      assert.equal(values, undefined);
+      assert.ok(ui.frame().split("\n").length <= 17, ui.frame());
+      await ui.key(String(i));
+      await ui.key("\r");
+    }
+    assert.equal(values!.params.p11, "11");
+    assert.match(ui.frame(), /2:\[Results\]/);
   } finally { await ui.close(); }
 });
 
@@ -95,9 +101,8 @@ test("a scope parameter uses the explicit context scope", async () => {
   const ui = await screen([{ ...query, params: ["scope"] }], async (_item, inputs) => { chosen = inputs.scope; return observation; });
   try {
     await ui.key("r");
-    assert.match(ui.frame(), /Enter scope/);
+    assert.match(ui.frame(), /scope: root/);
     await ui.key("\r");
-    await ui.key("r");
     assert.equal(chosen, "root");
   } finally { await ui.close(); }
 });
@@ -132,20 +137,21 @@ test("SQL that fits the detail pane keeps its original line", async () => {
   const sql = "select repository_name, branch_name from git_status";
   const ui = await screen([{ ...query, sql }], async () => observation);
   try {
-    await ui.key("2");
+    await ui.key("1");
     assert.ok(ui.frame().split("\n").some((line) => line.includes(sql)), ui.frame());
   } finally { await ui.close(); }
 });
 
-test("three detail views keep source status with the result rows", async () => {
+test("two detail views keep source status with the result rows", async () => {
   const ui = await screen([{ ...query, params: [] }], async () => observation, 16);
   try {
-    assert.match(ui.frame(), /1:\[Results\] 2:Definition 3:Inputs/);
-    assert.doesNotMatch(ui.frame(), /4:Related|5:Providers/);
+    assert.match(ui.frame(), /1:\[Definition\] 2:Results/);
+    assert.doesNotMatch(ui.frame(), /3:Inputs|4:Related|5:Providers/);
     await ui.key("r");
     await ui.key("s");
-    assert.match(ui.frame(), /1:\[Results\]/);
+    assert.match(ui.frame(), /2:\[Results\]/);
     assert.match(ui.frame(), /Sources: data retrieval status/);
+    await ui.key("j");
     await ui.key("j");
     assert.match(ui.frame(), /Fixture failure/);
     assert.ok(ui.frame().split("\n").length <= 17, ui.frame());
@@ -159,12 +165,81 @@ test("long SQL lines scroll horizontally without inserted line breaks", async ()
   const sql = `select '${"x".repeat(100)}TAIL_MARKER' as value`;
   const ui = await screen([{ ...query, sql }], async () => observation);
   try {
-    await ui.key("2");
+    await ui.key("1");
     assert.doesNotMatch(ui.frame(), /TAIL_MARKER/);
     for (let i = 0; i < 18; i++) await ui.key("\u001b[C");
     assert.match(ui.frame(), /TAIL_MARKER/);
     for (let i = 0; i < 18; i++) await ui.key("\u001b[D");
     assert.match(ui.frame(), /select '/);
     assert.doesNotMatch(ui.frame(), /TAIL_MARKER/);
+  } finally { await ui.close(); }
+});
+
+test("selection opens Definition and execution opens Results without column definitions", async () => {
+  const ui = await screen([{ ...query, params: [] }, { ...query, name: "next_query" }, table], async () => observation);
+  try {
+    assert.match(ui.frame(), /1:\[Definition\] 2:Results/);
+    await ui.key("2");
+    assert.match(ui.frame(), /No result yet/);
+    assert.doesNotMatch(ui.frame(), /Columns|value  TEXT/);
+    await ui.key("r");
+    assert.match(ui.frame(), /2:\[Results\]/);
+    assert.match(ui.frame(), /a long value/);
+    assert.doesNotMatch(ui.frame(), /Columns|value  TEXT/);
+    await ui.key("\u001b");
+    await ui.key("j");
+    assert.match(ui.frame(), /1:\[Definition\]/);
+    await ui.key("t");
+    assert.match(ui.frame(), /1:\[Definition\]/);
+  } finally { await ui.close(); }
+});
+
+test("context edits and cancelled parameter prompts do not execute", async () => {
+  const calls: Inputs[] = [];
+  const ui = await screen([query], async (_item, inputs) => { calls.push(inputs); return observation; });
+  try {
+    await ui.key("r");
+    await ui.key("\u001b");
+    assert.equal(calls.length, 0);
+    await ui.key("c");
+    await ui.key("\u0015");
+    await ui.key("/another-root");
+    await ui.key("\r");
+    await ui.key("\u0015");
+    await ui.key("invalid");
+    await ui.key("\r");
+    assert.match(ui.frame(), /Scope must be/);
+    await ui.key("\u0015");
+    await ui.key("all");
+    await ui.key("\r");
+    await ui.key("\u0015");
+    await ui.key("\r");
+    assert.equal(calls.length, 0);
+    assert.match(ui.frame(), /root: \/another-root/);
+    await ui.key("e");
+    await ui.key("query-value");
+    await ui.key("\r");
+    assert.equal(calls.length, 0);
+    await ui.key("r");
+    assert.equal(calls[0]!.root, "/another-root");
+    assert.equal(calls[0]!.scope, "all");
+    assert.equal(calls[0]!.me, "");
+    assert.equal(calls[0]!.params.search, "query-value");
+  } finally { await ui.close(); }
+});
+
+test("accepting unchanged context preserves automatic caller detection", async () => {
+  let values: Inputs | undefined;
+  const ui = await screen([{ ...query, params: [] }], async (_item, inputs) => { values = inputs; return observation; });
+  try {
+    await ui.key("c");
+    await ui.key("\r");
+    await ui.key("\r");
+    assert.match(ui.frame(), /me: \(auto\)/);
+    await ui.key("\r");
+    await ui.key("r");
+    assert.equal(values!.me, undefined);
+    assert.equal(values!.scope, "auto");
+    assert.equal(values!.root, initial.root);
   } finally { await ui.close(); }
 });

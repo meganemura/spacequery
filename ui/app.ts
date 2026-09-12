@@ -7,8 +7,8 @@ import { stripVTControlCharacters } from "node:util";
 import type { Item } from "./catalog.ts";
 import { observe, type Inputs, type Observation } from "./execute.ts";
 
-type View = "Results" | "Definition" | "Inputs";
-const views: View[] = ["Results", "Definition", "Inputs"];
+type View = "Definition" | "Results";
+const views: View[] = ["Definition", "Results"];
 export const safeText = (value: unknown): string => stripVTControlCharacters(value === null ? "NULL" : String(value ?? "")).replace(/[\x00-\x08\x0b-\x1f\x7f-\x9f]/g, "");
 const lineText = (value: unknown): string => safeText(value).replace(/[\n\r\t]/g, " ");
 
@@ -23,11 +23,11 @@ export function Browser({ items, initial, execute = observe }: { items: Item[]; 
   }, [stdout]);
   const [kind, setKind] = useState<Item["kind"]>("query");
   const [search, setSearch] = useState("");
-  const [editing, setEditing] = useState<{ kind: "search" } | { kind: "field"; name: string } | null>(null);
+  const [editing, setEditing] = useState<{ kind: "search" } | { kind: "field"; name: string; remaining: string[]; runAfter: boolean; changed: boolean } | null>(null);
   const [draft, setDraft] = useState("");
   const [selected, setSelected] = useState(0);
   const [focus, setFocus] = useState<"list" | "detail">("list");
-  const [view, setView] = useState<View>("Results");
+  const [view, setView] = useState<View>("Definition");
   const [offset, setOffset] = useState(0);
   const [column, setColumn] = useState(0);
   const [textColumn, setTextColumn] = useState(0);
@@ -44,25 +44,32 @@ export function Browser({ items, initial, execute = observe }: { items: Item[]; 
   const item = filtered[Math.min(selected, Math.max(0, filtered.length - 1))];
   const observation = result !== null && result.item === item ? result.observation : undefined;
   const related = item ? items.filter((candidate) => candidate.kind !== item.kind && (item.kind === "table" ? candidate.tables.includes(item.name) : item.tables.includes(candidate.name))) : [];
-  const fields = item ? ["root", "scope", "me", ...item.params.filter((p) => p !== "root" && p !== "me" && p !== "scope")] : [];
-  const bodyHeight = Math.max(3, size.height - 8);
+  const bodyHeight = Math.max(3, size.height - 9);
   const pageSize = Math.max(1, bodyHeight - 6);
   const leftWidth = Math.max(20, Math.min(34, Math.floor(size.width * 0.29)));
   const rightWidth = Math.max(15, size.width - leftWidth - 5);
 
   function select(next: number) {
     setSelected(Math.max(0, Math.min(next, filtered.length - 1)));
+    setView("Definition");
     setOffset(0); setTextColumn(0); setColumn(0); setExpanded(false); setDetailOffset(0); setError("");
   }
   function changeView(next: View) { setView(next); setTextColumn(0); setOffset(0); setExpanded(false); setDetailOffset(0); }
-  function invalidate() { setResult(null); setError(""); setExpanded(false); }
-  async function run() {
+  function invalidate() { setResult(null); setError(""); changeView("Definition"); }
+  function editFields(names: readonly string[], values: Inputs, runAfter: boolean) {
+    const [name, ...remaining] = names;
+    if (name === undefined) return;
+    setEditing({ kind: "field", name, remaining, runAfter, changed: false });
+    setDraft(name === "root" ? values.root : name === "scope" ? (runAfter && values.scope === "auto" ? "root" : values.scope)
+      : name === "me" ? values.me ?? "" : Object.hasOwn(values.params, name) ? values.params[name]! : "");
+  }
+  async function run(values: Inputs = inputs) {
     if (!item || pending.current) return;
-    const missing = item.params.find((p) => p !== "root" && p !== "me" && (p === "scope" ? inputs.scope === "auto" : !Object.hasOwn(inputs.params, p)));
-    if (missing) { changeView("Inputs"); setFocus("detail"); setOffset(fields.indexOf(missing)); setError(`Enter ${missing}, then press r to run.`); return; }
+    const missing = item.params.filter((p) => p !== "root" && p !== "me" && (p === "scope" ? values.scope === "auto" : !Object.hasOwn(values.params, p)));
+    if (missing.length) { editFields(missing, values, true); return; }
     controller.current = new AbortController();
-    pending.current = true; setBusy(true); setResult(null); setError(""); changeView("Results");
-    try { setResult({ item, observation: await execute(item, inputs, controller.current.signal) }); }
+    pending.current = true; setBusy(true); setResult(null); setError(""); changeView("Results"); setFocus("detail");
+    try { setResult({ item, observation: await execute(item, values, controller.current.signal) }); }
     catch (error) { setError(error instanceof Error ? error.message : String(error)); }
     finally { pending.current = false; setBusy(false); }
   }
@@ -70,18 +77,28 @@ export function Browser({ items, initial, execute = observe }: { items: Item[]; 
   useInput((input, key) => {
     if (key.ctrl && input === "c") { controller.current?.abort(); exit(); return; }
     if (editing !== null) {
-      if (key.escape) { setEditing(null); return; }
+      if (key.escape) { setEditing(null); setError(""); return; }
       if (key.return) {
-        if (editing.kind === "search") { setSearch(draft); select(0); }
+        if (editing.kind === "search") { setSearch(draft); select(0); setEditing(null); }
         else {
           const field = editing.name;
-          setInputs((previous) => field === "root" ? { ...previous, root: draft || initial.root }
-            : field === "me" ? { ...previous, me: draft }
-            : { ...previous, params: { ...previous.params, [field]: draft } });
-          invalidate();
+          if (field === "scope" && !["auto", "root", "agents", "all"].includes(draft)) {
+            setError("Scope must be auto, root, agents, or all."); return;
+          }
+          const next: Inputs = field === "root" ? { ...inputs, root: draft || initial.root }
+            : field === "scope" ? { ...inputs, scope: draft as Inputs["scope"] }
+            : field === "me" ? { ...inputs, me: editing.changed ? draft : inputs.me }
+            : { ...inputs, params: { ...inputs.params, [field]: draft } };
+          setInputs(next); invalidate();
+          if (editing.remaining.length) editFields(editing.remaining, next, editing.runAfter);
+          else { setEditing(null); if (editing.runAfter) void run(next); }
         }
-        setEditing(null); return;
+        return;
       }
+      if ((key.ctrl && input === "u") || key.backspace || key.delete || (!key.ctrl && !key.meta && input.length > 0 && !key.upArrow && !key.downArrow && !key.leftArrow && !key.rightArrow && !key.tab)) {
+        if (editing.kind === "field") setEditing({ ...editing, changed: true });
+      }
+      if (key.ctrl && input === "u") { setDraft(""); return; }
       if (key.backspace || key.delete) setDraft((text) => Array.from(text).slice(0, -1).join(""));
       else if (!key.ctrl && !key.meta && !key.upArrow && !key.downArrow && !key.leftArrow && !key.rightArrow && !key.tab) setDraft((text) => text + lineText(input));
       return;
@@ -90,11 +107,13 @@ export function Browser({ items, initial, execute = observe }: { items: Item[]; 
     if (busy) return;
     if (input === "/") { setEditing({ kind: "search" }); setDraft(search); return; }
     if (input === "t") {
-      setKind(kind === "query" ? "table" : "query"); setSearch(""); select(0); changeView("Results"); setFocus("list"); return;
+      setKind(kind === "query" ? "table" : "query"); setSearch(""); select(0); changeView("Definition"); setFocus("list"); return;
     }
     if (key.tab) { setFocus(focus === "list" ? "detail" : "list"); return; }
     if (input === "r") { void run(); return; }
-    if (/[1-3]/.test(input) && input.length === 1) { changeView(views[Number(input) - 1]!); setFocus("detail"); return; }
+    if (input === "c") { editFields(["root", "scope", "me"], inputs, false); return; }
+    if (input === "e" && item) { editFields(item.params, inputs, false); return; }
+    if (/[1-2]/.test(input) && input.length === 1) { changeView(views[Number(input) - 1]!); setFocus("detail"); return; }
     if (input === "s" && observation) {
       changeView("Results"); setFocus("detail");
       setOffset(view === "Results" && offset >= observation.rows.length ? 0 : observation.rows.length);
@@ -125,15 +144,7 @@ export function Browser({ items, initial, execute = observe }: { items: Item[]; 
       const target = related[offset - 1];
       if (target) {
         setKind(target.kind); setSearch(""); setSelected(items.filter((i) => i.kind === target.kind).indexOf(target));
-        setOffset(0); setTextColumn(0); setColumn(0); setExpanded(false); setError(""); changeView("Results");
-      }
-    } else if (view === "Inputs") {
-      const field = fields[offset];
-      if (field === "scope") {
-        const scopes = ["auto", "root", "agents", "all"] as const;
-        setInputs((previous) => ({ ...previous, scope: scopes[(scopes.indexOf(previous.scope) + 1) % scopes.length]! })); invalidate();
-      } else if (field) {
-        setEditing({ kind: "field", name: field }); setDraft(field === "root" ? inputs.root : field === "me" ? inputs.me ?? "" : Object.hasOwn(inputs.params, field) ? inputs.params[field]! : "");
+        setOffset(0); setTextColumn(0); setColumn(0); setExpanded(false); setError(""); changeView("Definition");
       }
     } else if (view === "Results" && observation && offset < observation.rows.length) { setExpanded(!expanded); setDetailOffset(0); setTextColumn(0); }
   });
@@ -153,8 +164,8 @@ export function Browser({ items, initial, execute = observe }: { items: Item[]; 
   const rowLines = expanded && observation ? Object.entries(observation.rows[offset] ?? {}).flatMap(([name, value]) =>
     lines(`${name}: ${value === null ? "NULL" : typeof value === "object" ? JSON.stringify(value) : String(value)}`)) : [];
   const contentLines = expanded ? rowLines : view === "Definition" ? definitionLines : sourceLines;
-  const contentCount = view === "Inputs" ? fields.length : view === "Definition" ? definitionLines.length
-    : observation ? observation.rows.length + sourceLines.length : item?.columns.length ?? 0;
+  const contentCount = view === "Definition" ? definitionLines.length
+    : observation ? observation.rows.length + sourceLines.length : 0;
   const text = (value: unknown, options: Record<string, unknown> = {}) => h(Text, { wrap: "truncate-end", ...options }, lineText(value));
   const listStart = Math.floor(selected / pageSize) * pageSize;
   const failed = observation?.providers.filter((provider) => !provider.ok) ?? [];
@@ -168,14 +179,8 @@ export function Browser({ items, initial, execute = observe }: { items: Item[]; 
       const value = Array.from(line).slice(textColumn).join("");
       return text(link && i === 0 ? `> ${value.trimStart()}` : value, { color: link ? "cyan" : undefined });
     }));
-  } else if (view === "Inputs") {
-    detail.push(text("Enter edits a value. Scope cycles on Enter.", { dimColor: true }));
-    const start = Math.floor(offset / pageSize) * pageSize;
-    detail.push(...fields.slice(start, start + pageSize).map((field, i) => text(`${start + i === offset ? ">" : " "} ${field}: ${field === "root" ? inputs.root : field === "scope" ? inputs.scope : field === "me" ? inputs.me === undefined ? "(auto; empty keeps all)" : inputs.me || "(all panes)" : Object.hasOwn(inputs.params, field) ? inputs.params[field] : "(required)"}`, { color: start + i === offset ? "cyan" : undefined })));
   } else if (!observation) {
-    detail.push(text("Press r to fetch rows.", { color: "yellow" }));
-    detail.push(text("Columns", { bold: true }));
-    detail.push(...item.columns.slice(offset, offset + pageSize - 1).map((column) => text(`${column.name}  ${column.type}${item.kind === "table" ? `${column.nullable ? "?" : ""}${column.key ? "  KEY" : ""}` : ""}`)));
+    detail.push(text(busy ? "Fetching rows..." : "No result yet. Press r to run.", { color: "yellow" }));
   } else if (offset >= observation.rows.length) {
     if (!observation.rows.length) detail.push(text(failed.length ? "Unknown: a source failed." : "0 rows in this scope."));
     detail.push(...sourceLines.slice(offset - observation.rows.length, offset - observation.rows.length + pageSize).map((line) => text(Array.from(line).slice(textColumn).join(""))));
@@ -191,6 +196,7 @@ export function Browser({ items, initial, execute = observe }: { items: Item[]; 
   if (size.width < 60 || size.height < 16) return h(Box, { flexDirection: "column" }, text("spacequery ui needs at least 60 columns and 16 rows."), text("Resize the terminal, or press q to quit."));
   return h(Box, { flexDirection: "column", width: size.width, height: size.height - 1 },
     text(`spacequery   ${kind === "table" ? "[Tables]  Queries" : "Tables  [Queries]"}   scope: ${inputs.scope}${busy ? "   Loading..." : ""}`, { bold: true, color: "cyan" }),
+    text(`root: ${inputs.root}  |  me: ${inputs.me === undefined ? "auto" : inputs.me || "all"}  [c edit]`, { dimColor: true }),
     text(`Search: ${search || "(all)"}   |   ${filtered.length} entries`, { dimColor: true }),
     h(Box, { flexDirection: "row", height: bodyHeight },
       h(Box, { flexDirection: "column", width: leftWidth, borderStyle: "round", borderColor: focus === "list" ? "cyan" : "gray", paddingX: 1 },
@@ -202,6 +208,6 @@ export function Browser({ items, initial, execute = observe }: { items: Item[]; 
         ...detail)),
     text(observation ? `${observation.rows.length} rows | scope: ${observation.scope} | ${observation.ms} ms | received ${new Date(observation.receivedAt).toLocaleTimeString()}` : busy ? "Fetching a fresh observation..." : "Definition only; data loads when you press r."),
     text(error || item?.error || (failed.length ? `Incomplete: ${failed.map((p) => p.name).join(", ")} failed. Press s for source details.` : ""), { color: "yellow" }),
-    text(editing !== null ? `${editing.kind === "search" ? "Search" : editing.name}: ${draft}█  (Enter saves, Esc cancels)` : "t Tables/Queries  / Search  Tab Focus  1-3 View  s Sources  r Run  q Quit"),
-    text("↑↓ Move  ←→ Scroll  Enter Open/Edit  PgUp/PgDn Scroll  Esc Back", { dimColor: true }));
+    text(editing !== null ? `${editing.kind === "search" ? "Search" : editing.name}: ${editing.kind === "field" && editing.name === "me" && !editing.changed && inputs.me === undefined ? "(auto)" : draft}█  (Enter next, Ctrl+U clear, Esc cancel)` : "t Switch / Search Tab Focus 1-2 View r Run e Edit c Context"),
+    text("↑↓ Move ←→ Scroll Enter Open Esc Back s Sources q Quit", { dimColor: true }));
 }
