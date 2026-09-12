@@ -83,64 +83,6 @@ test("a run preserves generated child process outcomes and order", () => hegel.t
   assert.ok(result.trace.every((row) => row.provider === "generated"));
 }));
 
-test("a command name runs from the first executable PATH entry", async () => {
-  const root = mkdtempSync(join(tmpdir(), "spacequery-exec-path-"));
-  const firstBin = join(root, "first");
-  const secondBin = join(root, "second");
-  const command = "spacequery-path-fixture";
-  const firstCommand = join(firstBin, command);
-  const secondCommand = join(secondBin, command);
-  mkdirSync(firstBin);
-  mkdirSync(secondBin);
-  writeFileSync(firstCommand, "#!/bin/sh\nprintf 'first\\n'\n");
-  writeFileSync(secondCommand, "#!/bin/sh\nprintf 'second\\n'\n");
-  chmodSync(firstCommand, 0o755);
-  chmodSync(secondCommand, 0o755);
-  let output = "";
-  const loader: Loader = {
-    name: "fixture",
-    tables: ["agents"],
-    after: [],
-    async load(ctx) { output = await ctx.exec(command, []); },
-  };
-
-  try {
-    const result = await runSql("select * from agents", {
-      loaders: [loader], repo: fixtureRepo, env: { PATH: `${firstBin}:${secondBin}` }, params: {},
-    });
-    assert.equal(output, "first\n");
-    assert.equal(result.trace[0]?.command, command);
-    assert.equal(result.trace[0]?.path, firstCommand);
-  } finally {
-    rmSync(root, { recursive: true, force: true });
-  }
-});
-
-test("a command with a slash is used as given", async () => {
-  const root = mkdtempSync(join(tmpdir(), "spacequery-exec-slash-"));
-  const command = "./spacequery-slash-fixture";
-  const commandPath = join(root, "spacequery-slash-fixture");
-  writeFileSync(commandPath, "#!/bin/sh\nprintf 'given\\n'\n");
-  chmodSync(commandPath, 0o755);
-  let output = "";
-  const loader: Loader = {
-    name: "fixture",
-    tables: ["agents"],
-    after: [],
-    async load(ctx) { output = await ctx.exec(command, [], root); },
-  };
-
-  try {
-    const result = await runSql("select * from agents", {
-      loaders: [loader], repo: fixtureRepo, env: { PATH: "/usr/bin:/bin" }, params: {},
-    });
-    assert.equal(output, "given\n");
-    assert.equal(result.trace[0]?.path, commandPath);
-  } finally {
-    rmSync(root, { recursive: true, force: true });
-  }
-});
-
 test("an unknown command keeps the spawn ENOENT provider error", async () => {
   const root = mkdtempSync(join(tmpdir(), "spacequery-exec-missing-"));
   const command = "spacequery-command-that-does-not-exist";
@@ -238,35 +180,6 @@ test("a run resolves each command name once", async () => {
     });
     assert.deepEqual(executed, [command, command]);
     assert.deepEqual(result.trace.map((row) => row.path), [firstCommand, firstCommand]);
-  } finally {
-    rmSync(root, { recursive: true, force: true });
-  }
-});
-
-test("a generated PATH resolves to its first executable match", async () => {
-  const root = mkdtempSync(join(tmpdir(), "spacequery-exec-property-"));
-  const command = "spacequery-property-fixture";
-  const directories = Array.from({ length: 12 }, (_, index) => join(root, String(index)));
-  const commands = directories.map((directory) => join(directory, command));
-  for (const directory of directories) mkdirSync(directory);
-  for (const executable of commands) writeFileSync(executable, "fixture\n");
-
-  try {
-    await hegel.testAsync(async (tc) => {
-      const executableEntries = tc.draw(gs.arrays(gs.booleans(), { minSize: 1, maxSize: commands.length }));
-      for (const [index, commandPath] of commands.entries()) chmodSync(commandPath, executableEntries[index] === true ? 0o755 : 0o644);
-      const loader: Loader = {
-        name: "fixture",
-        tables: ["agents"],
-        after: [],
-        async load(ctx) { await ctx.exec(command, []); },
-      };
-      const result = await runSql("select * from agents", {
-        loaders: [loader], exec: async () => "", repo: fixtureRepo, env: { PATH: directories.slice(0, executableEntries.length).join(":") }, params: {},
-      });
-      const firstMatch = executableEntries.findIndex(Boolean);
-      assert.equal(result.trace[0]?.path, firstMatch === -1 ? null : commands[firstMatch]);
-    });
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

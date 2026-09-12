@@ -4,8 +4,6 @@
 // Boundary: scheduling and call metadata. Provider behavior and query meaning
 // stay in their modules.
 import { execFile } from "node:child_process";
-import { accessSync, constants } from "node:fs";
-import { delimiter, resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { promisify } from "node:util";
 import type { Database, Entry, Query } from "solarsql";
@@ -15,6 +13,7 @@ import { providerCommands, providerQueries, type ProvidersId } from "./providers
 import type { Exec, Loader, Scope } from "./loader.ts";
 import { fsRepo, type Repo } from "./repo.ts";
 import { directLoadersFor, loadersFor, tablesRead } from "./resolve.ts";
+import { givenCommandPath, resolveCommandName } from "./search-path.ts";
 
 const execFileAsync = promisify(execFile);
 
@@ -279,27 +278,4 @@ function resultMetadata(state: RunState, statementEnded: number): Omit<RunResult
 
 function round(ms: number): number {
   return Math.round(ms * 10) / 10;
-}
-
-function resolveCommandName(command: string, pathValue: string | undefined): string | null {
-  if (pathValue === undefined) return null;
-  for (const directory of pathValue.split(delimiter)) {
-    const candidate = resolve(directory || ".", command);
-    if (isExecutable(candidate)) return candidate;
-  }
-  return null;
-}
-
-function givenCommandPath(command: string, cwd: string | undefined): string | null {
-  const candidate = resolve(cwd ?? process.cwd(), command);
-  return isExecutable(candidate) ? candidate : null;
-}
-
-function isExecutable(path: string): boolean {
-  try {
-    accessSync(path, constants.X_OK);
-    return true;
-  } catch {
-    return false;
-  }
 }

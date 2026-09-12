@@ -47,5 +47,6 @@ The core supplies the executable path.
 
 The core gives `execFile` an absolute path and avoids the measured failed spawn burst.
 Loader order can now follow data dependencies because the core avoids name-based `PATH` probing.
+ADR 0022's in-process reading of roots and origins stays in force.
 One call performs at most one `PATH` lookup for each command name.
 A trace shows both the provider's command name and the executable path.

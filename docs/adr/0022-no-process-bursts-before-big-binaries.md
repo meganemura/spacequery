@@ -2,7 +2,7 @@
 
 Date: 2026-09-11
 
-Status: superseded by [0032](0032-commands-start-by-absolute-path.md)
+Status: accepted; the loader-order rationale is superseded by [0032](0032-commands-start-by-absolute-path.md)
 
 ## Context
 
