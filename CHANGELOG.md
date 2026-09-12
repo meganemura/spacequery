@@ -4,6 +4,8 @@ The format follows Keep a Changelog, and the versions follow SemVer. Before 1.0 
 
 ## Unreleased
 
+- Added: mise reports the search path and executable resolution for each repository root.
+- Added: `descendants`, `session-processes`, and `busy-processes` report process trees and current CPU use within the selected scope.
 - Added: the `search_path` provider reports PATH entries, executable resolution, and shadowed commands without starting a process.
 - Fixed: the core starts every command by absolute path; a burst of name-based spawns made the next non-Apple binary wait for seconds.
 - JSON envelopes always include the call `ms`; `--trace` adds each child process with its provider, start offset, duration, and result.

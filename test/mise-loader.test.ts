@@ -1,15 +1,16 @@
-// These tests prove that the mise loader preserves the tool inventory and
-// per-root requirements. They use fixture output instead of a local mise
-// configuration.
+// These tests prove that the mise loader preserves the tool inventory,
+// per-root requirements, and per-root search paths.
+// They use fixture output instead of a local mise configuration.
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { delimiter, join } from "node:path";
 import { test } from "node:test";
 import * as hegel from "@hegeldev/hegel";
 import * as gs from "@hegeldev/hegel/generators";
+import { catalog } from "../catalog.ts";
 import type { Exec, Loader } from "../core/loader.ts";
-import { runSql } from "../core/run.ts";
+import { runQuery, runSql } from "../core/run.ts";
 import { loaders } from "../spacequery.config.ts";
 import { herdrLoader } from "../providers/herdr/loader.ts";
 import { miseConfigFilesOf, miseLoader } from "../providers/mise/loader.ts";
@@ -71,6 +72,7 @@ test("mise runs once for roots with the same configuration files", async () => {
   writeFileSync(join(directory, "repos", "mise.toml"), "");
   writeFileSync(join(distinct, "mise.toml"), "");
   let currentCalls = 0;
+  let environmentCalls = 0;
   const exec: Exec = async (command, args) => {
     if (command === "herdr") return snapshotForRoots([sharedOne, sharedTwo, distinct]);
     if (command === "ghq") return "";
@@ -78,6 +80,10 @@ test("mise runs once for roots with the same configuration files", async () => {
     if (command === "mise" && args[2] === "--current") {
       currentCalls += 1;
       return JSON.stringify({ node: [{ version: "22.1.0", installed: true, active: true }] });
+    }
+    if (command === "mise" && args[0] === "env") {
+      environmentCalls += 1;
+      return JSON.stringify({ PATH: "" });
     }
     throw new Error(`unexpected command: ${command} ${args.join(" ")}`);
   };
@@ -87,6 +93,7 @@ test("mise runs once for roots with the same configuration files", async () => {
       { loaders: loaderSet, exec, repo: repoForRoots(new Set([sharedOne, sharedTwo, distinct])), env: { MISE_CONFIG_FILE: userConfig }, scope: "agents", params: {} },
     );
     assert.equal(currentCalls, 2);
+    assert.equal(environmentCalls, 2);
     assert.deepEqual(result.rows, [
       { root: distinct, tool: "node" },
       { root: sharedOne, tool: "node" },
@@ -95,6 +102,80 @@ test("mise runs once for roots with the same configuration files", async () => {
   } finally {
     rmSync(directory, { recursive: true, force: true });
   }
+});
+
+test("mise reports the search path for one root", async () => {
+  const root = mkdtempSync(join(tmpdir(), "spacequery-mise-path-"));
+  const first = join(root, "first");
+  const second = join(root, "second");
+  const dead = join(root, "dead");
+  mkdirSync(first);
+  mkdirSync(second);
+  writeFileSync(join(first, "shared"), "fixture\n");
+  writeFileSync(join(second, "shared"), "fixture\n");
+  writeFileSync(join(root, "root-only"), "fixture\n");
+  chmodSync(join(first, "shared"), 0o755);
+  chmodSync(join(second, "shared"), 0o755);
+  chmodSync(join(root, "root-only"), 0o755);
+  const path = [dead, first, first, second, ""].join(delimiter);
+  const calls: string[] = [];
+  const exec: Exec = async (command, args) => {
+    const invocation = `${command} ${args.join(" ")}`;
+    calls.push(invocation);
+    if (invocation === "ghq list -p") return "";
+    if (invocation === "herdr api snapshot") return snapshotForRoots([]);
+    if (invocation === "mise ls --json") return "{}";
+    if (invocation === `mise ls --json --current -C ${root}`) return "{}";
+    if (invocation === `mise env -C ${root} --json`) return JSON.stringify({ PATH: path });
+    throw new Error(`unexpected command: ${invocation}`);
+  };
+
+  try {
+    const entries = await runQuery(catalog["path-entries-in-dir"]!.query, {
+      loaders: loaderSet, exec, repo: repoForRoots(new Set([root])), env: {}, params: { root },
+    });
+    assert.deepEqual(entries.rows, [
+      { root, position: 0, dir: dead, exists: 0, duplicate_of: null },
+      { root, position: 1, dir: first, exists: 1, duplicate_of: null },
+      { root, position: 2, dir: first, exists: 1, duplicate_of: 1 },
+      { root, position: 3, dir: second, exists: 1, duplicate_of: null },
+      { root, position: 4, dir: ".", exists: 1, duplicate_of: null },
+    ]);
+    assert.deepEqual(calls, [
+      "ghq list -p",
+      "herdr api snapshot",
+      "mise ls --json",
+      `mise ls --json --current -C ${root}`,
+      `mise env -C ${root} --json`,
+    ]);
+    const options = { loaders: loaderSet, exec, repo: repoForRoots(new Set([root])), env: {}, params: { root, q: "shared" } };
+    assert.deepEqual((await runQuery(catalog["which-in-dir"]!.query, options)).rows, [
+      { root, name: "shared", dir: first, position: 1, effective: 1 },
+      { root, name: "shared", dir: first, position: 2, effective: 0 },
+      { root, name: "shared", dir: second, position: 3, effective: 0 },
+    ]);
+    assert.deepEqual((await runQuery(catalog["shadowed-commands-in-dir"]!.query, options)).rows, [
+      { root, name: "shared", effective_dir: first, shadowed_dirs: second },
+    ]);
+    assert.deepEqual((await runQuery(catalog["which-in-dir"]!.query, { ...options, params: { root, q: "root-only" } })).rows, [
+      { root, name: "root-only", dir: ".", position: 4, effective: 1 },
+    ]);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("mise omits root search path rows when its environment call fails", async () => {
+  const base = fakeExec();
+  const exec: Exec = async (command, args, cwd, options) => {
+    if (command === "mise" && args[0] === "env") throw new Error("mise env failed");
+    return base(command, args, cwd, options);
+  };
+  const result = await runQuery(catalog["path-entries-in-dir"]!.query, {
+    loaders, exec, repo: fixtureRepo, env: {}, params: { root: paths.alpha },
+  });
+  assert.deepEqual(result.rows, []);
+  assert.equal(result.providers.find((provider) => provider.name === "mise")?.ok, 1);
 });
 
 const miseConfigNames = ["mise.toml", ".mise.toml", "mise.local.toml", ".mise.local.toml", ".mise/config.toml", ".config/mise.toml", ".config/mise/config.toml", ".tool-versions"];
@@ -214,4 +295,54 @@ test("mise preserves generated inventories and per-root requirements", () => heg
     { loaders: loaderSet, exec, repo: repoForRoots(new Set(Object.keys(current))), env: {}, scope: "agents", params: {} },
   );
   assert.deepEqual(uses.rows, expectedUses(current));
+}));
+
+test("each root and command has exactly one effective search path row", () => hegel.testAsync(async (tc) => {
+  const fixture = mkdtempSync(join(tmpdir(), "spacequery-mise-path-property-"));
+  const roots = [join(fixture, "roots", "one"), join(fixture, "roots", "two")];
+  const dirIds = tc.draw(gs.arrays(gs.integers({ minValue: 0, maxValue: 5 }), { minSize: 1, maxSize: 10 }));
+  const names = tc.draw(gs.arrays(
+    gs.text({ minSize: 1, maxSize: 12, alphabet: "abcdefghijklmnopqrstuvwxyz0123456789-" }),
+    { minSize: 1, maxSize: 8, unique: true },
+  ));
+  const uniqueDirIds = [...new Set(dirIds)];
+  const dirs = new Map(uniqueDirIds.map((id) => [id, join(fixture, `bin-${id}`)]));
+  const locations = new Map<string, Set<number>>();
+
+  try {
+    for (const root of roots) mkdirSync(root, { recursive: true });
+    for (const dir of dirs.values()) mkdirSync(dir);
+    for (const name of names) {
+      const ids = tc.draw(gs.sets(gs.sampledFrom(uniqueDirIds), { minSize: 1, maxSize: uniqueDirIds.length }));
+      locations.set(name, ids);
+      for (const id of ids) {
+        const path = join(dirs.get(id)!, name);
+        writeFileSync(path, "fixture\n");
+        chmodSync(path, 0o755);
+      }
+    }
+    const path = dirIds.map((id) => dirs.get(id)!).join(delimiter);
+    const exec: Exec = async (command, args) => {
+      const invocation = args.join(" ");
+      if (command === "herdr" && invocation === "api snapshot") return snapshotForRoots(roots);
+      if (command === "ghq" && invocation === "list -p") return "";
+      if (command === "mise" && invocation === "ls --json") return "{}";
+      if (command === "mise" && args[0] === "ls" && args[2] === "--current") return "{}";
+      if (command === "mise" && args[0] === "env" && args[1] === "-C" && args[3] === "--json") return JSON.stringify({ PATH: path });
+      throw new Error(`unexpected generated command: ${command} ${invocation}`);
+    };
+    const result = await runSql(
+      "select root, name, position, effective from root_path_commands order by root, name, position",
+      { loaders: loaderSet, exec, repo: repoForRoots(new Set(roots)), env: {}, scope: "agents", params: {} },
+    );
+    for (const root of roots) for (const name of names) {
+      const rows = result.rows.filter((row) => row.root === root && row.name === name);
+      const effective = rows.filter((row) => row.effective === 1);
+      const firstPosition = dirIds.findIndex((id) => locations.get(name)!.has(id));
+      assert.equal(effective.length, 1);
+      assert.equal(effective[0]!.position, firstPosition);
+    }
+  } finally {
+    rmSync(fixture, { recursive: true, force: true });
+  }
 }));

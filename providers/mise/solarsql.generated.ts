@@ -17,6 +17,14 @@ export type Generated = {
     params: { rows: readonly { "id": ToolUsesId; "root": string; "tool": string; "version": string; "source": string | null; "installed": number }[] };
     row: {};
   };
+  "insert into root_path_entries (root, position, dir, \"exists\", duplicate_of)\n       select value ->> 'root', value ->> 'position', value ->> 'dir', value ->> 'exists', value ->> 'duplicate_of'\n       from json_each(:entries)": {
+    params: { entries: readonly { "root": string; "position": number; "dir": string; "exists": number; "duplicate_of": number | null }[] };
+    row: {};
+  };
+  "insert into root_path_commands (root, name, dir, position, effective)\n       select value ->> 'root', value ->> 'name', value ->> 'dir', value ->> 'position', value ->> 'effective'\n       from json_each(:commands)": {
+    params: { commands: readonly { "root": string; "name": string; "dir": string; "position": number; "effective": 0 | 1 }[] };
+    row: {};
+  };
   "\n    select tool, version, install_path, installed, active from tools order by tool, version": {
     params: {};
     row: { tool: string; version: string; install_path: string | null; installed: number; active: number };
@@ -25,11 +33,28 @@ export type Generated = {
     params: { root: string };
     row: { tool: string; version: string; source: string | null; installed: number };
   };
+  "\n    select root, position, dir, \"exists\", duplicate_of\n    from root_path_entries where root = :root order by position": {
+    params: { root: string };
+    row: { root: string; position: number; dir: string; exists: number; duplicate_of: number | null };
+  };
+  "\n    select root, name, dir, position, effective\n    from root_path_commands where root = :root and name = :q order by position": {
+    params: { root: string; q: string };
+    row: { root: string; name: string; dir: string; position: number; effective: 0 | 1 };
+  };
+  "\n    select p.root, p.name, p.dir as effective_dir,\n      cast(group_concat(s.dir order by s.position) as text) as shadowed_dirs\n    from root_path_commands p join root_path_commands s on s.root = p.root and s.name = p.name\n    where p.root = :root and p.effective = 1 and s.dir <> p.dir\n      and s.position = (\n        select min(candidate.position) from root_path_commands candidate\n        where candidate.root = s.root and candidate.name = s.name and candidate.dir = s.dir\n      )\n    group by p.root, p.name, p.dir\n    order by p.name": {
+    params: { root: string };
+    row: { root: string; name: string; effective_dir: string; shadowed_dirs: string | null };
+  };
 };
 
 export const generated: Meta<Generated> = {
   "insert or ignore into tools (id, tool, version, install_path, installed, active)\n       select value ->> 'id', value ->> 'tool', value ->> 'version', value ->> 'install_path', value ->> 'installed', value ->> 'active'\n       from json_each(:rows)": { params: ["rows"], encode: ["rows"], json: [], reads: [] },
   "insert or ignore into tool_uses (id, root, tool, version, source, installed)\n       select value ->> 'id', value ->> 'root', value ->> 'tool', value ->> 'version', value ->> 'source', value ->> 'installed'\n       from json_each(:rows)": { params: ["rows"], encode: ["rows"], json: [], reads: [] },
+  "insert into root_path_entries (root, position, dir, \"exists\", duplicate_of)\n       select value ->> 'root', value ->> 'position', value ->> 'dir', value ->> 'exists', value ->> 'duplicate_of'\n       from json_each(:entries)": { params: ["entries"], encode: ["entries"], json: [], reads: [] },
+  "insert into root_path_commands (root, name, dir, position, effective)\n       select value ->> 'root', value ->> 'name', value ->> 'dir', value ->> 'position', value ->> 'effective'\n       from json_each(:commands)": { params: ["commands"], encode: ["commands"], json: [], reads: [] },
   "\n    select tool, version, install_path, installed, active from tools order by tool, version": { params: [], encode: [], json: [], reads: ["tools"] },
   "\n    select tool, version, source, installed from tool_uses where root = :root order by tool": { params: ["root"], encode: [], json: [], reads: ["tool_uses"] },
+  "\n    select root, position, dir, \"exists\", duplicate_of\n    from root_path_entries where root = :root order by position": { params: ["root"], encode: [], json: [], reads: ["root_path_entries"] },
+  "\n    select root, name, dir, position, effective\n    from root_path_commands where root = :root and name = :q order by position": { params: ["root", "q"], encode: [], json: [], reads: ["root_path_commands"] },
+  "\n    select p.root, p.name, p.dir as effective_dir,\n      cast(group_concat(s.dir order by s.position) as text) as shadowed_dirs\n    from root_path_commands p join root_path_commands s on s.root = p.root and s.name = p.name\n    where p.root = :root and p.effective = 1 and s.dir <> p.dir\n      and s.position = (\n        select min(candidate.position) from root_path_commands candidate\n        where candidate.root = s.root and candidate.name = s.name and candidate.dir = s.dir\n      )\n    group by p.root, p.name, p.dir\n    order by p.name": { params: ["root"], encode: [], json: [], reads: ["root_path_commands"] },
 };

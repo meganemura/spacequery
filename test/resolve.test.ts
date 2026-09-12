@@ -13,7 +13,7 @@ import { migrate } from "solarsql/node";
 
 const tablePool = Array.from({ length: 16 }, (_, index) => `t${index}`);
 const undeclaredTableNames = ["undeclared0", "undeclared1", "undeclared2"];
-const schemaTableNames = ["agents", "git_status", "worktrees", "repos", "tools", "tool_uses", "brew_packages", "repository_versions", "sessions", "claude_sessions", "codex_sessions", "pull_requests", "review_requests", "processes", "listeners", "skills", "plugins", "issues", "workflow_runs", "providers"];
+const schemaTableNames = ["agents", "git_status", "worktrees", "repos", "tools", "tool_uses", "root_path_entries", "root_path_commands", "brew_packages", "repository_versions", "sessions", "claude_sessions", "codex_sessions", "pull_requests", "review_requests", "processes", "listeners", "skills", "plugins", "issues", "workflow_runs", "providers"];
 
 type LoaderGraph = {
   loaders: Loader[];
@@ -97,6 +97,9 @@ test("tablesRead finds every catalog query's declared tables", () => {
       repos: ["repos"],
       tools: ["tools"],
       "tools-in-dir": ["tool_uses"],
+      "path-entries-in-dir": ["root_path_entries"],
+      "which-in-dir": ["root_path_commands"],
+      "shadowed-commands-in-dir": ["root_path_commands"],
       "brew-packages": ["brew_packages"],
       "installed-software": ["brew_packages", "tools"],
       "repository-versions": ["repository_versions"],
@@ -117,6 +120,9 @@ test("tablesRead finds every catalog query's declared tables", () => {
       "containers-in-dir": ["container_roots", "containers"],
       "container-ports-in-dir": ["container_ports", "container_roots", "containers"],
       "processes-in-dir": ["processes"],
+      descendants: ["processes"],
+      "session-processes": ["processes", "sessions"],
+      "busy-processes": ["processes"],
       "listening-ports": ["listeners"],
       skills: ["skills"],
       "skills-in-dir": ["skills"],

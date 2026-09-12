@@ -1,14 +1,15 @@
-// Fills mise's global versions and the requested versions for roots in scope.
+// Fills mise's global versions, requested root versions, and root search paths.
 // mise answers per directory, but its answer depends only on configuration
-// files above that directory. Grouping equal file lists avoids 17 concurrent
-// launches that cost about one second; two launches cost about one third.
+// files above that directory. Grouping equal file lists bounds both root
+// commands to one launch per configuration group.
 // A failed root has no useful per-directory answer, but it must not hide the
 // global inventory or another root's answer.
-// Boundary: this provider's tables only.
+// Boundary: this provider reads PATH from root environments and ignores other keys.
 import { statSync } from "node:fs";
 import { homedir } from "node:os";
-import { dirname, join } from "node:path";
+import { dirname, isAbsolute, join } from "node:path";
 import type { LoadContext, Loader } from "../../core/loader.ts";
+import { parseSearchPath, scanSearchPath, type ScannedSearchPath } from "../../core/search-path.ts";
 import { rootsInScope } from "../../core/scope.ts";
 import { miseCommands } from "./module.ts";
 import type { ToolUsesId, ToolsId } from "./solarsql.generated.ts";
@@ -99,9 +100,15 @@ function usesFrom(root: string, document: MiseDocument): ToolUse[] {
   })));
 }
 
+function pathFrom(output: string): string {
+  const document = object(JSON.parse(output));
+  if (document === null || typeof document.PATH !== "string") throw new Error("mise returned an invalid environment");
+  return document.PATH;
+}
+
 export const miseLoader: Loader = {
   name: "mise",
-  tables: ["tools", "tool_uses"],
+  tables: ["tools", "tool_uses", "root_path_entries", "root_path_commands"],
   after: ["herdr", "repos"],
   async load(ctx) {
     const tools = toolsFrom(parseDocument(await ctx.exec("mise", ["ls", "--json"])));
@@ -115,17 +122,54 @@ export const miseLoader: Loader = {
       if (group === undefined) groups.set(key, [root]);
       else group.push(root);
     }
-    const uses = await Promise.all([...groups.values()].map(async (rootsForConfig) => {
+    const scannedByPath = new Map<string, Map<string, ScannedSearchPath>>();
+    const groupResults = await Promise.all([...groups.values()].map(async (rootsForConfig) => {
       const root = rootsForConfig[0]!;
       const sameRoots = rootsForConfig.slice(1);
-      try {
-        const document = parseDocument(await ctx.exec("mise", ["ls", "--json", "--current", "-C", root]));
-        return [usesFrom(root, document), ...sameRoots.map((sameRoot) => usesFrom(sameRoot, document))];
-      } catch {
-        return [];
-      }
+      const usesPromise = (async () => {
+        try {
+          const document = parseDocument(await ctx.exec("mise", ["ls", "--json", "--current", "-C", root]));
+          return [usesFrom(root, document), ...sameRoots.map((sameRoot) => usesFrom(sameRoot, document))].flat();
+        } catch {
+          return [];
+        }
+      })();
+      const pathRowsPromise = (async () => {
+        try {
+          const value = pathFrom(await ctx.exec("mise", ["env", "-C", root, "--json"]));
+          const roots = [root, ...sameRoots];
+          const hasRelativeEntry = parseSearchPath(value).some((dir) => !isAbsolute(dir));
+          const rows = roots.map((pathRoot) => {
+            const lookupBase = hasRelativeEntry ? pathRoot : "";
+            let scansByBase = scannedByPath.get(value);
+            if (scansByBase === undefined) {
+              scansByBase = new Map();
+              scannedByPath.set(value, scansByBase);
+            }
+            let scanned = scansByBase.get(lookupBase);
+            if (scanned === undefined) {
+              scanned = scanSearchPath(value, pathRoot);
+              scansByBase.set(lookupBase, scanned);
+            }
+            return { root: pathRoot, scanned };
+          });
+          return {
+            entries: rows.flatMap(({ root: pathRoot, scanned }) => scanned.entries.map((entry) => ({ root: pathRoot, ...entry }))),
+            commands: rows.flatMap(({ root: pathRoot, scanned }) => scanned.commands.map((command) => ({ root: pathRoot, ...command }))),
+          };
+        } catch {
+          return { entries: [], commands: [] };
+        }
+      })();
+      const [uses, pathRows] = await Promise.all([usesPromise, pathRowsPromise]);
+      return { uses, ...pathRows };
     }));
-    const loadedUses = await ctx.db.run(miseCommands.loadUses, { rows: uses.flat(2) });
+    const loadedUses = await ctx.db.run(miseCommands.loadUses, { rows: groupResults.flatMap((group) => group.uses) });
     if (!loadedUses.ok) throw new Error(`tool_uses: ${loadedUses.kind}`);
+    const loadedPaths = await ctx.db.run(miseCommands.loadRootPaths, {
+      entries: groupResults.flatMap((group) => group.entries),
+      commands: groupResults.flatMap((group) => group.commands),
+    });
+    if (!loadedPaths.ok) throw new Error(`root paths: ${loadedPaths.kind}`);
   },
 };

@@ -30,10 +30,11 @@ Exact provider JSON names and their state sources: [references/providers.md](ref
 ## Workflow
 
 1. **Before you start work in a repository**: `here` (one call: who else is here with `in-dir`, the checkout with `git-status` and `worktrees`, its pull request with `branch-pull-requests`, ports with `ports-in-dir`, processes with `processes-in-dir`, Docker containers with `containers-in-dir` and `container-ports-in-dir`, tools with `tools-in-dir`, issues, and the workflow). The rows exclude your own pane. As a gate: `spacequery here --expect-empty --strict` exits 0 only when nobody else is here and every provider answered.
-2. **When the user asks what is going on**: `agents-with-sessions` (names, idle time), `working`, `idle-sessions`, `workspaces`.
+2. **When the user asks what is going on**: `agents-with-sessions` (names, idle time), `session-processes`, `working`, `idle-sessions`, `workspaces`.
 3. **When you look for a place to work**: `idle-worktrees` (a worktree with nobody in it), `dirty-unattended` (changes nobody is tending).
-4. **When a tool is missing or the wrong version**: `which`, `path-entries`, `shadowed-commands`, `tools-in-dir`, `repository-versions`, `missing-tools-with-agents`, `tool-versions-split`.
+4. **When a tool is missing or the wrong version**: `which-in-dir`, `which`, `path-entries`, `shadowed-commands`, `tools-in-dir`, `repository-versions`, `missing-tools-with-agents`, `tool-versions-split`.
    `repository-versions` reads static files only. It does not prove which runtime or library is installed.
+   `which-in-dir` reads the repository environment from mise. `which` reads the caller environment.
    Use `installed-software` to see the installed mise and Homebrew versions together.
 5. **When no query fits**: read the tables in [references/tables.md](references/tables.md) and ask the user to add a query file; how: [references/user-queries.md](references/user-queries.md). A user query shows up in `--help` with its description and is called like a built-in.
 6. **Before you push or open a pull request**: `prs-with-agents` for the branch you are on, then `failing-checks-with-agents`. These read GitHub and take several seconds. Do not use `--scope all` for this check.
@@ -56,6 +57,7 @@ The table lists the queries the workflow names. Every query, with its parameters
 | `dirty` | | Repositories with uncommitted changes, dirtiest first. |
 | `behind-upstream-with-agents` | | Repositories behind their upstream that have an agent in them. |
 | `agents-with-sessions` | | Agents with the name, start time, and last activity of their session. |
+| `session-processes` | | Processes that live sessions started through their child process chains. |
 | `working` | | The agents that work right now. |
 | `idle-sessions` | | Sessions ordered by how long they have been idle. |
 | `workspaces` | | Which workspace holds agents of which repository. |
@@ -64,6 +66,7 @@ The table lists the queries the workflow names. Every query, with its parameters
 | `path-entries` | | The caller's PATH entries, including dead and duplicate entries. |
 | `which` | `--q` | Every executable match for one name, in PATH order. |
 | `shadowed-commands` | | Executable names that occur in more than one PATH directory. |
+| `which-in-dir` | `--root`, `--q` | Every executable match for one name on a repository's PATH. |
 | `tools-in-dir` | `--root` | The tools mise activates in one repository. |
 | `missing-tools-with-agents` | | Repositories with an agent where a requested tool is not installed. |
 | `tool-versions-split` | | Tools whose active version differs between repositories with an agent. |
@@ -77,6 +80,8 @@ The table lists the queries the workflow names. Every query, with its parameters
 | `prs-with-agents` | | Agents whose branch has an open pull request, with its checks. |
 | `failing-checks-with-agents` | | Open pull requests with failing checks in repositories where an agent works. |
 | `processes-in-dir` | `--root` | Processes whose working directory is inside one repository. |
+| `descendants` | `--q` | Processes in scope that descend from one pid. |
+| `busy-processes` | | Processes in scope that use the most CPU now. |
 | `ports-in-dir` | `--root` | Listening ports of processes inside one repository. |
 | `servers-with-agents` | | Listening processes in repositories where an agent works. |
 | `containers` | | Every Docker container, with image, state, health, and Compose identity. |

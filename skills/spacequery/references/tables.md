@@ -64,10 +64,24 @@ Under the default scope these hold the repositories that have an agent; under `-
 
 `path` (key, the same string as a root), `host`, `owner`, `name`.
 
-## `tools` and `tool_uses` (mise)
+## `tools`, `tool_uses`, `root_path_entries`, and `root_path_commands` (mise)
 
 `tools`: `id` (key, `tool@version`), `tool`, `version`, `install_path?`, `installed`, `active`.
 `tool_uses`: `id` (key, `root tool`), `root`, `tool`, `version`, `source?`, `installed`. One row per root in scope and tool mise activates there.
+
+`root_path_entries`: `root`, `position`, `dir`, `exists`, `duplicate_of?`.
+The pair of `root` and `position` is the key.
+`position` is zero-based.
+`dir` keeps the PATH entry text, and an empty entry becomes `.`.
+`exists` is 1 when the entry is a directory.
+`duplicate_of` names the first position with equal `dir` text.
+
+`root_path_commands`: `root`, `name`, `dir`, `position`, `effective`.
+The combination of `root`, `position`, and `name` is the key.
+Each row is a regular executable file in one PATH entry.
+The executable test follows symbolic links and requires `X_OK` permission.
+`effective` is 1 for the first match of a name in PATH order.
+Both tables contain the `PATH` that `mise env` reports for each root in scope.
 
 ## `brew_packages` (brew)
 

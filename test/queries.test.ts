@@ -19,7 +19,7 @@ const sessionFixtureLoader: Loader = {
       rows: [{
         session_id: sessionIds.alphaWorking as SessionsId,
         agent: "claude",
-        pid: null,
+        pid: 100,
         cwd: paths.alpha,
         root: paths.alpha,
         name: "session needle",
@@ -34,6 +34,48 @@ const sessionFixtureLoader: Loader = {
 };
 
 const fixtureLoaders = loaders.map((loader) => loader.name === "sessions" ? sessionFixtureLoader : loader);
+
+// A dedicated loader for the shared-pid regression: the Codex app can hold
+// many sessions under one pid, so two rows here carry the same pid on
+// purpose. Kept separate from sessionFixtureLoader so it cannot change any
+// other test's session count.
+const sharedPidSessionLoader: Loader = {
+  name: "sessions",
+  tables: ["sessions", "claude_sessions", "codex_sessions"],
+  after: [],
+  async load(ctx) {
+    const recorded = await ctx.db.run(sessionCommands.load, {
+      rows: [
+        {
+          session_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" as SessionsId,
+          agent: "claude",
+          pid: 100,
+          cwd: paths.alpha,
+          root: paths.alpha,
+          name: "session one",
+          started_at: null,
+          updated_at: null,
+          last_turn_at: null,
+          last_branch: null,
+        },
+        {
+          session_id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb" as SessionsId,
+          agent: "claude",
+          pid: 100,
+          cwd: paths.alpha,
+          root: paths.alpha,
+          name: "session two",
+          started_at: null,
+          updated_at: null,
+          last_turn_at: null,
+          last_branch: null,
+        },
+      ],
+    });
+    if (!recorded.ok) throw new Error(`sessions: ${recorded.kind}`);
+  },
+};
+const sharedPidLoaders = loaders.map((loader) => loader.name === "sessions" ? sharedPidSessionLoader : loader);
 
 async function query(name: keyof typeof catalog, scope: Scope | undefined = undefined, params: Record<string, unknown> = {}, exec: Exec = fakeExec()) {
   const options = {
@@ -103,6 +145,30 @@ function portExec(): Exec {
     if (command === "lsof" && args.join(" ") === `-a -nP -iTCP -sTCP:LISTEN -u ${process.getuid!()} -Fpn`) {
       assert.deepEqual(options, { exitCodes: [1] });
       return ["p201", "n127.0.0.1:3000", "p202", "n127.0.0.1:3001"].join("\n");
+    }
+    return base(command, args, cwd, options);
+  };
+}
+
+function processTreeExec(): Exec {
+  const base = fakeExec();
+  return async (command, args, cwd, options) => {
+    if (command === "ps") {
+      assert.deepEqual(args, ["-axo", "pid,ppid,pgid,etime,rss,pcpu,command"]);
+      return [
+        "101 100 100 00:10 100 5.0 /bin/first --watch",
+        "102 101 100 00:09 300 5.0 /bin/second child",
+        "103 102 100 00:08 200 1.0 /bin/third child",
+        "200 1 200 00:07 400 9.0 /bin/outside-chain",
+      ].join("\n");
+    }
+    if (command === "lsof" && args.join(" ") === `-a -d cwd -u ${process.getuid!()} -Fpn`) {
+      assert.deepEqual(options, { exitCodes: [1] });
+      return [101, 102, 103, 200].flatMap((pid) => [`p${pid}`, "fcwd", `n${paths.alpha}`]).join("\n");
+    }
+    if (command === "lsof" && args.join(" ") === `-a -nP -iTCP -sTCP:LISTEN -u ${process.getuid!()} -Fpn`) {
+      assert.deepEqual(options, { exitCodes: [1] });
+      return "";
     }
     return base(command, args, cwd, options);
   };
@@ -418,5 +484,45 @@ test("report catalog queries join the fixture tables", async () => {
       untracked_count: 1,
       elapsed_s: null,
     },
+  ]);
+});
+
+test("descendants returns the three-level process chain", async () => {
+  assert.deepEqual((await query("descendants", undefined, { q: "100" }, processTreeExec())).rows, [
+    { pid: 101, ppid: 100, command: "/bin/first --watch", executable: "first", elapsed_s: 10, cpu: 5, root: paths.alpha },
+    { pid: 102, ppid: 101, command: "/bin/second child", executable: "second", elapsed_s: 9, cpu: 5, root: paths.alpha },
+    { pid: 103, ppid: 102, command: "/bin/third child", executable: "third", elapsed_s: 8, cpu: 1, root: paths.alpha },
+  ]);
+});
+
+test("session-processes returns descendants for each live session", async () => {
+  assert.deepEqual((await query("session-processes", undefined, {}, processTreeExec())).rows, [
+    { session_id: sessionIds.alphaWorking, agent: "claude", name: "session needle", session_pid: 100, pid: 101, command: "/bin/first --watch", elapsed_s: 10, cpu: 5, root: paths.alpha },
+    { session_id: sessionIds.alphaWorking, agent: "claude", name: "session needle", session_pid: 100, pid: 102, command: "/bin/second child", elapsed_s: 9, cpu: 5, root: paths.alpha },
+    { session_id: sessionIds.alphaWorking, agent: "claude", name: "session needle", session_pid: 100, pid: 103, command: "/bin/third child", elapsed_s: 8, cpu: 1, root: paths.alpha },
+  ]);
+});
+
+test("session-processes gives each session its own rows once when two sessions share a pid", async () => {
+  const options = { loaders: sharedPidLoaders, exec: processTreeExec(), repo: fixtureRepo, env: {}, params: {} };
+  const sessionRows = (await runQuery(catalog["session-processes"]!.query, options)).rows;
+  assert.deepEqual(sessionRows, [
+    { session_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", agent: "claude", name: "session one", session_pid: 100, pid: 101, command: "/bin/first --watch", elapsed_s: 10, cpu: 5, root: paths.alpha },
+    { session_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", agent: "claude", name: "session one", session_pid: 100, pid: 102, command: "/bin/second child", elapsed_s: 9, cpu: 5, root: paths.alpha },
+    { session_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", agent: "claude", name: "session one", session_pid: 100, pid: 103, command: "/bin/third child", elapsed_s: 8, cpu: 1, root: paths.alpha },
+    { session_id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", agent: "claude", name: "session two", session_pid: 100, pid: 101, command: "/bin/first --watch", elapsed_s: 10, cpu: 5, root: paths.alpha },
+    { session_id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", agent: "claude", name: "session two", session_pid: 100, pid: 102, command: "/bin/second child", elapsed_s: 9, cpu: 5, root: paths.alpha },
+    { session_id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", agent: "claude", name: "session two", session_pid: 100, pid: 103, command: "/bin/third child", elapsed_s: 8, cpu: 1, root: paths.alpha },
+  ]);
+  const descendantRows = (await runQuery(catalog["descendants"]!.query, { ...options, params: { q: "100" } })).rows;
+  assert.equal(descendantRows.length, 3);
+});
+
+test("busy-processes orders CPU before resident memory", async () => {
+  assert.deepEqual((await query("busy-processes", undefined, {}, processTreeExec())).rows, [
+    { pid: 200, cpu: 9, rss_kb: 400, elapsed_s: 7, root: paths.alpha, command: "/bin/outside-chain" },
+    { pid: 102, cpu: 5, rss_kb: 300, elapsed_s: 9, root: paths.alpha, command: "/bin/second child" },
+    { pid: 101, cpu: 5, rss_kb: 100, elapsed_s: 10, root: paths.alpha, command: "/bin/first --watch" },
+    { pid: 103, cpu: 1, rss_kb: 200, elapsed_s: 8, root: paths.alpha, command: "/bin/third child" },
   ]);
 });

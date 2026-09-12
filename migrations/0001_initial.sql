@@ -213,6 +213,22 @@ CREATE TABLE review_requests (
     updated_at integer not null,
     url text not null
   ) strict;
+CREATE TABLE root_path_commands (
+    root text not null,
+    name text not null,
+    dir text not null,
+    position integer not null,
+    effective integer not null check (effective in (0, 1)),
+    primary key (root, position, name)
+  ) strict;
+CREATE TABLE root_path_entries (
+    root text not null,
+    position integer not null,
+    dir text not null,
+    "exists" integer not null check ("exists" in (0, 1)),
+    duplicate_of integer,
+    primary key (root, position)
+  ) strict;
 CREATE TABLE sessions (
     session_id text primary key not null,
     agent text not null,

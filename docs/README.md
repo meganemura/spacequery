@@ -40,3 +40,4 @@ Each ADR describes one decision and its consequences.
 | [0031](adr/0031-trace-lists-the-child-processes-of-one-call.md) | The envelope lists the child processes of one call on request. |
 | [0032](adr/0032-commands-start-by-absolute-path.md) | The core starts every command by absolute path. |
 | [0033](adr/0033-search-path-is-the-callers-environment.md) | The search path provider describes the caller's environment. |
+| [0034](adr/0034-root-search-path-comes-from-mise.md) | The search path of a root comes from mise. |

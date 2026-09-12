@@ -83,6 +83,26 @@ export const reportQueries = queries(generated, {
     left join codex_sessions x on x.session_id = s.session_id
     where :me is null or a.pane_id <> :me
     order by idle_minutes desc`,
+  // A session owns every in-scope process reached through its child chain.
+  // The recursive part descends once per distinct root pid, not once per
+  // session: two sessions sharing a pid (e.g. two Codex threads in the same
+  // app) would otherwise double the anchor and compound at every level. The
+  // closing join back onto sessions fans the shared descendant set out to
+  // every session that holds that pid. `union` (not `union all`) keeps a
+  // repeated path or a ppid cycle from adding a duplicate row.
+  sessionProcesses: `
+    with recursive session_descendants(session_pid, pid) as (
+      select r.pid, p.pid
+      from (select distinct pid from sessions where pid is not null) r
+      join processes p on p.ppid = r.pid
+      union
+      select d.session_pid, p.pid
+      from session_descendants d join processes p on p.ppid = d.pid
+    )
+    select s.session_id, s.agent, s.name, s.pid as session_pid, p.pid, p.command, p.elapsed_s, p.cpu, p.root
+    from session_descendants d join sessions s on s.pid = d.session_pid
+    join processes p on p.pid = d.pid
+    order by s.session_id, p.pid`,
   // Live sessions can lack a pane when they run headlessly or elsewhere.
   sessionsWithoutPane: `
     select s.session_id, s.agent, s.cwd, s.root, s.name, s.updated_at

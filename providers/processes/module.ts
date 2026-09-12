@@ -39,6 +39,22 @@ export const processQueries = queries(generated, {
   listening: `
     select pid, address, port, cwd, root, command
     from listeners order by port`,
+  // `union` (not `union all`) keeps a repeated path or a ppid cycle from
+  // adding a duplicate row; the report module's sessionProcesses uses the
+  // same `union`.
+  descendants: `
+    with recursive process_descendants as (
+      select pid, ppid, command, executable, elapsed_s, cpu, root
+      from processes where ppid = cast(:q as integer)
+      union
+      select p.pid, p.ppid, p.command, p.executable, p.elapsed_s, p.cpu, p.root
+      from processes p join process_descendants d on p.ppid = d.pid
+    )
+    select d.pid, d.ppid, d.command, d.executable, d.elapsed_s, d.cpu, d.root
+    from process_descendants d order by d.pid`,
+  busy: `
+    select pid, cpu, rss_kb, elapsed_s, root, command
+    from processes order by cpu desc, rss_kb desc`,
 });
 
 export const processCommands = commands(generated, {
