@@ -83,7 +83,10 @@ A missing directory gives no user providers.
 A malformed declaration produces a warning on standard error and is skipped.
 A non-zero exit, invalid JSON document, unknown row key, or rejected row sets the provider status to `ok: 0`.
 The failed provider leaves all its tables empty, and the query continues.
+For a root-scoped provider, a root that fails empties the provider's tables, and the error names the root.
 The provider status has `source: "user"`.
 
 The core uses literal arguments, starts no shell, limits root process directories to the selected scope, and records the trace.
-The declaration owner must confirm that the command only reads external state.
+The providers directory is as sensitive as a shell rc file: a file there starts its command on every call that reads its table.
+Only the owner writes to the directory, and the owner reviews every declaration.
+The owner must confirm that the command only reads external state.

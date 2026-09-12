@@ -136,16 +136,39 @@ function makeProvider(name: string, path: string, declaration: UserProviderDecla
       return scope === "all" ? ["repos", "herdr"] : ["herdr"];
     },
     async load(ctx: LoadContext) {
-      const roots = declaration.scope === "call" ? [undefined] : await rootsInScope(ctx);
       const columns = new Map(declaration.tables.map((table) => [table.name, tableColumns(ctx.raw, table.name)]));
       const rows = new Map(declaration.tables.map((table) => [table.name, [] as Record<string, unknown>[]]));
-      for (const root of roots) {
-        const output = await ctx.exec(declaration.command[0], declaration.command.slice(1), root);
-        collectRows(JSON.parse(output), declaration.tables, columns, rows, root);
+      if (declaration.scope === "call") {
+        const output = await ctx.exec(declaration.command[0], declaration.command.slice(1), undefined);
+        collectRows(JSON.parse(output), declaration.tables, columns, rows, undefined);
+      } else {
+        // The per-root calls run concurrently, as the git loader does: the
+        // child processes are the whole cost of a run. A failed root's
+        // message names it, so the provider row points at the right root.
+        const roots = await rootsInScope(ctx);
+        const outputs = await Promise.all(roots.map((root) => runRoot(ctx, name, declaration.command, root)));
+        for (const [index, root] of roots.entries()) {
+          // The root goes into the message here as well as in runRoot: a
+          // command that exits 0 with bad JSON or an unknown column is as
+          // hard to find among 60 roots as one that exits 1.
+          try {
+            collectRows(JSON.parse(outputs[index]!), declaration.tables, columns, rows, root);
+          } catch (error) {
+            throw new Error(`${name} in ${root}: ${message(error)}`);
+          }
+        }
       }
       insertRows(ctx.raw, declaration.tables, columns, rows);
     },
   };
+}
+
+async function runRoot(ctx: LoadContext, name: string, command: readonly [string, ...string[]], root: string): Promise<string> {
+  try {
+    return await ctx.exec(command[0], command.slice(1), root);
+  } catch (error) {
+    throw new Error(`${name} in ${root}: ${message(error)}`);
+  }
 }
 
 function tableColumns(raw: DatabaseSync, table: string): string[] {

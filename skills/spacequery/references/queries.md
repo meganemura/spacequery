@@ -69,6 +69,7 @@ mise can prepend directories, so these rows can differ from the caller search pa
 A session joins an agent through the session id herdr's integration reports.
 `agents-with-sessions` keeps an agent with no session and returns null session columns.
 A session without a pane appears in `sessions-without-pane`.
+In `session-processes`, Codex threads that run inside the Codex app share the app's pid, so their descendant rows are the same set for each thread.
 
 ## Git
 

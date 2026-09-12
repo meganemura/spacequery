@@ -25,6 +25,8 @@ The `scope` value is `call` or `root`.
 The optional `description` appears in command help.
 A call-scoped command runs once without a process directory.
 A root-scoped command runs once for each root in scope and uses that root as its process directory.
+The root commands run concurrently, as the git loader's do.
+A root that fails names itself in the provider error, and the provider's tables stay empty.
 The command prints a JSON object that maps table names to row arrays.
 A provider with one table can print its row array directly.
 Each row is an object whose keys are declared columns.
@@ -49,4 +51,5 @@ A user can join a private command's rows with built-in tables without changing s
 A malformed declaration produces a warning and does not enter the provider list.
 A failed provider stays visible in the call envelope.
 The `providers.source` column distinguishes repository code from local declarations.
-The configuration directory can start commands, so its contents require the same care as shell configuration.
+The providers directory is as sensitive as a shell rc file: a file there makes every call that reads its table start that command.
+Only the owner writes to the directory, and the owner reviews every declaration.

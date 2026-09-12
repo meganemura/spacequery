@@ -204,6 +204,43 @@ test("all scope runs a root-scoped provider in every repository", async () => {
   });
 });
 
+test("a failed root names itself in the error and empties every table", async () => {
+  await withProvider({
+    tables: {
+      user_tasks: "create table user_tasks (id text primary key not null, root text not null) strict",
+      user_notes: "create table user_notes (id text primary key not null, root text not null) strict",
+    },
+    command: ["task-list", "--json"],
+    scope: "root",
+  }, [], async (configHome) => {
+    const userProviders = loadUserProviders({ XDG_CONFIG_HOME: configHome }, loaders);
+    const builtInExec = fakeExec();
+    const seen: string[] = [];
+    const exec = async (command: string, args: readonly string[], cwd?: string) => {
+      if (command === "task-list") {
+        assert.deepEqual(args, ["--json"]);
+        seen.push(cwd!);
+        if (cwd === paths.beta) throw new Error("no such command");
+        return JSON.stringify({
+          user_tasks: [{ id: "task-1" }],
+          user_notes: [{ id: "note-1" }],
+        });
+      }
+      return builtInExec(command, args, cwd);
+    };
+    const result = await runSql(
+      "select id from user_tasks union all select id from user_notes",
+      { loaders, userProviders, exec, repo: fixtureRepo, env: {}, params: {} },
+    );
+
+    assert.deepEqual(seen, [paths.alpha, paths.beta]);
+    assert.deepEqual(result.rows, []);
+    const provider = result.providers.find(({ name }) => name === "tickets")!;
+    assert.equal(provider.ok, 0);
+    assert.equal(provider.error, `tickets in ${paths.beta}: no such command`);
+  });
+});
+
 test("invalid JSON fails one user provider and keeps repository rows", async () => {
   await withProvider({
     tables: {

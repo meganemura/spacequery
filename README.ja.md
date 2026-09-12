@@ -73,7 +73,7 @@ ad hoc SQL と user query file も同じ provider 解決を使う。
 
 エージェントには、観測が不完全だったかどうかも必要である。
 呼び出しごとに空の database から始めるので、古い cache はない。
-JSON envelope は、実行した provider ごとに `ok`、`observed_at`、`ms`、`error` を持つ `providers` を含む。
+JSON envelope は、実行した provider ごとに `source`、`ok`、`observed_at`、`ms`、`error` を持つ `providers` を含む。
 provider が失敗した場合、その table は空になり、provider row が失敗を示す。
 失敗した provider の隣にある空の rows は「ない」ではなく「分からない」と読む。
 
