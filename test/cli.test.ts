@@ -53,7 +53,7 @@ test("report JSON exposes section_status in the CLI envelope", () => {
     },
     providers: [{ name: "herdr", ok: 0, observed_at: 1, ms: 2, error: "spawn herdr ENOENT" }],
     ms: 3,
-    trace: [{ provider: "herdr", command: "herdr", args: ["api", "snapshot"], cwd: null, started_ms: 0.1, ms: 2, ok: 0 }],
+    trace: [{ provider: "herdr", command: "herdr", path: null, args: ["api", "snapshot"], cwd: null, started_ms: 0.1, ms: 2, ok: 0 }],
     scope: "root",
     me: null,
     params: { root: "/workspace/example" },

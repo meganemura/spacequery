@@ -4,6 +4,8 @@
 // Boundary: scheduling and call metadata. Provider behavior and query meaning
 // stay in their modules.
 import { execFile } from "node:child_process";
+import { accessSync, constants } from "node:fs";
+import { delimiter, resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { promisify } from "node:util";
 import type { Database, Entry, Query } from "solarsql";
@@ -16,10 +18,19 @@ import { directLoadersFor, loadersFor, tablesRead } from "./resolve.ts";
 
 const execFileAsync = promisify(execFile);
 
-const childExec: Exec = async (command, args, cwd) => {
-  const { stdout } = await execFileAsync(command, [...args], { cwd, encoding: "utf8", maxBuffer: 64 * 1024 * 1024 });
-  return stdout;
-};
+function childExecWithEnv(env?: NodeJS.ProcessEnv): Exec {
+  return async (command, args, cwd) => {
+    const { stdout } = await execFileAsync(command, [...args], { cwd, encoding: "utf8", maxBuffer: 64 * 1024 * 1024, env });
+    return stdout;
+  };
+}
+
+const childExec = childExecWithEnv();
+
+function childExecForPath(pathValue: string | undefined): Exec {
+  if (pathValue === process.env.PATH) return childExec;
+  return childExecWithEnv({ ...process.env, PATH: pathValue });
+}
 
 function isAcceptedExit(e: unknown, options: Parameters<Exec>[3]): e is { code: number; stdout: string } {
   const failure = e as { code?: unknown; stdout?: unknown };
@@ -44,6 +55,7 @@ export type ProviderRow = { name: string; ok: number; observed_at: number; ms: n
 export type TraceRow = {
   provider: string;
   command: string;
+  path: string | null;
   args: string[];
   cwd: string | null;
   started_ms: number;
@@ -165,13 +177,24 @@ async function prepare(tables: readonly string[] | ((raw: DatabaseSync) => reado
   const scope = options.scope ?? (typeof root === "string" && paramNames.includes("root") ? "root" : "agents");
   const trace: TraceRow[] = [];
   let currentProvider: string | null = null;
-  const execute = options.exec === undefined || options.exec === exec ? childExec : options.exec;
+  const env = options.env ?? process.env;
+  const searchPath = env.PATH ?? process.env.PATH;
+  const commandPaths = new Map<string, string | null>();
+  const startsChildProcesses = options.exec === undefined || options.exec === exec;
+  const execute = startsChildProcesses ? childExecForPath(searchPath) : options.exec!;
   const tracedExec: Exec = async (command, args, cwd, execOptions) => {
     if (currentProvider === null) throw new Error("a child process started outside a loader");
+    const hasSlash = command.includes("/");
+    let executablePath = hasSlash ? givenCommandPath(command, cwd) : commandPaths.get(command);
+    if (executablePath === undefined) {
+      executablePath = resolveCommandName(command, searchPath);
+      commandPaths.set(command, executablePath);
+    }
     const processStarted = performance.now();
     const row: TraceRow = {
       provider: currentProvider,
       command,
+      path: executablePath ?? null,
       args: [...args],
       cwd: cwd ?? null,
       started_ms: round(processStarted - started),
@@ -180,7 +203,8 @@ async function prepare(tables: readonly string[] | ((raw: DatabaseSync) => reado
     };
     trace.push(row);
     try {
-      const result = await executeWithStatus(execute, command, args, cwd, execOptions);
+      const executable = startsChildProcesses && !hasSlash ? executablePath ?? command : command;
+      const result = await executeWithStatus(execute, executable, args, cwd, execOptions);
       row.ok = result.ok;
       return result.stdout;
     } finally {
@@ -192,7 +216,7 @@ async function prepare(tables: readonly string[] | ((raw: DatabaseSync) => reado
     exec: tracedExec,
     scope,
     roots: typeof root === "string" ? [root] : [],
-    env: options.env ?? process.env,
+    env,
     repo: options.repo ?? fsRepo,
   };
   const needed = loadersFor(options.loaders, typeof tables === "function" ? tables(raw) : tables, scope);
@@ -255,4 +279,27 @@ function resultMetadata(state: RunState, statementEnded: number): Omit<RunResult
 
 function round(ms: number): number {
   return Math.round(ms * 10) / 10;
+}
+
+function resolveCommandName(command: string, pathValue: string | undefined): string | null {
+  if (pathValue === undefined) return null;
+  for (const directory of pathValue.split(delimiter)) {
+    const candidate = resolve(directory || ".", command);
+    if (isExecutable(candidate)) return candidate;
+  }
+  return null;
+}
+
+function givenCommandPath(command: string, cwd: string | undefined): string | null {
+  const candidate = resolve(cwd ?? process.cwd(), command);
+  return isExecutable(candidate) ? candidate : null;
+}
+
+function isExecutable(path: string): boolean {
+  try {
+    accessSync(path, constants.X_OK);
+    return true;
+  } catch {
+    return false;
+  }
 }

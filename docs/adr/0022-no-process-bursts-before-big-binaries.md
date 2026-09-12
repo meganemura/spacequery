@@ -2,7 +2,7 @@
 
 Date: 2026-09-11
 
-Status: accepted
+Status: superseded by [0032](0032-commands-start-by-absolute-path.md)
 
 ## Context
 
@@ -15,6 +15,7 @@ A burst of `/usr/bin/true` did not trigger the delay.
 The delay grew with the burst size: 0.9 s for four, 1.4 s for eight, and 2.0 s for 18 processes.
 It ended after three seconds.
 gh and ghq are adhoc linker-signed, node uses the hardened runtime, and XProtect was the only security client.
+ADR 0032 found that the trigger was `PATH` probing for name-based spawns.
 
 ## Decision
 

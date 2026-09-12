@@ -12,7 +12,7 @@ JSON is the default output, and this example uses `--trace`:
   "params": { "root": "/workspace/example", "me": "w3S:p1" },
   "ms": 186.0,
   "trace": [
-    { "provider": "herdr", "command": "herdr", "args": ["api", "snapshot"], "cwd": null, "started_ms": 2.1, "ms": 185.2, "ok": 1 }
+    { "provider": "herdr", "command": "herdr", "path": "/usr/local/bin/herdr", "args": ["api", "snapshot"], "cwd": null, "started_ms": 2.1, "ms": 185.2, "ok": 1 }
   ],
   "rows": [ { "pane_id": "w12:p2", "name": null, "agent": "claude", "agent_status": "idle", "cwd": "...", "title": "HQ" } ],
   "providers": [
@@ -28,7 +28,7 @@ JSON is the default output, and this example uses `--trace`:
 | `me` | The caller's pane, or null when the environment names none. |
 | `params` | Every value the statement bound. |
 | `ms` | The wall time from the start of call preparation through the end of the statement. |
-| `trace` | With `--trace`, the envelope has one row per child process, in start order. Each row has `provider`, `command`, the full `args` list, `cwd`, `started_ms`, `ms`, and `ok`. |
+| `trace` | With `--trace`, the envelope has one row per child process, in start order. Each row has `provider`, `command`, `path`, the full `args` list, `cwd`, `started_ms`, `ms`, and `ok`. `path` is the executable path, or null when resolution failed. |
 | `rows` | The rows, in the order the query defines. |
 | `providers` | One row per provider this call ran: `ok` 1 or 0, `observed_at` in milliseconds since the epoch, `ms` the time it took, `error` the message when it failed. |
 
@@ -76,6 +76,7 @@ A section status does not show whether providers that enumerate roots answered.
 
 `--tsv` prints a header line and the rows, tab separated, null as an empty cell.
 With `--trace`, it writes the trace header and rows to standard error.
+The `path` cell is the executable path, or empty when resolution failed.
 The `args` cell is a JSON array, so it keeps the full argument list.
 A failed provider goes to standard error as `spacequery: provider <name> failed: <error>`.
 For a report, TSV prints `# <section>` before each non-empty section's TSV
@@ -102,7 +103,7 @@ derives from `updated_at`.
 | `--me PANE` | The pane to exclude. Default: the caller's own pane, from `HERDR_PANE_ID`, then `CLAUDE_CODE_SESSION_ID` matched to a session, then the pane herdr has in focus. `--me ""` keeps every pane. |
 | `--tsv` | Rows only, tab separated. A report prints named sections. |
 | `--json` | The default. |
-| `--trace` | List every child process with its provider, command, full arguments, directory, start offset, duration, and result. JSON adds `trace`; TSV writes it to standard error. |
+| `--trace` | List every child process with its provider, command, executable path, full arguments, directory, start offset, duration, and result. JSON adds `trace`; TSV writes it to standard error. |
 | `--<name> VALUE` | A parameter of a built-in or user query, bound as text. |
 | `--expect-empty` | Exit 3 after output when the query or report gate section returned rows. `here` uses `agents`. `dependency-report` uses `shared`. |
 | `--strict` | Exit 4 after output when a provider did not answer. |

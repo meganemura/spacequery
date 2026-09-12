@@ -28,7 +28,7 @@ Each ADR describes one decision and its consequences.
 | [0019](adr/0019-beads-issues-are-read-per-repository.md) | Beads issues are read per repository. |
 | [0020](adr/0020-headsign-state-is-read-from-the-file.md) | Headsign state is read from the file. |
 | [0021](adr/0021-the-package-ships-the-source-and-the-skill.md) | The package ships the TypeScript source and the skill, and the skill installs from the repository. |
-| [0022](adr/0022-no-process-bursts-before-big-binaries.md) | Large binaries run before process bursts. |
+| [0022](adr/0022-no-process-bursts-before-big-binaries.md) | Large binaries run before process bursts (superseded by 0032). |
 | [0023](adr/0023-a-call-log-orders-help.md) | A call log orders help by use. |
 | [0024](adr/0024-columns-take-the-source-name-and-subtypes-hold-the-rest.md) | Columns take the source name, and subtypes hold the rest. |
 | [0025](adr/0025-a-report-is-sections-from-one-database.md) | A report is sections from one database. |
@@ -38,3 +38,4 @@ Each ADR describes one decision and its consequences.
 | [0029](adr/0029-repository-config-files-are-a-bounded-inventory.md) | Repository configuration files are a bounded inventory. |
 | [0030](adr/0030-rename-to-spacequery.md) | The tool is renamed spacequery. |
 | [0031](adr/0031-trace-lists-the-child-processes-of-one-call.md) | The envelope lists the child processes of one call on request. |
+| [0032](adr/0032-commands-start-by-absolute-path.md) | The core starts every command by absolute path. |
