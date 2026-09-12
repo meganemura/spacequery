@@ -14,6 +14,7 @@ import type { Exec, Loader, Scope } from "./loader.ts";
 import { fsRepo, type Repo } from "./repo.ts";
 import { directLoadersFor, loadersFor, tablesRead } from "./resolve.ts";
 import { givenCommandPath, resolveCommandName } from "./search-path.ts";
+import type { UserProvider } from "./user-providers.ts";
 
 const execFileAsync = promisify(execFile);
 
@@ -49,7 +50,7 @@ async function executeWithStatus(execute: Exec, command: string, args: readonly 
 // stdout because some observation tools use it for an empty answer.
 export const exec: Exec = async (command, args, cwd, options) => (await executeWithStatus(childExec, command, args, cwd, options)).stdout;
 
-export type ProviderRow = { name: string; ok: number; observed_at: number; ms: number; error: string | null };
+export type ProviderRow = { name: string; source: "built-in" | "user"; ok: number; observed_at: number; ms: number; error: string | null };
 
 export type TraceRow = {
   provider: string;
@@ -64,6 +65,7 @@ export type TraceRow = {
 
 export type RunOptions = {
   loaders: readonly Loader[];
+  userProviders?: readonly UserProvider[];
   scope?: Scope;
   exec?: Exec;
   env?: Readonly<Record<string, string | undefined>>;
@@ -139,7 +141,7 @@ export async function runReport(sections: readonly ReportSection[], options: Run
   for (const [name, query] of sections) {
     values[name] = await state.db.all(query, state.params as never);
     statementEnded = performance.now();
-    const direct = directLoadersFor(options.loaders, query.meta.reads);
+    const direct = directLoadersFor([...options.loaders, ...(options.userProviders ?? [])], query.meta.reads);
     const errors = direct.flatMap((loader) => {
       const provider = providerByName.get(loader.name);
       if (!provider) throw new Error(`provider ${loader.name} has no observation status`);
@@ -171,6 +173,11 @@ async function prepare(tables: readonly string[] | ((raw: DatabaseSync) => reado
   const started = performance.now();
   const raw = new DatabaseSync(":memory:");
   migrate(raw, migrations);
+  const userProviders = options.userProviders ?? [];
+  const userProviderSet = new Set<Loader>(userProviders);
+  for (const provider of userProviders) {
+    for (const table of provider.tableDeclarations) raw.exec(table.sql);
+  }
   const db = node(raw);
   const root = options.params?.["root"];
   const scope = options.scope ?? (typeof root === "string" && paramNames.includes("root") ? "root" : "agents");
@@ -211,6 +218,7 @@ async function prepare(tables: readonly string[] | ((raw: DatabaseSync) => reado
     }
   };
   const ctx = {
+    raw,
     db,
     exec: tracedExec,
     scope,
@@ -218,7 +226,7 @@ async function prepare(tables: readonly string[] | ((raw: DatabaseSync) => reado
     env,
     repo: options.repo ?? fsRepo,
   };
-  const needed = loadersFor(options.loaders, typeof tables === "function" ? tables(raw) : tables, scope);
+  const needed = loadersFor([...options.loaders, ...userProviders], typeof tables === "function" ? tables(raw) : tables, scope);
   const providers: ProviderRow[] = [];
   // Loaders run in dependency order, one at a time. A failed loader leaves
   // its tables empty; a loader that runs after it sees the empty tables and
@@ -229,9 +237,9 @@ async function prepare(tables: readonly string[] | ((raw: DatabaseSync) => reado
     const observed_at = Date.now();
     try {
       await loader.load(ctx);
-      providers.push({ name: loader.name, ok: 1, observed_at, ms: round(performance.now() - started), error: null });
+      providers.push({ name: loader.name, source: userProviderSet.has(loader) ? "user" : "built-in", ok: 1, observed_at, ms: round(performance.now() - started), error: null });
     } catch (e) {
-      providers.push({ name: loader.name, ok: 0, observed_at, ms: round(performance.now() - started), error: e instanceof Error ? e.message : String(e) });
+      providers.push({ name: loader.name, source: userProviderSet.has(loader) ? "user" : "built-in", ok: 0, observed_at, ms: round(performance.now() - started), error: e instanceof Error ? e.message : String(e) });
     } finally {
       currentProvider = null;
     }

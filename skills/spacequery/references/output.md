@@ -16,7 +16,7 @@ JSON is the default output, and this example uses `--trace`:
   ],
   "rows": [ { "pane_id": "w12:p2", "name": null, "agent": "claude", "agent_status": "idle", "cwd": "...", "title": "HQ" } ],
   "providers": [
-    { "name": "herdr", "ok": 1, "observed_at": 1789038132395, "ms": 185.2, "error": null }
+    { "name": "herdr", "source": "built-in", "ok": 1, "observed_at": 1789038132395, "ms": 185.2, "error": null }
   ]
 }
 ```
@@ -30,7 +30,7 @@ JSON is the default output, and this example uses `--trace`:
 | `ms` | The wall time from the start of call preparation through the end of the statement. |
 | `trace` | With `--trace`, the envelope has one row per child process, in start order. Each row has `provider`, `command`, `path`, the full `args` list, `cwd`, `started_ms`, `ms`, and `ok`. `path` is the executable path, or null when resolution failed. |
 | `rows` | The rows, in the order the query defines. |
-| `providers` | One row per provider this call ran: `ok` 1 or 0, `observed_at` in milliseconds since the epoch, `ms` the time it took, `error` the message when it failed. |
+| `providers` | One row per provider this call ran: `source` is `built-in` or `user`, `ok` is 1 or 0, `observed_at` is milliseconds since the epoch, `ms` is its duration, and `error` is its failure message. |
 
 A provider that failed leaves its tables empty, so a join through them gives no rows.
 Treat empty `rows` next to a failed provider as "unknown", not as "none".
@@ -53,8 +53,8 @@ A report has a report envelope instead of `query` and `rows`:
     "git": { "providers": ["git"], "ok": 0, "errors": [ { "name": "git", "error": "git executable not found" } ] }
   },
   "providers": [
-    { "name": "herdr", "ok": 1, "observed_at": 1789038132395, "ms": 185.2, "error": null },
-    { "name": "git", "ok": 0, "observed_at": 1789038132590, "ms": 4.1, "error": "git executable not found" }
+    { "name": "herdr", "source": "built-in", "ok": 1, "observed_at": 1789038132395, "ms": 185.2, "error": null },
+    { "name": "git", "source": "built-in", "ok": 0, "observed_at": 1789038132590, "ms": 4.1, "error": "git executable not found" }
   ]
 }
 ```

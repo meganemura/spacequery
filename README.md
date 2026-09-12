@@ -72,7 +72,7 @@ Ad hoc SQL and user query files use the same provider resolution.
 
 Agents need to know when observation is incomplete.
 Every call starts from an empty database, so there is no stale cache.
-The JSON envelope includes `providers`, with `ok`, `observed_at`, `ms`, and `error` for each provider that ran.
+The JSON envelope includes `providers`, with `source`, `ok`, `observed_at`, `ms`, and `error` for each provider that ran.
 If a provider fails, its tables are empty and its provider row says so.
 Empty rows beside a failed provider mean "unknown", not "none".
 

@@ -9,6 +9,7 @@ import { generated } from "./solarsql.generated.ts";
 export const providers = table(`
   create table providers (
     name text primary key not null,
+    source text not null check (source in ('built-in', 'user')),
     ok integer not null,
     observed_at integer not null,
     ms real not null,
@@ -17,14 +18,14 @@ export const providers = table(`
 `);
 
 export const providerQueries = queries(generated, {
-  all: `select name, ok, observed_at, ms, error from providers order by name`,
+  all: `select name, source, ok, observed_at, ms, error from providers order by name`,
 });
 
 export const providerCommands = commands(generated, {
   record: {
     plan: [
-      `insert into providers (name, ok, observed_at, ms, error)
-       select value ->> 'name', value ->> 'ok', value ->> 'observed_at', value ->> 'ms', value ->> 'error' from json_each(:rows)`,
+      `insert into providers (name, source, ok, observed_at, ms, error)
+       select value ->> 'name', value ->> 'source', value ->> 'ok', value ->> 'observed_at', value ->> 'ms', value ->> 'error' from json_each(:rows)`,
     ],
   },
 });

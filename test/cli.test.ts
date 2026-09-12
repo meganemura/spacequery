@@ -51,7 +51,7 @@ test("report JSON exposes section_status in the CLI envelope", () => {
     sectionStatus: {
       agents: { providers: ["herdr"], ok: 0, errors: [{ name: "herdr", error: "spawn herdr ENOENT" }] },
     },
-    providers: [{ name: "herdr", ok: 0, observed_at: 1, ms: 2, error: "spawn herdr ENOENT" }],
+    providers: [{ name: "herdr", source: "built-in", ok: 0, observed_at: 1, ms: 2, error: "spawn herdr ENOENT" }],
     ms: 3,
     trace: [{ provider: "herdr", command: "herdr", path: null, args: ["api", "snapshot"], cwd: null, started_ms: 0.1, ms: 2, ok: 0 }],
     scope: "root",
@@ -72,7 +72,7 @@ test("report JSON exposes section_status in the CLI envelope", () => {
     section_status: {
       agents: { providers: ["herdr"], ok: 0, errors: [{ name: "herdr", error: "spawn herdr ENOENT" }] },
     },
-    providers: [{ name: "herdr", ok: 0, observed_at: 1, ms: 2, error: "spawn herdr ENOENT" }],
+    providers: [{ name: "herdr", source: "built-in", ok: 0, observed_at: 1, ms: 2, error: "spawn herdr ENOENT" }],
   });
   assert.deepEqual(reportJson("here", result, true).trace, result.trace);
 });
@@ -224,7 +224,7 @@ test("dependency-report gates expect-empty on shared dependencies", async () => 
 function resultForExitCode(rows: number, oks: readonly number[]) {
   return {
     rows: Array.from({ length: rows }, () => ({})),
-    providers: oks.map((ok, index) => ({ name: `provider-${index}`, ok, observed_at: 0, ms: 0, error: ok === 0 ? "failed" : null })),
+    providers: oks.map((ok, index) => ({ name: `provider-${index}`, source: "built-in" as const, ok, observed_at: 0, ms: 0, error: ok === 0 ? "failed" : null })),
   };
 }
 

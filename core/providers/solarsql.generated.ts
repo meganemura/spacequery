@@ -7,17 +7,17 @@ import type { Id, Meta } from "solarsql";
 export type ProvidersId = Id<"providers">;
 
 export type Generated = {
-  "insert into providers (name, ok, observed_at, ms, error)\n       select value ->> 'name', value ->> 'ok', value ->> 'observed_at', value ->> 'ms', value ->> 'error' from json_each(:rows)": {
-    params: { rows: readonly { "name": ProvidersId; "ok": number; "observed_at": number; "ms": number; "error": string | null }[] };
+  "insert into providers (name, source, ok, observed_at, ms, error)\n       select value ->> 'name', value ->> 'source', value ->> 'ok', value ->> 'observed_at', value ->> 'ms', value ->> 'error' from json_each(:rows)": {
+    params: { rows: readonly { "name": ProvidersId; "source": "built-in" | "user"; "ok": number; "observed_at": number; "ms": number; "error": string | null }[] };
     row: {};
   };
-  "select name, ok, observed_at, ms, error from providers order by name": {
+  "select name, source, ok, observed_at, ms, error from providers order by name": {
     params: {};
-    row: { name: ProvidersId; ok: number; observed_at: number; ms: number; error: string | null };
+    row: { name: ProvidersId; source: "built-in" | "user"; ok: number; observed_at: number; ms: number; error: string | null };
   };
 };
 
 export const generated: Meta<Generated> = {
-  "insert into providers (name, ok, observed_at, ms, error)\n       select value ->> 'name', value ->> 'ok', value ->> 'observed_at', value ->> 'ms', value ->> 'error' from json_each(:rows)": { params: ["rows"], encode: ["rows"], json: [], reads: [] },
-  "select name, ok, observed_at, ms, error from providers order by name": { params: [], encode: [], json: [], reads: ["providers"] },
+  "insert into providers (name, source, ok, observed_at, ms, error)\n       select value ->> 'name', value ->> 'source', value ->> 'ok', value ->> 'observed_at', value ->> 'ms', value ->> 'error' from json_each(:rows)": { params: ["rows"], encode: ["rows"], json: [], reads: [] },
+  "select name, source, ok, observed_at, ms, error from providers order by name": { params: [], encode: [], json: [], reads: ["providers"] },
 };

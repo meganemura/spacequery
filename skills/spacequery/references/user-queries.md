@@ -21,6 +21,7 @@ order by a.pane_id
 | Types | None. Rows are plain JSON; a mistake surfaces at call time with SQLite's message. |
 
 The tables and their columns: [tables.md](tables.md).
+When the required data has no table, declare a [user provider](user-providers.md) first.
 
 An agent may call a user query like a built-in one and reads its description from `--help`.
 An agent does not write query files on its own; it asks the user, with the statement it wants.

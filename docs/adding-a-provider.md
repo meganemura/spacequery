@@ -6,13 +6,14 @@ A provider is one module under `providers/<name>/` (ADR 0004). It fills its own 
 
 spacequery starts child processes. The rules below make every process a fixed, read-only observation. Check each one when you add or change a loader.
 
-1. **The command name is a literal in the loader.** It never comes from a parameter, an environment variable, a configuration file, a query, or a database row. `grep -rn 'ctx.exec(' providers` must show a quoted string as the first argument in every call. The core resolves that name to an absolute path once per call and starts the process by that path (ADR 0032); a loader never resolves a path itself.
+1. **The command name is a literal in the loader.** It never comes from a parameter, an environment variable, a query, or a database row. `grep -rn 'ctx.exec(' providers` must show a quoted string as the first argument in every built-in call. A user provider takes the name from its declaration. The core resolves that name to an absolute path once per call and starts the process by that path (ADR 0032); a loader never resolves a path itself.
 
 2. **The argument list is a literal list.** The core runs `execFile` with an argument array and no shell (`core/run.ts`). The only variable elements allowed in the array are:
    - a root from the scope, as a path after a fixed flag (`bd -C <root>`), or as `cwd`;
    - identifiers that the same provider read from an earlier call of the same tool, in the same run (`docker container inspect <ids>` after `docker container ls`);
    - the user id from the process (`lsof -u <uid>`).
    No element is built from a query parameter such as `--q`, and no element is built by string concatenation that a shell reads.
+   A user provider takes every argument from its declaration.
 
 3. **When a machine-read value enters a query language, it is quoted or bound.** Owner and name from an origin URL go into the GraphQL text through `JSON.stringify`. A value that goes into SQL is bound as a parameter through solarsql. No value is spliced into a text that another program parses.
 
@@ -24,11 +25,14 @@ spacequery starts child processes. The rules below make every process a fixed, r
 
 7. **Failure is an empty table and a `providers` row.** stderr is dropped; the exit code decides. A non-zero exit that means "nothing found" is listed in `exitCodes` (`lsof` exits 1). Any other failure throws, and the core records the message. A loader never retries with a different command.
 
-8. **A query cannot add a process.** The core picks loaders from the tables a query reads (`core/resolve.ts`). A user query is a SQL file; `--sql` goes through the read-only authorizer. The only way to start a new kind of process is a code change to a loader, which is a reviewed commit.
+8. **A query cannot add a process.** The core picks loaders from the tables a query reads (`core/resolve.ts`). A user query is a SQL file; `--sql` goes through the read-only authorizer. A new process comes from a reviewed loader change or a declaration that the user put in the configuration directory.
 
-9. **Tests inject `exec`.** Every loader test passes a fake `exec` and asserts the exact command and arguments. No test starts a real tool. This is also where rule 1 and rule 2 are checked mechanically: the fake `exec` sees the literal command name and the literal arguments.
+9. **Tests inject `exec`.** Unit tests use an injected `exec` and assert each command, argument list, and process directory; one user provider integration test starts a controlled temporary script. This is also where rule 1 and rule 2 are checked mechanically: the fake `exec` sees the literal command name and the literal arguments.
 
 10. **Order and bursts.** Big non-Apple binaries (gh, ghq, mise, bd, docker, node) start before loaders that start many git or lsof processes; a burst of file-opening processes delays the next such binary by up to three seconds (ADR 0022). Put the new loader in `spacequery.config.ts` with that in mind, and declare `after` for the tables it reads.
+
+The core applies the command, argument, shell, directory, failure, and trace rules to user providers.
+The user reviews whether each declared command only reads external state.
 
 ## Steps
 

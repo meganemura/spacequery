@@ -3,6 +3,7 @@
 // after, and how to fill them. What a loader runs and how it parses the
 // answer stays in the provider.
 // Boundary: types only. run.ts schedules; a provider's loader.ts loads.
+import type { DatabaseSync } from "node:sqlite";
 import type { Database } from "solarsql";
 import type { Repo } from "./repo.ts";
 
@@ -17,6 +18,9 @@ export type ExecOptions = { exitCodes?: readonly number[] };
 export type Exec = (command: string, args: readonly string[], cwd?: string, options?: ExecOptions) => Promise<string>;
 
 export type LoadContext = {
+  // Runtime declarations have no generated Solarsql command, so their
+  // loaders use the raw engine for bounded inserts into declared tables.
+  raw: DatabaseSync;
   db: Database;
   exec: Exec;
   scope: Scope;

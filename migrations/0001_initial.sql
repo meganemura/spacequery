@@ -146,6 +146,7 @@ CREATE TABLE processes (
   ) strict;
 CREATE TABLE providers (
     name text primary key not null,
+    source text not null check (source in ('built-in', 'user')),
     ok integer not null,
     observed_at integer not null,
     ms real not null,

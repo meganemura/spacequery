@@ -220,7 +220,7 @@ since the epoch.
 
 ## `providers` (the core)
 
-`name` (key), `ok`, `observed_at`, `ms`, `error?`. One row per provider the call ran. A statement that reads only this table runs no provider.
+`name` (key), `source`, `ok`, `observed_at`, `ms`, `error?`. One row per provider the call ran. `source` is `built-in` or `user`. A statement that reads only this table runs no provider.
 
 ## Writing a statement
 

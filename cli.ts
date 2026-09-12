@@ -15,6 +15,7 @@ import { callCounts, callsPath, recordCall } from "./core/calls.ts";
 import type { Scope } from "./core/loader.ts";
 import { runQuery, runReport, runSql, type ProviderRow, type ReportResult, type RunResult, type TraceRow } from "./core/run.ts";
 import { fsRepo } from "./core/repo.ts";
+import { loadUserProviders, type UserProvider } from "./core/user-providers.ts";
 import { loadUserQueries, type UserQuery } from "./core/user-queries.ts";
 import { loaders } from "./spacequery.config.ts";
 
@@ -44,13 +45,16 @@ function reportsForHelp(): HelpReport[] {
   }));
 }
 
-function usage(userQueries: readonly UserQuery[], env: Readonly<Record<string, string | undefined>>): string {
+function usage(userQueries: readonly UserQuery[], userProviders: readonly UserProvider[], env: Readonly<Record<string, string | undefined>>): string {
   const queries = queriesForHelp(userQueries, env);
   const reportEntries = reportsForHelp();
   const width = Math.max(...[...queries, ...reportEntries].map((query) => query.name.length));
   const lines = queries.filter((query) => query.source === "built-in").map((query) => queryLine(query.name, query.description, query.params, width));
   const userLines = queries.filter((query) => query.source === "user").map((query) => queryLine(query.name, query.description, query.params, width));
   const reportLines = reportEntries.map((report) => queryLine(report.name, report.description, report.params, width));
+  const providerNameWidth = Math.max(0, ...userProviders.map((provider) => provider.name.length));
+  const providerTablesWidth = Math.max(0, ...userProviders.map((provider) => provider.tables.join(", ").length));
+  const providerLines = userProviders.map((provider) => `  ${provider.name.padEnd(providerNameWidth)}  ${provider.tables.join(", ").padEnd(providerTablesWidth)}  ${provider.description}`);
   return [
     "usage: spacequery <query|report> [--root DIR] [--scope root|agents|all] [--me PANE] [--json|--tsv] [--trace] [--expect-empty] [--strict]",
     "       spacequery --sql <text> [--root DIR] [--me PANE] [--scope root|agents|all] [--json|--tsv] [--trace] [--expect-empty] [--strict]",
@@ -58,6 +62,7 @@ function usage(userQueries: readonly UserQuery[], env: Readonly<Record<string, s
     "queries:",
     ...lines,
     ...(userQueries.length === 0 ? [] : ["", `user queries (${dirname(userQueries[0]!.path)}):`, ...userLines]),
+    ...(userProviders.length === 0 ? [] : ["", `user providers (${dirname(userProviders[0]!.path)}):`, ...providerLines]),
     "",
     "reports:",
     ...reportLines,
@@ -184,6 +189,7 @@ export function exitCodeFor(result: Pick<RunResult<unknown>, "rows" | "providers
 
 async function main(argv: string[]): Promise<number> {
   const userQueries = loadUserQueries(process.env);
+  const userProviders = loadUserProviders(process.env, loaders);
   const { values, positionals } = parseArgs({
     args: argv,
     options: optionsFor(userQueries),
@@ -208,7 +214,7 @@ async function main(argv: string[]): Promise<number> {
   validateQueryOptions(values, userQueries, report === undefined ? named?.params ?? userQuery?.params ?? [] : reportParams(report), requestedName ?? "sql");
   if (help || (positionals.length === 0 && sql === undefined)) {
     if (help && values["json"] === true) console.log(JSON.stringify([...queriesForHelp(userQueries, process.env), ...reportsForHelp()]));
-    else console.log(usage(userQueries, process.env));
+    else console.log(usage(userQueries, userProviders, process.env));
     return help ? 0 : 2;
   }
   if (!isScope(scope)) {
@@ -241,11 +247,11 @@ async function main(argv: string[]): Promise<number> {
     // The two flags are the two parameters a statement can name. Any other
     // `:name` is an error from the core.
     if (/:root\b/.test(sql)) params["root"] = toplevel(root ?? process.cwd());
-    result = await runSql(sql, { loaders, scope, params });
+    result = await runSql(sql, { loaders, userProviders, scope, params });
   } else {
     name = requestedName!;
     if (!report && !named && !userQuery) {
-      console.error(`spacequery: no query named ${name}\n\n${usage(userQueries, process.env)}`);
+      console.error(`spacequery: no query named ${name}\n\n${usage(userQueries, userProviders, process.env)}`);
       return 2;
     }
     if (report) {
@@ -256,7 +262,7 @@ async function main(argv: string[]): Promise<number> {
         const value = textOption(values, parameter);
         if (value !== undefined) params[parameter] = value;
       }
-      reportResult = await runReport(report.sections.map(([section, query]) => [section, catalog[query]!.query] as const), { loaders, scope, params });
+      reportResult = await runReport(report.sections.map(([section, query]) => [section, catalog[query]!.query] as const), { loaders, userProviders, scope, params });
     } else if (userQuery) {
       if (userQuery.params.includes("root")) params["root"] = toplevel(root ?? process.cwd());
       for (const parameter of userQuery.params) {
@@ -264,7 +270,7 @@ async function main(argv: string[]): Promise<number> {
         const value = textOption(values, parameter);
         if (value !== undefined) params[parameter] = value;
       }
-      result = await runSql(userQuery.sql, { loaders, scope, params });
+      result = await runSql(userQuery.sql, { loaders, userProviders, scope, params });
     } else if (named) {
       if (named.params.includes("root")) params["root"] = rootOnlyRepositoryQueries.has(named)
         ? await staticToplevel(root ?? process.cwd())
@@ -274,7 +280,7 @@ async function main(argv: string[]): Promise<number> {
         const value = textOption(values, parameter);
         if (value !== undefined) params[parameter] = value;
       }
-      result = await runQuery(named.query, { loaders, scope, params });
+      result = await runQuery(named.query, { loaders, userProviders, scope, params });
     } else {
       throw new Error(`no query named ${name}`);
     }
