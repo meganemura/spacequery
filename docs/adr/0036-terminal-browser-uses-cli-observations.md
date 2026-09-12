@@ -24,6 +24,10 @@ Execution opens Results with observed values, column headings, and source status
 Required parameters are prompted before execution; context and parameter editing use explicit shortcuts.
 Source status stays fixed at the bottom of Results while rows scroll above it.
 The `s` key switches focus between rows and source status; each area keeps its scroll position.
+Mouse input uses SGR reports and Ink's measured element positions in the alternate screen.
+Clicks reuse selection and navigation actions; the wheel scrolls the area under the pointer.
+Bracketed paste uses a separate input handler so pasted reports cannot trigger mouse actions.
+The `m` key and `--no-mouse` option restore terminal text selection; exit disables mouse reporting.
 SQL keeps its original line breaks, with horizontal scrolling for long lines.
 A fixed character count split identifiers and left half the pane unused for ASCII SQL.
 

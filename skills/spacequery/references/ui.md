@@ -1,7 +1,7 @@
 # Terminal browser
 
 Start the browser with `spacequery ui`.
-It accepts `--root DIR`, `--scope root|agents|all`, and `--me PANE`.
+It accepts `--root DIR`, `--scope root|agents|all`, `--me PANE`, and `--no-mouse`.
 It needs a terminal with at least 60 columns and 16 rows.
 
 Tables shows built-in and user provider tables with their column types, nullable columns, and keys.
@@ -18,6 +18,7 @@ A broken user query keeps its SQL and an error message in the catalog.
 
 | Key | Action |
 | --- | --- |
+| `m` | Toggle mouse input. |
 | `t` | Toggle between Tables and Queries. |
 | `/` | Edit the catalog search; Enter applies it and Esc cancels it. |
 | Tab | Move focus between the catalog and the detail pane. |
@@ -46,6 +47,22 @@ Context and parameter edits with `c` or `e` do not execute a query.
 Scope accepts `auto`, `root`, `agents`, or `all`.
 The initial automatic `me` follows the CLI caller rules; accepting it unchanged preserves automatic detection.
 Clear `me` with Ctrl+U to keep all panes.
+
+## Mouse
+
+Mouse input starts enabled. Use `--no-mouse` to start with it disabled, or press `m` to toggle it.
+The header shows whether mouse input is on.
+Disable it when you want the terminal to handle text selection.
+Mouse input requires a terminal that forwards SGR mouse reports; a multiplexer must forward them too.
+
+Click Tables or Queries to switch catalogs, or click Definition or Results to switch views.
+Click a catalog entry to select it, a related entry to open its definition, or a result row to open its details.
+Click `[r Run]` to execute; missing parameters still require input before execution.
+The wheel scrolls the area under the pointer: the catalog, definition, result rows, open row, or Sources.
+Horizontal wheel events scroll long text or result columns when the terminal provides them.
+Mouse actions pause during input prompts and execution.
+Right clicks, modified clicks, and drag operations are ignored.
+The browser disables mouse reporting when it exits.
 
 ## Observations
 

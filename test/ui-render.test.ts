@@ -16,18 +16,21 @@ const table: Item = { ...query, kind: "table", name: "sample_rows", params: [] }
 const initial: Inputs = { root: "/workspace", scope: "auto", params: {} };
 const observation: Observation = { rows: [{ value: "a long value", nullable: null }], providers: [{ name: "sample", source: "user", ok: 0, observed_at: 1000, ms: 2, error: "Fixture failure" }], scope: "root", params: {}, me: null, trace: [], ms: 2, receivedAt: 1000 };
 
-async function screen(items: Item[], execute: typeof observe, height = 24) {
+async function screen(items: Item[], execute: typeof observe, height = 24, mouse = true, width = 100) {
   let frame = "";
-  const output = new Writable({ write(chunk, _encoding, done) { const text = stripVTControlCharacters(String(chunk)); if (text.includes("spacequery")) frame = text; done(); } });
-  Object.assign(output, { columns: 100, rows: height, isTTY: true });
+  let rawOutput = "";
+  const output = new Writable({ write(chunk, _encoding, done) { rawOutput += String(chunk); const text = stripVTControlCharacters(String(chunk)); if (text.includes("spacequery")) frame = text; done(); } });
+  Object.assign(output, { columns: width, rows: height, isTTY: true });
   const input = new PassThrough();
   Object.assign(input, { isTTY: true, setRawMode() {}, ref() {}, unref() {} });
-  const app = render(createElement(Browser, { items, initial, execute }), { stdout: output as unknown as NodeJS.WriteStream, stdin: input as unknown as NodeJS.ReadStream, debug: true, patchConsole: false, exitOnCtrlC: false });
+  const app = render(createElement(Browser, { items, initial, execute, mouse }), { stdout: output as unknown as NodeJS.WriteStream, stdin: input as unknown as NodeJS.ReadStream, debug: true, patchConsole: false, exitOnCtrlC: false });
   const exited = app.waitUntilExit();
   const flush = async () => { await delay(40); await app.waitUntilRenderFlush(); };
   await flush();
   return {
     frame: () => frame,
+    raw: () => rawOutput,
+    async parts(parts: string[]) { for (const part of parts) input.write(part); await flush(); },
     async key(key: string) { input.write(key); await flush(); },
     async close() { app.unmount(); await exited; input.destroy(); output.destroy(); },
   };
@@ -283,5 +286,125 @@ test("empty results keep source status visible", async () => {
     assert.match(ui.frame(), /Unknown: a source failed/);
     assert.match(ui.frame(), /FAILED sample/);
     assert.match(ui.frame(), /Sources/);
+  } finally { await ui.close(); }
+});
+
+function mouseAt(frame: string, label: string, button = 0) {
+  const lines = frame.split("\n");
+  const y = lines.findIndex((line) => line.includes(label));
+  assert.ok(y >= 0, `Missing ${label}: ${frame}`);
+  return `\u001b[<${button};${lines[y]!.indexOf(label) + 1};${y + 1}M`;
+}
+
+test("mouse clicks switch catalogs, select entries, run, and open rows", async () => {
+  let count = 0;
+  const ui = await screen([{ ...query, params: [] }, { ...query, name: "next-query", params: [] }, table], async () => { count++; return observation; });
+  try {
+    await ui.key(mouseAt(ui.frame(), "Tables"));
+    assert.match(ui.frame(), /\[Tables\]/);
+    await ui.key(mouseAt(ui.frame(), "Queries"));
+    assert.match(ui.frame(), /\[Queries\]/);
+    await ui.key(mouseAt(ui.frame(), "next-query"));
+    assert.match(ui.frame(), /> next-query/);
+    await ui.key(mouseAt(ui.frame(), "2:Results"));
+    assert.match(ui.frame(), /2:\[Results\]/);
+    await ui.key(mouseAt(ui.frame(), "1:Definition"));
+    assert.match(ui.frame(), /1:\[Definition\]/);
+    assert.equal(count, 0);
+    await ui.key(mouseAt(ui.frame(), "[r Run]"));
+    assert.equal(count, 1);
+    await ui.key(mouseAt(ui.frame(), "a long value"));
+    assert.match(ui.frame(), /Row 1/);
+  } finally { await ui.close(); }
+  assert.ok(ui.raw().includes("\u001b[?1000h\u001b[?1006h"));
+  assert.ok(ui.raw().includes("\u001b[?1000l\u001b[?1006l"));
+});
+
+for (const height of [16, 24]) {
+  test(`mouse wheels target the hovered area at height ${height}`, async () => {
+    const rows = Array.from({ length: 30 }, (_, i) => ({ value: `value-${i}` }));
+    const providers = Array.from({ length: 10 }, (_, i) => ({ ...observation.providers[0]!, name: `source-${i}` }));
+    const ui = await screen([{ ...query, params: [] }], async () => ({ ...observation, rows, providers }), height);
+    try {
+      await ui.key(mouseAt(ui.frame(), "[r Run]"));
+      await ui.key(mouseAt(ui.frame(), "value-0", 65));
+      assert.match(ui.frame(), /> value-3/);
+      await ui.key(mouseAt(ui.frame(), "Sources", 65));
+      assert.match(ui.frame(), /Sources \[focused\]  4\/20/);
+      assert.match(ui.frame(), /> value-3/);
+      await ui.key(mouseAt(ui.frame(), "value-3"));
+      assert.match(ui.frame(), /Row 4/);
+      assert.ok(ui.frame().split("\n").length <= height + 1);
+    } finally { await ui.close(); }
+  });
+}
+
+test("mouse follows related definitions after scrolling", async () => {
+  const ui = await screen([query, table], async () => observation);
+  try {
+    const wheel = mouseAt(ui.frame(), "SQL", 65);
+    for (let i = 0; i < 3; i++) await ui.key(wheel);
+    await ui.key(mouseAt(ui.frame(), "sample_rows"));
+    assert.match(ui.frame(), /\[Tables\]/);
+    assert.match(ui.frame(), /1:\[Definition\]/);
+  } finally { await ui.close(); }
+});
+
+test("mouse can be disabled and reports cannot enter input fields", async () => {
+  let count = 0;
+  const ui = await screen([query, table], async () => { count++; return observation; }, 24, false);
+  try {
+    assert.ok(!ui.raw().includes("\u001b[?1000h"));
+    await ui.key(mouseAt(ui.frame(), "Tables"));
+    assert.match(ui.frame(), /\[Queries\]/);
+    await ui.key("m");
+    await ui.key("/");
+    await ui.key(mouseAt(ui.frame(), "Tables"));
+    await ui.key("\u001b[200~q\u001b[201~");
+    assert.match(ui.frame(), /Search: q█/);
+    assert.equal(count, 0);
+    await ui.key("\u001b");
+    const report = mouseAt(ui.frame(), "Tables");
+    await ui.parts([report.slice(0, 4), report.slice(4)]);
+    assert.match(ui.frame(), /\[Tables\]/);
+    await ui.key("m");
+    assert.match(ui.frame(), /mouse:off/);
+    await ui.key(mouseAt(ui.frame(), "Queries"));
+    assert.match(ui.frame(), /\[Tables\]/);
+  } finally { await ui.close(); }
+});
+
+test("mouse tabs and Run remain usable in a 60-column terminal", async () => {
+  const ui = await screen([{ ...query, params: [] }, table], async () => observation, 16, true, 60);
+  try {
+    await ui.key(mouseAt(ui.frame(), "Tables"));
+    assert.match(ui.frame(), /\[Tables\]/);
+    await ui.key(mouseAt(ui.frame(), "Queries"));
+    await ui.key(mouseAt(ui.frame(), "[r Run]"));
+    assert.match(ui.frame(), /2:\[Results\]/);
+    assert.ok(ui.frame().split("\n").length <= 17, ui.frame());
+  } finally { await ui.close(); }
+});
+
+test("coalesced wheel reports preserve each scroll step", async () => {
+  const rows = Array.from({ length: 30 }, (_, i) => ({ value: `value-${i}` }));
+  const ui = await screen([{ ...query, params: [] }], async () => ({ ...observation, rows }));
+  try {
+    await ui.key("r");
+    const wheel = mouseAt(ui.frame(), "value-0", 65);
+    await ui.parts([wheel + wheel + wheel]);
+    assert.match(ui.frame(), /> value-9/);
+  } finally { await ui.close(); }
+});
+
+test("blank space cannot activate a hidden related entry", async () => {
+  const ui = await screen([query, table], async () => observation, 16);
+  try {
+    const wheel = mouseAt(ui.frame(), "SQL", 65);
+    for (let i = 0; i < 3; i++) await ui.key(wheel);
+    assert.doesNotMatch(ui.frame(), /sample_rows/);
+    const match = /;(\d+);(\d+)M/.exec(wheel)!;
+    await ui.key(`\u001b[<0;${match[1]};${Number(match[2]) + 1}M`);
+    assert.match(ui.frame(), /\[Queries\]/);
   } finally { await ui.close(); }
 });

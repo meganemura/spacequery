@@ -56,7 +56,7 @@ test("scope parameters share the context flag", () => {
 });
 
 test("the UI help and non-terminal refusal do not need Ink or provider execution", () => {
-  const output = execFileSync(process.execPath, ["cli.ts", "ui", "--help"], { encoding: "utf8" });
+  const output = execFileSync(process.execPath, ["cli.ts", "ui", "--no-mouse", "--help"], { encoding: "utf8" });
   assert.match(output, /spacequery ui/);
   assert.throws(() => execFileSync(process.execPath, ["cli.ts", "ui"], { encoding: "utf8", stdio: "pipe" }), (error: unknown) => {
     assert.match((error as { stderr: string }).stderr, /needs an interactive terminal/);
