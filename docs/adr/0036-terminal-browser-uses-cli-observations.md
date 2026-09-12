@@ -20,7 +20,8 @@ Two detail views separate definitions from observations.
 Selection opens Definition with SQL, related entries, and column types.
 Execution opens Results with observed values, column headings, and source status.
 Required parameters are prompted before execution; context and parameter editing use explicit shortcuts.
-Source status follows the result rows, and `s` jumps to that section.
+Source status stays fixed at the bottom of Results while rows scroll above it.
+The `s` key switches focus between rows and source status; each area keeps its scroll position.
 SQL keeps its original line breaks, with horizontal scrolling for long lines.
 A fixed character count split identifiers and left half the pane unused for ASCII SQL.
 

@@ -24,7 +24,7 @@ A broken user query keeps its SQL and an error message in the catalog.
 | `1`, `2` | Open Definition or Results. |
 | `e` | Edit query parameters in sequence. |
 | `c` | Edit root, scope, and caller context in sequence. |
-| `s` | Jump between result rows and their source status in Results. |
+| `s` | Switch focus between result rows and the fixed Sources area. |
 | Left/Right | Scroll result columns or long text lines horizontally. |
 | Enter | Focus the selected entry, open a row, accept an input, or follow a related entry. |
 | `r` | Prompt for missing parameters, then execute the selected entry. |
@@ -51,7 +51,7 @@ Catalog navigation reads definitions without running providers.
 Press `r` to execute a query or read a table.
 Each execution uses a fresh CLI process and database.
 The browser retains the latest result in memory for navigation and row inspection.
-The receipt time identifies that result; the Sources section in Results shows each provider's observation time and duration.
+The receipt time identifies that result; the fixed Sources area in Results shows each provider's observation time and duration.
 Editing an input clears the result so old data cannot appear under new parameters.
 
 With `scope: auto`, table inspection binds the selected root and uses root scope.
@@ -62,7 +62,9 @@ The result footer shows the effective scope.
 A failed provider makes an empty result unknown.
 The result footer identifies failed providers, and the Sources section shows their errors.
 Reading the `providers` table alone runs no provider and therefore returns no status rows.
-Press `s` after execution to inspect source status within Results.
+Sources stays visible below the rows, including when a row is open.
+Press `s` after execution to focus Sources; arrow keys scroll its lines and long text.
+Press `s` or Esc to return to the rows.
 
 The browser supports manual execution and query inspection.
 Reports remain available through the CLI; SQL editing and automatic refresh are outside this version.

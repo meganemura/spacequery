@@ -31,6 +31,9 @@ export function Browser({ items, initial, execute = observe }: { items: Item[]; 
   const [offset, setOffset] = useState(0);
   const [column, setColumn] = useState(0);
   const [textColumn, setTextColumn] = useState(0);
+  const [sourcesFocused, setSourcesFocused] = useState(false);
+  const [sourceOffset, setSourceOffset] = useState(0);
+  const [sourceColumn, setSourceColumn] = useState(0);
   const [expanded, setExpanded] = useState(false);
   const [detailOffset, setDetailOffset] = useState(0);
   const [inputs, setInputs] = useState<Inputs>(initial);
@@ -45,17 +48,20 @@ export function Browser({ items, initial, execute = observe }: { items: Item[]; 
   const observation = result !== null && result.item === item ? result.observation : undefined;
   const related = item ? items.filter((candidate) => candidate.kind !== item.kind && (item.kind === "table" ? candidate.tables.includes(item.name) : item.tables.includes(candidate.name))) : [];
   const bodyHeight = Math.max(3, size.height - 9);
-  const pageSize = Math.max(1, bodyHeight - 6);
+  const compactResults = view === "Results" && size.height < 20;
+  const sourceHeight = view === "Results" ? Math.min(4, Math.max(2, Math.floor((bodyHeight - 5) / 3))) : 0;
+  const detailHeight = bodyHeight - 2 - (compactResults ? 1 : 3) - sourceHeight;
+  const pageSize = Math.max(1, detailHeight - 1);
   const leftWidth = Math.max(20, Math.min(34, Math.floor(size.width * 0.29)));
   const rightWidth = Math.max(15, size.width - leftWidth - 5);
 
   function select(next: number) {
     setSelected(Math.max(0, Math.min(next, filtered.length - 1)));
-    setView("Definition");
+    setView("Definition"); setSourcesFocused(false); setSourceOffset(0); setSourceColumn(0);
     setOffset(0); setTextColumn(0); setColumn(0); setExpanded(false); setDetailOffset(0); setError("");
   }
-  function changeView(next: View) { setView(next); setTextColumn(0); setOffset(0); setExpanded(false); setDetailOffset(0); }
-  function invalidate() { setResult(null); setError(""); changeView("Definition"); }
+  function changeView(next: View) { setView(next); setSourcesFocused(false); setTextColumn(0); setOffset(0); setExpanded(false); setDetailOffset(0); }
+  function invalidate() { setSourceOffset(0); setSourceColumn(0); setResult(null); setError(""); changeView("Definition"); }
   function editFields(names: readonly string[], values: Inputs, runAfter: boolean) {
     const [name, ...remaining] = names;
     if (name === undefined) return;
@@ -68,6 +74,7 @@ export function Browser({ items, initial, execute = observe }: { items: Item[]; 
     const missing = item.params.filter((p) => p !== "root" && p !== "me" && (p === "scope" ? values.scope === "auto" : !Object.hasOwn(values.params, p)));
     if (missing.length) { editFields(missing, values, true); return; }
     controller.current = new AbortController();
+    setSourceOffset(0); setSourceColumn(0);
     pending.current = true; setBusy(true); setResult(null); setError(""); changeView("Results"); setFocus("detail");
     try { setResult({ item, observation: await execute(item, values, controller.current.signal) }); }
     catch (error) { setError(error instanceof Error ? error.message : String(error)); }
@@ -115,31 +122,38 @@ export function Browser({ items, initial, execute = observe }: { items: Item[]; 
     if (input === "e" && item) { editFields(item.params, inputs, false); return; }
     if (/[1-2]/.test(input) && input.length === 1) { changeView(views[Number(input) - 1]!); setFocus("detail"); return; }
     if (input === "s" && observation) {
-      changeView("Results"); setFocus("detail");
-      setOffset(view === "Results" && offset >= observation.rows.length ? 0 : observation.rows.length);
+      if (view !== "Results") changeView("Results");
+      setFocus("detail"); setSourcesFocused(view !== "Results" || !sourcesFocused);
       return;
     }
     if (key.escape) {
-      if (expanded) { setExpanded(false); setDetailOffset(0); }
+      if (sourcesFocused) { setSourcesFocused(false); }
+      else if (expanded) { setExpanded(false); setDetailOffset(0); }
       else { setFocus("list"); }
       return;
     }
     if (key.leftArrow || key.rightArrow) {
-      if (focus === "detail" && (view === "Definition" || expanded || (observation && offset >= observation.rows.length))) {
+      if (focus === "detail" && sourcesFocused) {
+        const longest = Math.max(0, ...sourceLines.map((line) => Array.from(line).length));
+        setSourceColumn((n) => Math.max(0, Math.min(n + (key.rightArrow ? 4 : -4), Math.max(0, longest - 1))));
+      } else if (focus === "detail" && (view === "Definition" || expanded)) {
         const longest = contentLines.reduce((width, line) => Math.max(width, Array.from(line).length), 0);
         setTextColumn((n) => Math.max(0, Math.min(n + (key.rightArrow ? 4 : -4), Math.max(0, longest - 1))));
       } else if (view === "Results" && focus === "detail" && !expanded) setColumn((n) => Math.max(0, Math.min(n + (key.rightArrow ? 1 : -1), Math.max(0, (observation ? Object.keys(observation.rows[0] ?? {}).length : item?.columns.length ?? 0) - 1))));
       return;
     }
-    const direction = key.downArrow || input === "j" ? 1 : key.upArrow || input === "k" ? -1 : key.pageDown ? pageSize : key.pageUp ? -pageSize : 0;
+    const scrollPage = focus === "detail" && sourcesFocused ? sourceHeight - 1 : pageSize;
+    const direction = key.downArrow || input === "j" ? 1 : key.upArrow || input === "k" ? -1 : key.pageDown ? scrollPage : key.pageUp ? -scrollPage : 0;
     if (direction) {
       if (focus === "list") select(selected + direction);
+      else if (sourcesFocused) setSourceOffset(() => Math.max(0, Math.min(sourceStart + direction, Math.max(0, sourceLines.length - (sourceHeight - 1)))));
       else if (expanded) setDetailOffset((n) => Math.max(0, Math.min(n + direction, Math.max(0, contentLines.length - pageSize))));
       else setOffset((n) => Math.max(0, Math.min(n + direction, Math.max(0, contentCount - 1))));
       return;
     }
     if (!key.return || !item) return;
     if (focus === "list") { setFocus("detail"); return; }
+    if (sourcesFocused) return;
     if (view === "Definition") {
       const target = related[offset - 1];
       if (target) {
@@ -152,9 +166,10 @@ export function Browser({ items, initial, execute = observe }: { items: Item[]; 
   // Preserve source lines. Horizontal scrolling exposes long lines without
   // inserting breaks into SQL identifiers or values.
   const lines = (value: string) => safeText(value).replaceAll("\t", "  ").split("\n");
-  const sourceLines = ["Sources: data retrieval status", ...(observation?.providers.length
+  const sourceLines = !observation ? [busy ? "Waiting for sources..." : "Run to inspect sources."] : (observation.providers.length
     ? observation.providers.flatMap((provider) => lines(`${provider.ok ? "OK" : "FAILED"} ${provider.name} | ${provider.ms} ms | ${new Date(provider.observed_at).toISOString()}${provider.error ? `\n${provider.error}` : ""}`))
-    : ["This call ran no provider."])];
+    : ["This call ran no provider."]);
+  const sourceStart = Math.min(sourceOffset, Math.max(0, sourceLines.length - (sourceHeight - 1)));
   const definitionLines = item ? [
     item.kind === "table" ? "Queries using this table (Enter opens)" : "Tables used by this query (Enter opens)",
     ...related.map((entry) => `  ${entry.name}`),
@@ -165,7 +180,7 @@ export function Browser({ items, initial, execute = observe }: { items: Item[]; 
     lines(`${name}: ${value === null ? "NULL" : typeof value === "object" ? JSON.stringify(value) : String(value)}`)) : [];
   const contentLines = expanded ? rowLines : view === "Definition" ? definitionLines : sourceLines;
   const contentCount = view === "Definition" ? definitionLines.length
-    : observation ? observation.rows.length + sourceLines.length : 0;
+    : observation ? observation.rows.length : 0;
   const text = (value: unknown, options: Record<string, unknown> = {}) => h(Text, { wrap: "truncate-end", ...options }, lineText(value));
   const listStart = Math.floor(selected / pageSize) * pageSize;
   const failed = observation?.providers.filter((provider) => !provider.ok) ?? [];
@@ -181,9 +196,8 @@ export function Browser({ items, initial, execute = observe }: { items: Item[]; 
     }));
   } else if (!observation) {
     detail.push(text(busy ? "Fetching rows..." : "No result yet. Press r to run.", { color: "yellow" }));
-  } else if (offset >= observation.rows.length) {
-    if (!observation.rows.length) detail.push(text(failed.length ? "Unknown: a source failed." : "0 rows in this scope."));
-    detail.push(...sourceLines.slice(offset - observation.rows.length, offset - observation.rows.length + pageSize).map((line) => text(Array.from(line).slice(textColumn).join(""))));
+  } else if (!observation.rows.length) {
+    detail.push(text(failed.length ? "Unknown: a source failed." : "0 rows in this scope."));
   } else {
     const keys = observation.rows.length ? Object.keys(observation.rows[0]!) : item.columns.map((c) => c.name);
     const shown = keys.slice(column, column + Math.max(1, Math.floor(rightWidth / 20)));
@@ -202,10 +216,13 @@ export function Browser({ items, initial, execute = observe }: { items: Item[]; 
       h(Box, { flexDirection: "column", width: leftWidth, borderStyle: "round", borderColor: focus === "list" ? "cyan" : "gray", paddingX: 1 },
         ...filtered.slice(listStart, listStart + pageSize + 2).map((entry, i) => text(`${listStart + i === selected ? ">" : " "} ${entry.name}`, { color: listStart + i === selected ? "cyan" : undefined }))),
       h(Box, { flexDirection: "column", flexGrow: 1, borderStyle: "round", borderColor: focus === "detail" ? "cyan" : "gray", paddingX: 1 },
-        text(`${item?.name ?? ""}  ${item?.source ?? ""}`, { bold: true }),
-        text(item?.description ?? "", { dimColor: true }),
+        ...(compactResults ? [] : [text(`${item?.name ?? ""}  ${item?.source ?? ""}`, { bold: true }),
+          text(item?.description ?? "", { dimColor: true })]),
         text(views.map((name, i) => `${i + 1}:${name === view ? `[${name}]` : name}`).join(" "), { color: "cyan" }),
-        ...detail)),
+        h(Box, { flexDirection: "column", height: detailHeight, flexShrink: 0 }, ...detail),
+        ...(view === "Results" ? [h(Box, { flexDirection: "column", height: sourceHeight, flexShrink: 0 },
+          text(`Sources${sourcesFocused && focus === "detail" ? " [focused]" : ""}  ${sourceStart + 1}/${sourceLines.length}  [s focus]`, { bold: true, color: sourcesFocused && focus === "detail" ? "cyan" : "gray" }),
+          ...sourceLines.slice(sourceStart, sourceStart + sourceHeight - 1).map((line) => text(Array.from(line).slice(sourceColumn).join(""))))] : []))),
     text(observation ? `${observation.rows.length} rows | scope: ${observation.scope} | ${observation.ms} ms | received ${new Date(observation.receivedAt).toLocaleTimeString()}` : busy ? "Fetching a fresh observation..." : "Definition only; data loads when you press r."),
     text(error || item?.error || (failed.length ? `Incomplete: ${failed.map((p) => p.name).join(", ")} failed. Press s for source details.` : ""), { color: "yellow" }),
     text(editing !== null ? `${editing.kind === "search" ? "Search" : editing.name}: ${editing.kind === "field" && editing.name === "me" && !editing.changed && inputs.me === undefined ? "(auto)" : draft}█  (Enter next, Ctrl+U clear, Esc cancel)` : "t Switch / Search Tab Focus 1-2 View r Run e Edit c Context"),

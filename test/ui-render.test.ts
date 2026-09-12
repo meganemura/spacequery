@@ -150,7 +150,7 @@ test("two detail views keep source status with the result rows", async () => {
     await ui.key("r");
     await ui.key("s");
     assert.match(ui.frame(), /2:\[Results\]/);
-    assert.match(ui.frame(), /Sources: data retrieval status/);
+    assert.match(ui.frame(), /Sources \[focused\]/);
     await ui.key("j");
     await ui.key("j");
     assert.match(ui.frame(), /Fixture failure/);
@@ -241,5 +241,47 @@ test("accepting unchanged context preserves automatic caller detection", async (
     assert.equal(values!.me, undefined);
     assert.equal(values!.scope, "auto");
     assert.equal(values!.root, initial.root);
+  } finally { await ui.close(); }
+});
+
+for (const height of [16, 24]) {
+  test(`Sources stays fixed while rows and source lines scroll at height ${height}`, async () => {
+    const rows = Array.from({ length: 30 }, (_, i) => ({ value: `value-${i}` }));
+    const providers = Array.from({ length: 6 }, (_, i) => ({ ...observation.providers[0]!, name: `source-${i}` }));
+    const ui = await screen([{ ...query, params: [] }], async () => ({ ...observation, rows, providers }), height);
+    try {
+      await ui.key("r");
+      const sourceLine = () => ui.frame().split("\n").findIndex((line) => line.includes("Sources  ") || line.includes("Sources [focused]"));
+      const fixedLine = sourceLine();
+      assert.match(ui.frame(), /FAILED source-0/);
+      for (let i = 0; i < 10; i++) await ui.key("j");
+      assert.match(ui.frame(), /> value-10/);
+      assert.equal(sourceLine(), fixedLine);
+      await ui.key("s");
+      await ui.key("\u001b[6~");
+      assert.match(ui.frame(), height === 16 ? /Sources \[focused\]  2\/12/ : /Sources \[focused\]  3\/12/);
+      await ui.key("\u001b[5~");
+      assert.match(ui.frame(), /Sources \[focused\]  1\/12/);
+      for (let i = 0; i < 5; i++) await ui.key("j");
+      assert.match(ui.frame(), /> value-10/);
+      assert.equal(sourceLine(), fixedLine);
+      await ui.key("s");
+      await ui.key("\r");
+      assert.match(ui.frame(), /Row 11/);
+      assert.equal(sourceLine(), fixedLine);
+      await ui.key("\u001b");
+      assert.match(ui.frame(), /> value-10/);
+      assert.ok(ui.frame().split("\n").length <= height + 1, ui.frame());
+    } finally { await ui.close(); }
+  });
+}
+
+test("empty results keep source status visible", async () => {
+  const ui = await screen([{ ...query, params: [] }], async () => ({ ...observation, rows: [] }));
+  try {
+    await ui.key("r");
+    assert.match(ui.frame(), /Unknown: a source failed/);
+    assert.match(ui.frame(), /FAILED sample/);
+    assert.match(ui.frame(), /Sources/);
   } finally { await ui.close(); }
 });
