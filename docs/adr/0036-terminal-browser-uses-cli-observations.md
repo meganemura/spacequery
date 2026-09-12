@@ -15,7 +15,11 @@ A terminal browser must preserve those rules across repeated executions.
 `spacequery ui` opens a terminal browser with Tables and Queries as its two entry points.
 The catalog reads the migrated schema and query metadata in an empty database, then closes that database.
 Catalog navigation starts no provider.
-The Related view connects table names and query read metadata.
+The Definition view connects table names and query read metadata.
+Three detail views group result rows with source status, SQL with related entries and columns, and editable inputs.
+Source status follows the result rows, and `s` jumps to that section.
+SQL keeps its original line breaks, with horizontal scrolling for long lines.
+A fixed character count split identifiers and left half the pane unused for ASCII SQL.
 
 An explicit execution starts the existing CLI in a child process with arguments passed as an array.
 The child process owns the observation database and exits after the result.

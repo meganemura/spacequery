@@ -7,8 +7,8 @@ import { stripVTControlCharacters } from "node:util";
 import type { Item } from "./catalog.ts";
 import { observe, type Inputs, type Observation } from "./execute.ts";
 
-type View = "Results" | "SQL" | "Inputs" | "Related" | "Providers";
-const views: View[] = ["Results", "SQL", "Inputs", "Related", "Providers"];
+type View = "Results" | "Definition" | "Inputs";
+const views: View[] = ["Results", "Definition", "Inputs"];
 export const safeText = (value: unknown): string => stripVTControlCharacters(value === null ? "NULL" : String(value ?? "")).replace(/[\x00-\x08\x0b-\x1f\x7f-\x9f]/g, "");
 const lineText = (value: unknown): string => safeText(value).replace(/[\n\r\t]/g, " ");
 
@@ -30,6 +30,7 @@ export function Browser({ items, initial, execute = observe }: { items: Item[]; 
   const [view, setView] = useState<View>("Results");
   const [offset, setOffset] = useState(0);
   const [column, setColumn] = useState(0);
+  const [textColumn, setTextColumn] = useState(0);
   const [expanded, setExpanded] = useState(false);
   const [detailOffset, setDetailOffset] = useState(0);
   const [inputs, setInputs] = useState<Inputs>(initial);
@@ -51,9 +52,9 @@ export function Browser({ items, initial, execute = observe }: { items: Item[]; 
 
   function select(next: number) {
     setSelected(Math.max(0, Math.min(next, filtered.length - 1)));
-    setOffset(0); setColumn(0); setExpanded(false); setDetailOffset(0); setError("");
+    setOffset(0); setTextColumn(0); setColumn(0); setExpanded(false); setDetailOffset(0); setError("");
   }
-  function changeView(next: View) { setView(next); setOffset(0); setExpanded(false); setDetailOffset(0); }
+  function changeView(next: View) { setView(next); setTextColumn(0); setOffset(0); setExpanded(false); setDetailOffset(0); }
   function invalidate() { setResult(null); setError(""); setExpanded(false); }
   async function run() {
     if (!item || pending.current) return;
@@ -93,14 +94,22 @@ export function Browser({ items, initial, execute = observe }: { items: Item[]; 
     }
     if (key.tab) { setFocus(focus === "list" ? "detail" : "list"); return; }
     if (input === "r") { void run(); return; }
-    if (/[1-5]/.test(input) && input.length === 1) { changeView(views[Number(input) - 1]!); setFocus("detail"); return; }
+    if (/[1-3]/.test(input) && input.length === 1) { changeView(views[Number(input) - 1]!); setFocus("detail"); return; }
+    if (input === "s" && observation) {
+      changeView("Results"); setFocus("detail");
+      setOffset(view === "Results" && offset >= observation.rows.length ? 0 : observation.rows.length);
+      return;
+    }
     if (key.escape) {
       if (expanded) { setExpanded(false); setDetailOffset(0); }
       else { setFocus("list"); }
       return;
     }
     if (key.leftArrow || key.rightArrow) {
-      if (view === "Results" && focus === "detail" && !expanded) setColumn((n) => Math.max(0, Math.min(n + (key.rightArrow ? 1 : -1), Math.max(0, (observation ? Object.keys(observation.rows[0] ?? {}).length : item?.columns.length ?? 0) - 1))));
+      if (focus === "detail" && (view === "Definition" || expanded || (observation && offset >= observation.rows.length))) {
+        const longest = contentLines.reduce((width, line) => Math.max(width, Array.from(line).length), 0);
+        setTextColumn((n) => Math.max(0, Math.min(n + (key.rightArrow ? 4 : -4), Math.max(0, longest - 1))));
+      } else if (view === "Results" && focus === "detail" && !expanded) setColumn((n) => Math.max(0, Math.min(n + (key.rightArrow ? 1 : -1), Math.max(0, (observation ? Object.keys(observation.rows[0] ?? {}).length : item?.columns.length ?? 0) - 1))));
       return;
     }
     const direction = key.downArrow || input === "j" ? 1 : key.upArrow || input === "k" ? -1 : key.pageDown ? pageSize : key.pageUp ? -pageSize : 0;
@@ -112,11 +121,11 @@ export function Browser({ items, initial, execute = observe }: { items: Item[]; 
     }
     if (!key.return || !item) return;
     if (focus === "list") { setFocus("detail"); return; }
-    if (view === "Related") {
-      const target = related[offset];
+    if (view === "Definition") {
+      const target = related[offset - 1];
       if (target) {
         setKind(target.kind); setSearch(""); setSelected(items.filter((i) => i.kind === target.kind).indexOf(target));
-        setOffset(0); setColumn(0); setExpanded(false); setError(""); changeView("Results");
+        setOffset(0); setTextColumn(0); setColumn(0); setExpanded(false); setError(""); changeView("Results");
       }
     } else if (view === "Inputs") {
       const field = fields[offset];
@@ -126,42 +135,39 @@ export function Browser({ items, initial, execute = observe }: { items: Item[]; 
       } else if (field) {
         setEditing({ kind: "field", name: field }); setDraft(field === "root" ? inputs.root : field === "me" ? inputs.me ?? "" : Object.hasOwn(inputs.params, field) ? inputs.params[field]! : "");
       }
-    } else if (view === "Results" && observation?.rows.length) { setExpanded(!expanded); setDetailOffset(0); }
+    } else if (view === "Results" && observation && offset < observation.rows.length) { setExpanded(!expanded); setDetailOffset(0); setTextColumn(0); }
   });
 
-  const contentLines: string[] = [];
-  function addLines(text: string) {
-    // Small chunks leave room for wide terminal glyphs, including CJK text.
-    for (const line of safeText(text).split("\n")) {
-      const chars = Array.from(line.replaceAll("\t", "  "));
-      const width = Math.max(1, Math.floor(rightWidth / 2));
-      if (!chars.length) contentLines.push("");
-      for (let start = 0; start < chars.length; start += width) contentLines.push(chars.slice(start, start + width).join(""));
-    }
-  }
-  if (expanded && observation) {
-    for (const [name, value] of Object.entries(observation.rows[offset] ?? {})) addLines(`${name}: ${value === null ? "NULL" : typeof value === "object" ? JSON.stringify(value) : String(value)}`);
-  } else if (view === "SQL") addLines(item?.sql.trim() ?? "");
-  else if (view === "Providers") {
-    if (!observation) addLines("Run with r to inspect provider status.");
-    for (const provider of observation?.providers ?? []) addLines(`${provider.ok ? "OK" : "FAILED"} ${provider.name} | ${provider.ms} ms | ${new Date(provider.observed_at).toISOString()}${provider.error ? `\n${provider.error}` : ""}`);
-    if (observation?.providers.length === 0) addLines("This call ran no provider.");
-  }
-  const contentCount = view === "Inputs" ? fields.length : view === "Related" ? related.length : view === "Results" ? observation?.rows.length ?? item?.columns.length ?? 0 : contentLines.length;
+  // Preserve source lines. Horizontal scrolling exposes long lines without
+  // inserting breaks into SQL identifiers or values.
+  const lines = (value: string) => safeText(value).replaceAll("\t", "  ").split("\n");
+  const sourceLines = ["Sources: data retrieval status", ...(observation?.providers.length
+    ? observation.providers.flatMap((provider) => lines(`${provider.ok ? "OK" : "FAILED"} ${provider.name} | ${provider.ms} ms | ${new Date(provider.observed_at).toISOString()}${provider.error ? `\n${provider.error}` : ""}`))
+    : ["This call ran no provider."])];
+  const definitionLines = item ? [
+    item.kind === "table" ? "Queries using this table (Enter opens)" : "Tables used by this query (Enter opens)",
+    ...related.map((entry) => `  ${entry.name}`),
+    "", "SQL", ...lines(item.sql.trim()), "", "Columns",
+    ...item.columns.map((column) => `${column.name}  ${column.type}${item.kind === "table" ? `${column.nullable ? "?" : ""}${column.key ? "  KEY" : ""}` : ""}`),
+  ] : [];
+  const rowLines = expanded && observation ? Object.entries(observation.rows[offset] ?? {}).flatMap(([name, value]) =>
+    lines(`${name}: ${value === null ? "NULL" : typeof value === "object" ? JSON.stringify(value) : String(value)}`)) : [];
+  const contentLines = expanded ? rowLines : view === "Definition" ? definitionLines : sourceLines;
+  const contentCount = view === "Inputs" ? fields.length : view === "Definition" ? definitionLines.length
+    : observation ? observation.rows.length + sourceLines.length : item?.columns.length ?? 0;
   const text = (value: unknown, options: Record<string, unknown> = {}) => h(Text, { wrap: "truncate-end", ...options }, lineText(value));
   const listStart = Math.floor(selected / pageSize) * pageSize;
   const failed = observation?.providers.filter((provider) => !provider.ok) ?? [];
   const detail: ReturnType<typeof h>[] = [];
   if (!item) detail.push(text("No matches. Press / to change the search."));
-  else if (expanded || view === "SQL" || view === "Providers") {
+  else if (expanded || view === "Definition") {
     if (expanded) detail.push(text(`Row ${offset + 1} / ${observation!.rows.length}  |  Esc closes`, { bold: true }));
     const start = expanded ? detailOffset : offset;
-    detail.push(...contentLines.slice(start, start + pageSize).map((line) => text(line)));
-  } else if (view === "Related") {
-    detail.push(text(item.kind === "table" ? "Queries that read this table" : "Tables read by this query", { bold: true }));
-    const start = Math.floor(offset / pageSize) * pageSize;
-    detail.push(...related.slice(start, start + pageSize).map((target, i) => text(`${start + i === offset ? ">" : " "} ${target.name}`, { color: start + i === offset ? "cyan" : undefined })));
-    if (!related.length) detail.push(text("No related entries in this catalog."));
+    detail.push(...contentLines.slice(start, start + pageSize).map((line, i) => {
+      const link = !expanded && start + i > 0 && start + i <= related.length;
+      const value = Array.from(line).slice(textColumn).join("");
+      return text(link && i === 0 ? `> ${value.trimStart()}` : value, { color: link ? "cyan" : undefined });
+    }));
   } else if (view === "Inputs") {
     detail.push(text("Enter edits a value. Scope cycles on Enter.", { dimColor: true }));
     const start = Math.floor(offset / pageSize) * pageSize;
@@ -170,6 +176,9 @@ export function Browser({ items, initial, execute = observe }: { items: Item[]; 
     detail.push(text("Press r to fetch rows.", { color: "yellow" }));
     detail.push(text("Columns", { bold: true }));
     detail.push(...item.columns.slice(offset, offset + pageSize - 1).map((column) => text(`${column.name}  ${column.type}${item.kind === "table" ? `${column.nullable ? "?" : ""}${column.key ? "  KEY" : ""}` : ""}`)));
+  } else if (offset >= observation.rows.length) {
+    if (!observation.rows.length) detail.push(text(failed.length ? "Unknown: a source failed." : "0 rows in this scope."));
+    detail.push(...sourceLines.slice(offset - observation.rows.length, offset - observation.rows.length + pageSize).map((line) => text(Array.from(line).slice(textColumn).join(""))));
   } else {
     const keys = observation.rows.length ? Object.keys(observation.rows[0]!) : item.columns.map((c) => c.name);
     const shown = keys.slice(column, column + Math.max(1, Math.floor(rightWidth / 20)));
@@ -178,7 +187,6 @@ export function Browser({ items, initial, execute = observe }: { items: Item[]; 
     detail.push(gridRow(shown, true));
     const start = Math.floor(offset / pageSize) * pageSize;
     detail.push(...observation.rows.slice(start, start + pageSize).map((row, i) => gridRow(shown.map((key, col) => `${col === 0 ? (start + i === offset ? "> " : "  ") : ""}${lineText(row[key])}`), start + i === offset)));
-    if (!observation.rows.length) detail.push(text(failed.length ? "Unknown: a provider failed. See Providers." : "0 rows in this scope."));
   }
   if (size.width < 60 || size.height < 16) return h(Box, { flexDirection: "column" }, text("spacequery ui needs at least 60 columns and 16 rows."), text("Resize the terminal, or press q to quit."));
   return h(Box, { flexDirection: "column", width: size.width, height: size.height - 1 },
@@ -193,7 +201,7 @@ export function Browser({ items, initial, execute = observe }: { items: Item[]; 
         text(views.map((name, i) => `${i + 1}:${name === view ? `[${name}]` : name}`).join(" "), { color: "cyan" }),
         ...detail)),
     text(observation ? `${observation.rows.length} rows | scope: ${observation.scope} | ${observation.ms} ms | received ${new Date(observation.receivedAt).toLocaleTimeString()}` : busy ? "Fetching a fresh observation..." : "Definition only; data loads when you press r."),
-    text(error || item?.error || (failed.length ? `Incomplete: ${failed.map((p) => p.name).join(", ")} failed. Press 5 for details.` : ""), { color: "yellow" }),
-    text(editing !== null ? `${editing.kind === "search" ? "Search" : editing.name}: ${draft}█  (Enter saves, Esc cancels)` : "t Tables/Queries  / Search  Tab Focus  1-5 View  r Run  q Quit"),
-    text("↑↓ Move  ←→ Columns  Enter Open/Edit  PgUp/PgDn Scroll  Esc Back", { dimColor: true }));
+    text(error || item?.error || (failed.length ? `Incomplete: ${failed.map((p) => p.name).join(", ")} failed. Press s for source details.` : ""), { color: "yellow" }),
+    text(editing !== null ? `${editing.kind === "search" ? "Search" : editing.name}: ${draft}█  (Enter saves, Esc cancels)` : "t Tables/Queries  / Search  Tab Focus  1-3 View  s Sources  r Run  q Quit"),
+    text("↑↓ Move  ←→ Scroll  Enter Open/Edit  PgUp/PgDn Scroll  Esc Back", { dimColor: true }));
 }

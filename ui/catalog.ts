@@ -36,7 +36,7 @@ export function browserCatalog(userQueries: readonly UserQuery[] = [], userProvi
       return {
         kind: "table", name, source: allLoaders.find((loader) => loader.tables.includes(name))?.name ?? "core",
         description: name === "providers"
-          ? "Status of providers used by one call. See Providers beside each result."
+          ? "Status of providers used by one call. Press s in Results to inspect source status."
           : "Rows supplied by this provider when a statement reads the table.",
         sql: `select * from "${name.replaceAll('"', '""')}"`,
         params: [], tables: [name],

@@ -56,7 +56,8 @@ test("a search parameter, result detail, catalog search, and related table form 
     await ui.key("\r");
     assert.doesNotMatch(ui.frame(), /Row 1/);
     assert.match(ui.frame(), /Press r to fetch/);
-    await ui.key("4");
+    await ui.key("2");
+    await ui.key("j");
     await ui.key("\r");
     assert.match(ui.frame(), /\[Tables\]/);
     assert.match(ui.frame(), /sample_rows/);
@@ -124,5 +125,46 @@ test("t toggles catalogs and Esc preserves the selected entry and search", async
     }
     await ui.key("t");
     assert.match(ui.frame(), /\[Queries\]/);
+  } finally { await ui.close(); }
+});
+
+test("SQL that fits the detail pane keeps its original line", async () => {
+  const sql = "select repository_name, branch_name from git_status";
+  const ui = await screen([{ ...query, sql }], async () => observation);
+  try {
+    await ui.key("2");
+    assert.ok(ui.frame().split("\n").some((line) => line.includes(sql)), ui.frame());
+  } finally { await ui.close(); }
+});
+
+test("three detail views keep source status with the result rows", async () => {
+  const ui = await screen([{ ...query, params: [] }], async () => observation, 16);
+  try {
+    assert.match(ui.frame(), /1:\[Results\] 2:Definition 3:Inputs/);
+    assert.doesNotMatch(ui.frame(), /4:Related|5:Providers/);
+    await ui.key("r");
+    await ui.key("s");
+    assert.match(ui.frame(), /1:\[Results\]/);
+    assert.match(ui.frame(), /Sources: data retrieval status/);
+    await ui.key("j");
+    assert.match(ui.frame(), /Fixture failure/);
+    assert.ok(ui.frame().split("\n").length <= 17, ui.frame());
+    await ui.key("s");
+    await ui.key("\r");
+    assert.match(ui.frame(), /Row 1/);
+  } finally { await ui.close(); }
+});
+
+test("long SQL lines scroll horizontally without inserted line breaks", async () => {
+  const sql = `select '${"x".repeat(100)}TAIL_MARKER' as value`;
+  const ui = await screen([{ ...query, sql }], async () => observation);
+  try {
+    await ui.key("2");
+    assert.doesNotMatch(ui.frame(), /TAIL_MARKER/);
+    for (let i = 0; i < 18; i++) await ui.key("\u001b[C");
+    assert.match(ui.frame(), /TAIL_MARKER/);
+    for (let i = 0; i < 18; i++) await ui.key("\u001b[D");
+    assert.match(ui.frame(), /select '/);
+    assert.doesNotMatch(ui.frame(), /TAIL_MARKER/);
   } finally { await ui.close(); }
 });
