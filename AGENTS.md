@@ -12,6 +12,7 @@ The tables, the loaders, and the queries are written with solarsql, so the shape
 
 The design records live in `docs/` as ADRs.
 Read them before you change the shape.
+The rules for a provider, and the steps to add one, are in `docs/adding-a-provider.md`.
 The usage documentation of spacequery is `skills/spacequery/SKILL.md` with its references; a change to a flag or a query edits it in the same commit.
 The usage documentation of solarsql is `node_modules/solarsql/skills/solarsql/SKILL.md`.
 
