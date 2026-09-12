@@ -4,6 +4,7 @@
 import { createElement as h, useEffect, useRef, useState } from "react";
 import { Box, Text, measureElement, useApp, useInput, usePaste, useStdout, type DOMElement } from "ink";
 import { stripVTControlCharacters } from "node:util";
+import { horizontalLimit, horizontalText } from "./horizontal.ts";
 import { parseMouse, enableMouse, disableMouse, type MouseEvent } from "./mouse.ts";
 import type { Item } from "./catalog.ts";
 import { observe, type Inputs, type Observation } from "./execute.ts";
@@ -107,12 +108,21 @@ export function Browser({ items, initial, execute = observe, mouse = true }: { i
     const box = measureElement(element);
     if (event.x >= box.x && event.x < box.x + box.width && event.y >= box.y && event.y < box.y + box.height) return { x: event.x - box.x, y: event.y - box.y, width: box.width, height: box.height };
   }
+  function scrollHorizontal(direction: number, sources: boolean) {
+    if (sources) setSourceColumn((previous) => Math.max(0, Math.min(Math.min(previous, sourceLimit) + direction * 4, sourceLimit)));
+    else if (view === "Definition" || expanded) setTextColumn((previous) => Math.max(0, Math.min(Math.min(previous, textLimit) + direction * 4, textLimit)));
+    else setColumn((previous) => Math.max(0, Math.min(Math.min(previous, columnLimit) + direction, columnLimit)));
+  }
   function handleMouse(event: MouseEvent) {
     if (!mouseEnabled || pending.current || busy || editing || size.width < 60 || size.height < 16) return;
     if (event.kind === "click") {
       if (hit("tables", event)) { switchCatalog("table"); return; }
       if (hit("queries", event)) { switchCatalog("query"); return; }
       for (const name of views) if (hit(name, event)) { changeView(name); setFocus("detail"); return; }
+      if (hit("sourceLeft", event)) { setFocus("detail"); setSourcesFocused(true); scrollHorizontal(-1, true); return; }
+      if (hit("sourceRight", event)) { setFocus("detail"); setSourcesFocused(true); scrollHorizontal(1, true); return; }
+      if (hit("scrollLeft", event)) { setFocus("detail"); setSourcesFocused(false); scrollHorizontal(-1, false); return; }
+      if (hit("scrollRight", event)) { setFocus("detail"); setSourcesFocused(false); scrollHorizontal(1, false); return; }
       if (hit("run", event)) { void run(); return; }
     }
     const list = hit("list", event);
@@ -129,7 +139,7 @@ export function Browser({ items, initial, execute = observe, mouse = true }: { i
     if (sources) {
       setFocus("detail"); setSourcesFocused(true);
       if (event.dy) setSourceOffset((previous) => Math.max(0, Math.min(Math.min(previous, Math.max(0, sourceLines.length - (sourceHeight - 1))) + event.dy * 3, Math.max(0, sourceLines.length - (sourceHeight - 1)))));
-      if (event.dx) setSourceColumn((previous) => Math.max(0, Math.min(previous + event.dx * 4, Math.max(0, ...sourceLines.map((line) => Array.from(line).length - 1)))));
+      if (event.dx) scrollHorizontal(event.dx, true);
       return;
     }
     const content = hit("content", event);
@@ -140,10 +150,7 @@ export function Browser({ items, initial, execute = observe, mouse = true }: { i
         if (expanded) setDetailOffset((previous) => Math.max(0, Math.min(previous + event.dy * 3, Math.max(0, contentLines.length - pageSize))));
         else setOffset((previous) => Math.max(0, Math.min(previous + event.dy * 3, Math.max(0, contentCount - 1))));
       }
-      if (event.dx) {
-        if (view === "Definition" || expanded) setTextColumn((previous) => Math.max(0, Math.min(previous + event.dx * 4, Math.max(0, ...contentLines.map((line) => Array.from(line).length - 1)))));
-        else setColumn((previous) => Math.max(0, Math.min(previous + event.dx, Math.max(0, Object.keys(observation?.rows[0] ?? {}).length - 1))));
-      }
+      if (event.dx) scrollHorizontal(event.dx, false);
     } else if (view === "Definition") {
       if (content.y >= pageSize) return;
       const row = definitionRows[offset + content.y];
@@ -212,13 +219,7 @@ export function Browser({ items, initial, execute = observe, mouse = true }: { i
       return;
     }
     if (key.leftArrow || key.rightArrow) {
-      if (focus === "detail" && sourcesFocused) {
-        const longest = Math.max(0, ...sourceLines.map((line) => Array.from(line).length));
-        setSourceColumn((n) => Math.max(0, Math.min(n + (key.rightArrow ? 4 : -4), Math.max(0, longest - 1))));
-      } else if (focus === "detail" && (view === "Definition" || expanded)) {
-        const longest = contentLines.reduce((width, line) => Math.max(width, Array.from(line).length), 0);
-        setTextColumn((n) => Math.max(0, Math.min(n + (key.rightArrow ? 4 : -4), Math.max(0, longest - 1))));
-      } else if (view === "Results" && focus === "detail" && !expanded) setColumn((n) => Math.max(0, Math.min(n + (key.rightArrow ? 1 : -1), Math.max(0, (observation ? Object.keys(observation.rows[0] ?? {}).length : item?.columns.length ?? 0) - 1))));
+      if (focus === "detail") scrollHorizontal(key.rightArrow ? 1 : -1, sourcesFocused);
       return;
     }
     const scrollPage = focus === "detail" && sourcesFocused ? sourceHeight - 1 : pageSize;
@@ -263,6 +264,17 @@ export function Browser({ items, initial, execute = observe, mouse = true }: { i
   const contentLines = expanded ? rowLines : view === "Definition" ? definitionLines : sourceLines;
   const contentCount = view === "Definition" ? definitionLines.length
     : observation ? observation.rows.length : 0;
+  const contentWidth = Math.max(1, size.width - leftWidth - 4);
+  const textLimit = horizontalLimit(contentLines, contentWidth);
+  const sourceLimit = horizontalLimit(sourceLines, contentWidth);
+  const resultKeys = Object.keys(observation?.rows[0] ?? {});
+  const shownColumnCount = Math.max(1, Math.floor(rightWidth / 20));
+  const columnLimit = Math.max(0, resultKeys.length - shownColumnCount);
+  const textStart = Math.min(textColumn, textLimit);
+  const sourceTextStart = Math.min(sourceColumn, sourceLimit);
+  const columnStart = Math.min(column, columnLimit);
+  const horizontalPosition = view === "Definition" || expanded ? textStart : columnStart;
+  const horizontalEnd = view === "Definition" || expanded ? textLimit : columnLimit;
   const text = (value: unknown, options: Record<string, unknown> = {}) => h(Text, { wrap: "truncate-end", ...options }, lineText(value));
   const tab = (label: string, active: boolean) => text(label, {
     color: active ? "black" : undefined, backgroundColor: active ? "cyan" : undefined,
@@ -278,8 +290,8 @@ export function Browser({ items, initial, execute = observe, mouse = true }: { i
     detail.push(...contentLines.slice(start, start + pageSize).map((line, i) => {
       const row = !expanded ? definitionRows[start + i] : undefined;
       const link = row?.target !== undefined;
-      const value = Array.from(line).slice(textColumn).join("");
-      return text(link && i === 0 ? `> ${value.trimStart()}` : value || " ", { color: row?.heading ? "cyan" : link ? "blueBright" : undefined, bold: row?.heading || (link && i === 0) });
+      const value = horizontalText(line, textStart);
+      return text(link && i === 0 && textStart === 0 ? `> ${value.trimStart()}` : value || " ", { color: row?.heading ? "cyan" : link ? "blueBright" : undefined, bold: row?.heading || (link && i === 0) });
     }));
   } else if (!observation) {
     detail.push(text(busy ? "Fetching rows..." : "No result yet. Press r to run.", { color: "yellow" }));
@@ -287,7 +299,7 @@ export function Browser({ items, initial, execute = observe, mouse = true }: { i
     detail.push(text(failed.length ? "Unknown: a source failed." : "0 rows in this scope."));
   } else {
     const keys = observation.rows.length ? Object.keys(observation.rows[0]!) : item.columns.map((c) => c.name);
-    const shown = keys.slice(column, column + Math.max(1, Math.floor(rightWidth / 20)));
+    const shown = keys.slice(columnStart, columnStart + shownColumnCount);
     const width = Math.max(1, Math.floor(rightWidth / Math.max(1, shown.length)));
     const gridRow = (values: unknown[], highlighted: boolean) => h(Box, { flexDirection: "row" }, ...values.map((value) => h(Box, { width, paddingRight: 1 }, text(value, { color: highlighted ? "cyan" : undefined, bold: highlighted }))));
     detail.push(gridRow(shown, true));
@@ -312,11 +324,18 @@ export function Browser({ items, initial, execute = observe, mouse = true }: { i
           text(item?.description ?? "", { dimColor: true })]),
         h(Box, { flexDirection: "row", height: 1, flexShrink: 0 }, ...views.flatMap((name, i) => [
           ...(i ? [text(" ")] : []), h(Box, { ref: region(name), flexShrink: 0 }, tab(`${i + 1}:${name === view ? `[${name}]` : name}`, name === view)),
-        ]), text("  "), h(Box, { ref: region("run"), flexShrink: 0 }, text("[r Run]", { color: "green", bold: true }))),
+        ]), text("  "), h(Box, { ref: region("run"), flexShrink: 0 }, text("[r Run]", { color: "green", bold: true })),
+          h(Box, { flexGrow: 1, justifyContent: "flex-end" },
+            ...(horizontalPosition > 0 ? [h(Box, { ref: region("scrollLeft"), flexShrink: 0 }, text("←", { color: "yellow", bold: true }))] : []),
+            ...(horizontalPosition < horizontalEnd ? [h(Box, { ref: region("scrollRight"), flexShrink: 0 }, text("→", { color: "yellow", bold: true }))] : []))),
         h(Box, { flexDirection: "column", ref: region("content"), height: detailHeight, flexShrink: 0 }, ...detail),
         ...(view === "Results" ? [h(Box, { flexDirection: "column", ref: region("sources"), height: sourceHeight, flexShrink: 0 },
-          text(`Sources${sourcesFocused && focus === "detail" ? " [focused]" : ""}  ${sourceStart + 1}/${sourceLines.length}  [s focus]`, { bold: true, color: sourcesFocused && focus === "detail" ? "cyan" : "gray" }),
-          ...sourceLines.slice(sourceStart, sourceStart + sourceHeight - 1).map((line) => text(Array.from(line).slice(sourceColumn).join(""))))] : []))),
+          h(Box, { flexDirection: "row", height: 1, flexShrink: 0 },
+            text(`Sources${sourcesFocused && focus === "detail" ? " [focused]" : ""}  ${sourceStart + 1}/${sourceLines.length}  [s focus]`, { bold: true, color: sourcesFocused && focus === "detail" ? "cyan" : "gray" }),
+            h(Box, { flexGrow: 1, justifyContent: "flex-end", flexShrink: 0 },
+              ...(sourceTextStart > 0 ? [h(Box, { ref: region("sourceLeft"), flexShrink: 0 }, text("←", { bold: true, color: "yellow" }))] : []),
+              ...(sourceTextStart < sourceLimit ? [h(Box, { ref: region("sourceRight"), flexShrink: 0 }, text("→", { bold: true, color: "yellow" }))] : []))),
+          ...sourceLines.slice(sourceStart, sourceStart + sourceHeight - 1).map((line) => text(horizontalText(line, sourceTextStart))))] : []))),
     text(observation ? `${observation.rows.length} rows | scope: ${observation.scope} | ${observation.ms} ms | received ${new Date(observation.receivedAt).toLocaleTimeString()}` : busy ? "Fetching a fresh observation..." : "Press r or click Run to load data."),
     text(error || item?.error || (failed.length ? `Incomplete: ${failed.map((p) => p.name).join(", ")} failed. Press s for source details.` : ""), { color: "yellow" }),
     text(editing !== null ? `${editing.kind === "search" ? "Search" : editing.name}: ${editing.kind === "field" && editing.name === "me" && !editing.changed && inputs.me === undefined ? "(auto)" : draft}█  (Enter next, Ctrl+U clear, Esc cancel)` : "t Switch / Search Tab Focus 1-2 View r Run e Edit c Context"),

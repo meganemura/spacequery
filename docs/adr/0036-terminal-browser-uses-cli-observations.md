@@ -29,6 +29,8 @@ Clicks reuse selection and navigation actions; the wheel scrolls the area under 
 Bracketed paste uses a separate input handler so pasted reports cannot trigger mouse actions.
 The `m` key and `--no-mouse` option restore terminal text selection; exit disables mouse reporting.
 SQL keeps its original line breaks, with horizontal scrolling for long lines.
+Header arrows indicate hidden text or result columns and stop at the last viewport.
+Text scrolling preserves grapheme clusters and accounts for wide terminal characters.
 A fixed character count split identifiers and left half the pane unused for ASCII SQL.
 
 An explicit execution starts the existing CLI in a child process with arguments passed as an array.

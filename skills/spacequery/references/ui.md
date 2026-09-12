@@ -38,6 +38,9 @@ A broken user query keeps its SQL and an error message in the catalog.
 An open row shows all its fields vertically.
 Up/Down and Page Up/Page Down scroll text lines.
 Left/Right scrolls long lines; SQL keeps its original line breaks.
+Yellow arrows at the right edge of the view header show which directions have hidden text or result columns.
+These arrows are also clickable. Sources has its own direction indicators.
+Arrows disappear at the corresponding edge; content that fits has no arrows.
 In Definition, select a related entry with Up/Down and press Enter to open it.
 The header shows root, scope, and caller context.
 Press `c` to edit these values or `e` to edit the selected query's parameters.

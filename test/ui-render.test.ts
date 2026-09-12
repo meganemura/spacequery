@@ -408,3 +408,96 @@ test("blank space cannot activate a hidden related entry", async () => {
     assert.match(ui.frame(), /\[Queries\]/);
   } finally { await ui.close(); }
 });
+
+const viewHeader = (frame: string) => frame.split("\n").find((line) => line.includes("1:"))!;
+
+test("horizontal indicators disappear at text edges and support clicks", async () => {
+  const ui = await screen([{ ...query, sql: `select '${"x".repeat(95)}TAIL'` }], async () => observation);
+  try {
+    assert.match(viewHeader(ui.frame()), /→/);
+    assert.doesNotMatch(viewHeader(ui.frame()), /←/);
+    await ui.key(mouseAt(ui.frame(), "→"));
+    assert.match(viewHeader(ui.frame()), /←→/);
+    for (let i = 0; i < 15; i++) await ui.key("\u001b[C");
+    assert.match(viewHeader(ui.frame()), /←/);
+    assert.doesNotMatch(viewHeader(ui.frame()), /→/);
+    assert.match(ui.frame(), /TAIL/);
+    for (let i = 0; i < 15; i++) await ui.key("\u001b[D");
+    assert.doesNotMatch(viewHeader(ui.frame()), /←/);
+  } finally { await ui.close(); }
+});
+
+test("fitting definitions have no horizontal indicators", async () => {
+  const ui = await screen([query], async () => observation);
+  try {
+    assert.doesNotMatch(viewHeader(ui.frame()), /←|→/);
+    await ui.key("1");
+    await ui.key("\u001b[C");
+    assert.match(ui.frame(), /select :search as value/);
+    assert.doesNotMatch(viewHeader(ui.frame()), /←|→/);
+  } finally { await ui.close(); }
+});
+
+test("Results indicators follow hidden columns and expanded values", async () => {
+  const rows = [{ a: "界".repeat(40), b: 2, c: 3, d: 4, e: 5 }];
+  const ui = await screen([{ ...query, params: [] }], async () => ({ ...observation, rows }));
+  try {
+    await ui.key("r");
+    assert.match(viewHeader(ui.frame()), /→/);
+    await ui.key("\u001b[C");
+    assert.match(viewHeader(ui.frame()), /←→/);
+    await ui.key("\u001b[C");
+    assert.match(viewHeader(ui.frame()), /←/);
+    assert.doesNotMatch(viewHeader(ui.frame()), /→/);
+    await ui.key("\r");
+    assert.match(viewHeader(ui.frame()), /→/);
+    assert.doesNotMatch(viewHeader(ui.frame()), /←/);
+    await ui.key("s");
+    assert.match(ui.frame().split("\n").find((line) => line.includes("Sources"))!, /Sources/);
+  } finally { await ui.close(); }
+});
+
+test("wide text and Sources show independent horizontal indicators at 60 columns", async () => {
+  const providers = [{ ...observation.providers[0]!, error: "界".repeat(50) }];
+  const ui = await screen([{ ...query, params: [], sql: "界".repeat(25) }], async () => ({ ...observation, providers }), 24, true, 60);
+  try {
+    assert.match(viewHeader(ui.frame()), /→/);
+    await ui.key("r");
+    const sourcesHeader = () => ui.frame().split("\n").find((line) => line.includes("Sources"))!;
+    assert.match(sourcesHeader(), /→/);
+    await ui.key("s");
+    for (let i = 0; i < 12; i++) await ui.key("\u001b[C");
+    assert.match(sourcesHeader(), /←/);
+    assert.doesNotMatch(sourcesHeader(), /→/);
+    assert.ok(ui.frame().split("\n").length <= 25, ui.frame());
+  } finally { await ui.close(); }
+});
+
+for (const glyph of ["ｶﾞ", "1⃣", "𛀀", "👨‍👩‍👧‍👦"]) {
+  test(`horizontal bounds expose the complete suffix for ${glyph}`, async () => {
+    const ui = await screen([{ ...query, sql: glyph.repeat(20) + "TAIL" }], async () => observation, 24, true, 60);
+    try {
+      assert.match(viewHeader(ui.frame()), /→/);
+      await ui.key("1");
+      for (let i = 0; i < 10; i++) await ui.key("\u001b[C");
+      assert.doesNotMatch(viewHeader(ui.frame()), /→/);
+      const tail = ui.frame().split("\n").find((line) => line.includes("TAIL"));
+      assert.ok(tail, ui.frame());
+      assert.doesNotMatch(tail, /…/);
+    } finally { await ui.close(); }
+  });
+}
+
+test("selected related links expose their suffix before the right arrow disappears", async () => {
+  const name = "related_" + "x".repeat(70) + "TAIL";
+  const ui = await screen([{ ...query, tables: [name] }, { ...table, name }], async () => observation);
+  try {
+    await ui.key("1");
+    for (let i = 0; i < 10; i++) await ui.key("j");
+    for (let i = 0; i < 10; i++) await ui.key("\u001b[C");
+    assert.doesNotMatch(viewHeader(ui.frame()), /→/);
+    const tail = ui.frame().split("\n").find((line) => line.includes("TAIL"));
+    assert.ok(tail, ui.frame());
+    assert.doesNotMatch(tail, /…/);
+  } finally { await ui.close(); }
+});
