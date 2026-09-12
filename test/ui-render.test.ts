@@ -501,3 +501,34 @@ test("selected related links expose their suffix before the right arrow disappea
     assert.doesNotMatch(tail, /…/);
   } finally { await ui.close(); }
 });
+
+test("Definition scrollbar follows scrolling and its track jumps to the end", async () => {
+  const sql = Array.from({ length: 40 }, (_, i) => `-- line ${i}`).join("\n");
+  const ui = await screen([{ ...query, sql }], async () => observation);
+  try {
+    assert.match(ui.frame(), /┃/);
+    const before = ui.frame().split("\n").findIndex((line) => line.includes("┃"));
+    const down = mouseAt(ui.frame(), "↓");
+    await ui.key("1");
+    await ui.key("\u001b[6~");
+    const after = ui.frame().split("\n").findIndex((line) => line.includes("┃"));
+    assert.ok(after > before);
+    const match = /;(\d+);(\d+)M/.exec(down)!;
+    await ui.key(`\u001b[<0;${match[1]};${Number(match[2]) - 1}M`);
+    assert.match(ui.frame(), /\(none\)/);
+    assert.doesNotMatch(ui.frame().split("\n").slice(3, 18).join("\n"), /↓/);
+  } finally { await ui.close(); }
+});
+
+test("result scrollbar arrows move the viewport without opening a row", async () => {
+  const rows = Array.from({ length: 30 }, (_, i) => ({ value: `value-${i}` }));
+  const ui = await screen([{ ...query, params: [] }], async () => ({ ...observation, rows, providers: [] }));
+  try {
+    await ui.key("r");
+    await ui.key(mouseAt(ui.frame(), "↓"));
+    assert.match(ui.frame(), /> value-6/);
+    assert.doesNotMatch(ui.frame(), /Row 7/);
+    await ui.key(mouseAt(ui.frame(), "↑"));
+    assert.match(ui.frame(), /> value-0/);
+  } finally { await ui.close(); }
+});

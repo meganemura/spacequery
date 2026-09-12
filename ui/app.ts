@@ -4,6 +4,7 @@
 import { createElement as h, useEffect, useRef, useState } from "react";
 import { Box, Text, measureElement, useApp, useInput, usePaste, useStdout, type DOMElement } from "ink";
 import { stripVTControlCharacters } from "node:util";
+import { scrollbar, scrollbarTarget, type Scrollbar } from "./scrollbar.ts";
 import { horizontalLimit, horizontalText } from "./horizontal.ts";
 import { parseMouse, enableMouse, disableMouse, type MouseEvent } from "./mouse.ts";
 import type { Item } from "./catalog.ts";
@@ -123,6 +124,20 @@ export function Browser({ items, initial, execute = observe, mouse = true }: { i
       if (hit("sourceRight", event)) { setFocus("detail"); setSourcesFocused(true); scrollHorizontal(1, true); return; }
       if (hit("scrollLeft", event)) { setFocus("detail"); setSourcesFocused(false); scrollHorizontal(-1, false); return; }
       if (hit("scrollRight", event)) { setFocus("detail"); setSourcesFocused(false); scrollHorizontal(1, false); return; }
+      for (const [name, bar] of [["listBar", listBar], ["detailBar", detailBar], ["sourceBar", sourceBar]] as const) {
+        const point = hit(name, event);
+        if (!point || !bar.end) continue;
+        const paged = name === "listBar" || (name === "detailBar" && view === "Results" && !expanded);
+        const arrow = bar.glyphs.length > 1 && (point.y === 0 || point.y === bar.glyphs.length - 1);
+        const next = paged && arrow ? Math.max(0, Math.min(bar.end, bar.start + (point.y === 0 ? -pageSize : pageSize))) : scrollbarTarget(bar, point.y);
+        if (name === "listBar") { setFocus("list"); select(next); }
+        else { setFocus("detail"); setSourcesFocused(name === "sourceBar");
+          if (name === "sourceBar") setSourceOffset(next);
+          else if (expanded) setDetailOffset(next);
+          else setOffset(next);
+        }
+        return;
+      }
       if (hit("run", event)) { void run(); return; }
     }
     const list = hit("list", event);
@@ -264,7 +279,7 @@ export function Browser({ items, initial, execute = observe, mouse = true }: { i
   const contentLines = expanded ? rowLines : view === "Definition" ? definitionLines : sourceLines;
   const contentCount = view === "Definition" ? definitionLines.length
     : observation ? observation.rows.length : 0;
-  const contentWidth = Math.max(1, size.width - leftWidth - 4);
+  const contentWidth = Math.max(1, size.width - leftWidth - 5);
   const textLimit = horizontalLimit(contentLines, contentWidth);
   const sourceLimit = horizontalLimit(sourceLines, contentWidth);
   const resultKeys = Object.keys(observation?.rows[0] ?? {});
@@ -281,6 +296,15 @@ export function Browser({ items, initial, execute = observe, mouse = true }: { i
     bold: active, dimColor: !active,
   });
   const listStart = Math.floor(selected / pageSize) * pageSize;
+  const listVisible = Math.min(pageSize + 2, bodyHeight - 2);
+  const listBar = scrollbar(filtered.length, listVisible, listStart, bodyHeight - 2, Math.floor(Math.max(0, filtered.length - 1) / pageSize) * pageSize);
+  const detailStart = expanded ? detailOffset : view === "Definition" ? offset : Math.floor(offset / pageSize) * pageSize;
+  const detailTotal = expanded ? contentLines.length : contentCount;
+  const detailEnd = expanded ? Math.max(0, detailTotal - pageSize) : view === "Definition" ? Math.max(0, detailTotal - 1) : Math.floor(Math.max(0, detailTotal - 1) / pageSize) * pageSize;
+  const detailBar = scrollbar(detailTotal, pageSize, detailStart, detailHeight, detailEnd);
+  const sourceBar = scrollbar(sourceLines.length, sourceHeight - 1, sourceStart, sourceHeight - 1, Math.max(0, sourceLines.length - (sourceHeight - 1)));
+  const renderBar = (name: string, bar: Scrollbar) => h(Box, { ref: region(name), flexDirection: "column", width: 1, flexShrink: 0 },
+    ...bar.glyphs.map((glyph) => text(glyph, { color: glyph === "│" ? "gray" : "cyan", bold: glyph !== "│" })));
   const failed = observation?.providers.filter((provider) => !provider.ok) ?? [];
   const detail: ReturnType<typeof h>[] = [];
   if (!item) detail.push(text("No matches. Press / to change the search."));
@@ -318,7 +342,10 @@ export function Browser({ items, initial, execute = observe, mouse = true }: { i
     text(`Search: ${search || "(all)"}   |   ${filtered.length} entries`, { dimColor: true }),
     h(Box, { flexDirection: "row", height: bodyHeight },
       h(Box, { flexDirection: "column", ref: region("list"), width: leftWidth, borderStyle: "round", borderColor: focus === "list" ? "cyan" : "gray", paddingX: 1 },
-        ...filtered.slice(listStart, listStart + pageSize + 2).map((entry, i) => text(`${listStart + i === selected ? ">" : " "} ${entry.name}`, { color: listStart + i === selected ? "cyan" : undefined }))),
+        h(Box, { flexDirection: "row", height: bodyHeight - 2 },
+          h(Box, { flexDirection: "column", flexGrow: 1, minWidth: 0 },
+            ...filtered.slice(listStart, listStart + listVisible).map((entry, i) => text(`${listStart + i === selected ? ">" : " "} ${entry.name}`, { color: listStart + i === selected ? "cyan" : undefined }))),
+          renderBar("listBar", listBar))),
       h(Box, { flexDirection: "column", flexGrow: 1, borderStyle: "round", borderColor: focus === "detail" ? "cyan" : "gray", paddingX: 1 },
         ...(compactResults ? [] : [text(`${item?.name ?? ""}  ${item?.source ?? ""}`, { bold: true }),
           text(item?.description ?? "", { dimColor: true })]),
@@ -328,14 +355,18 @@ export function Browser({ items, initial, execute = observe, mouse = true }: { i
           h(Box, { flexGrow: 1, justifyContent: "flex-end" },
             ...(horizontalPosition > 0 ? [h(Box, { ref: region("scrollLeft"), flexShrink: 0 }, text("←", { color: "yellow", bold: true }))] : []),
             ...(horizontalPosition < horizontalEnd ? [h(Box, { ref: region("scrollRight"), flexShrink: 0 }, text("→", { color: "yellow", bold: true }))] : []))),
-        h(Box, { flexDirection: "column", ref: region("content"), height: detailHeight, flexShrink: 0 }, ...detail),
+        h(Box, { flexDirection: "row", ref: region("content"), height: detailHeight, flexShrink: 0 },
+          h(Box, { flexDirection: "column", flexGrow: 1, minWidth: 0 }, ...detail), renderBar("detailBar", detailBar)),
         ...(view === "Results" ? [h(Box, { flexDirection: "column", ref: region("sources"), height: sourceHeight, flexShrink: 0 },
           h(Box, { flexDirection: "row", height: 1, flexShrink: 0 },
             text(`Sources${sourcesFocused && focus === "detail" ? " [focused]" : ""}  ${sourceStart + 1}/${sourceLines.length}  [s focus]`, { bold: true, color: sourcesFocused && focus === "detail" ? "cyan" : "gray" }),
             h(Box, { flexGrow: 1, justifyContent: "flex-end", flexShrink: 0 },
               ...(sourceTextStart > 0 ? [h(Box, { ref: region("sourceLeft"), flexShrink: 0 }, text("←", { bold: true, color: "yellow" }))] : []),
               ...(sourceTextStart < sourceLimit ? [h(Box, { ref: region("sourceRight"), flexShrink: 0 }, text("→", { bold: true, color: "yellow" }))] : []))),
-          ...sourceLines.slice(sourceStart, sourceStart + sourceHeight - 1).map((line) => text(horizontalText(line, sourceTextStart))))] : []))),
+          h(Box, { flexDirection: "row", height: sourceHeight - 1 },
+            h(Box, { flexDirection: "column", flexGrow: 1, minWidth: 0 },
+              ...sourceLines.slice(sourceStart, sourceStart + sourceHeight - 1).map((line) => text(horizontalText(line, sourceTextStart) || " "))),
+            renderBar("sourceBar", sourceBar)))] : []))),
     text(observation ? `${observation.rows.length} rows | scope: ${observation.scope} | ${observation.ms} ms | received ${new Date(observation.receivedAt).toLocaleTimeString()}` : busy ? "Fetching a fresh observation..." : "Press r or click Run to load data."),
     text(error || item?.error || (failed.length ? `Incomplete: ${failed.map((p) => p.name).join(", ")} failed. Press s for source details.` : ""), { color: "yellow" }),
     text(editing !== null ? `${editing.kind === "search" ? "Search" : editing.name}: ${editing.kind === "field" && editing.name === "me" && !editing.changed && inputs.me === undefined ? "(auto)" : draft}█  (Enter next, Ctrl+U clear, Esc cancel)` : "t Switch / Search Tab Focus 1-2 View r Run e Edit c Context"),

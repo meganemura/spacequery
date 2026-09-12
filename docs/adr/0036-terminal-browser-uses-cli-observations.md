@@ -30,6 +30,9 @@ Bracketed paste uses a separate input handler so pasted reports cannot trigger m
 The `m` key and `--no-mouse` option restore terminal text selection; exit disables mouse reporting.
 SQL keeps its original line breaks, with horizontal scrolling for long lines.
 Header arrows indicate hidden text or result columns and stop at the last viewport.
+Each scrollable area has a vertical scrollbar with its own position and click targets.
+A reserved column keeps text and horizontal bounds stable when a scrollbar appears.
+One-line areas use direction markers because there is no space for a track.
 Text scrolling preserves grapheme clusters and accounts for wide terminal characters.
 A fixed character count split identifiers and left half the pane unused for ASCII SQL.
 
