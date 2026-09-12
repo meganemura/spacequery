@@ -13,7 +13,7 @@ Nothing is cached, and spacequery never writes to a provider.
 Call it from anywhere:
 
 ```sh
-spacequery <query> [--root DIR] [--scope root|agents|all] [--me PANE] [--tsv]
+spacequery <query> [--root DIR] [--scope root|agents|all] [--me PANE] [--tsv] [--trace]
 ```
 
 `spacequery` is on PATH after `npm link` in the checkout; `node /path/to/spacequery/cli.ts` is the same command without the link.

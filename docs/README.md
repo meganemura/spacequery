@@ -37,3 +37,4 @@ Each ADR describes one decision and its consequences.
 | [0028](adr/0028-repository-versions-are-static-file-evidence.md) | Repository versions are static file evidence. |
 | [0029](adr/0029-repository-config-files-are-a-bounded-inventory.md) | Repository configuration files are a bounded inventory. |
 | [0030](adr/0030-rename-to-spacequery.md) | The tool is renamed spacequery. |
+| [0031](adr/0031-trace-lists-the-child-processes-of-one-call.md) | The envelope lists the child processes of one call on request. |

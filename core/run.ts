@@ -1,8 +1,8 @@
-// One call of spacequery: a fresh in-memory database, the loaders the
-// statement needs, the statement, and the `providers` rows that say which
-// loader answered. Nothing survives the call (ADR 0002).
-// Boundary: scheduling and recording. What a loader runs stays with the
-// provider; what a query means stays with its module.
+// One call of spacequery: a fresh in-memory database, the required loaders,
+// the statement, provider status, and the child process trace.
+// Each call discards its database after the result returns (ADR 0002).
+// Boundary: scheduling and call metadata. Provider behavior and query meaning
+// stay in their modules.
 import { execFile } from "node:child_process";
 import { DatabaseSync } from "node:sqlite";
 import { promisify } from "node:util";
@@ -16,20 +16,40 @@ import { directLoadersFor, loadersFor, tablesRead } from "./resolve.ts";
 
 const execFileAsync = promisify(execFile);
 
-// The default runner. stderr is dropped: a provider that fails reports
-// through its exit code, and the error text lands in `providers.error`.
-export const exec: Exec = async (command, args, cwd, options) => {
-  try {
-    const { stdout } = await execFileAsync(command, [...args], { cwd, encoding: "utf8", maxBuffer: 64 * 1024 * 1024 });
-    return stdout;
-  } catch (e) {
-    const failure = e as { code?: unknown; stdout?: unknown };
-    if (typeof failure.code === "number" && options?.exitCodes?.includes(failure.code) && typeof failure.stdout === "string") return failure.stdout;
-    throw e;
-  }
+const childExec: Exec = async (command, args, cwd) => {
+  const { stdout } = await execFileAsync(command, [...args], { cwd, encoding: "utf8", maxBuffer: 64 * 1024 * 1024 });
+  return stdout;
 };
 
+function isAcceptedExit(e: unknown, options: Parameters<Exec>[3]): e is { code: number; stdout: string } {
+  const failure = e as { code?: unknown; stdout?: unknown };
+  return typeof failure.code === "number" && options?.exitCodes?.includes(failure.code) === true && typeof failure.stdout === "string";
+}
+
+async function executeWithStatus(execute: Exec, command: string, args: readonly string[], cwd: string | undefined, options: Parameters<Exec>[3]): Promise<{ stdout: string; ok: 0 | 1 }> {
+  try {
+    return { stdout: await execute(command, args, cwd, options), ok: 1 };
+  } catch (e) {
+    if (isAcceptedExit(e, options)) return { stdout: e.stdout, ok: 0 };
+    throw e;
+  }
+}
+
+// The default runner drops stderr. A permitted non-zero exit still returns
+// stdout because some observation tools use it for an empty answer.
+export const exec: Exec = async (command, args, cwd, options) => (await executeWithStatus(childExec, command, args, cwd, options)).stdout;
+
 export type ProviderRow = { name: string; ok: number; observed_at: number; ms: number; error: string | null };
+
+export type TraceRow = {
+  provider: string;
+  command: string;
+  args: string[];
+  cwd: string | null;
+  started_ms: number;
+  ms: number;
+  ok: 0 | 1;
+};
 
 export type RunOptions = {
   loaders: readonly Loader[];
@@ -46,6 +66,8 @@ export type RunOptions = {
 export type RunResult<R> = {
   rows: R[];
   providers: ProviderRow[];
+  ms: number;
+  trace: TraceRow[];
   scope: Scope;
   // The caller's own row, when a provider could tell.
   me: string | null;
@@ -65,6 +87,8 @@ export type ReportResult = {
   sections: Record<string, Record<string, unknown>[]>;
   sectionStatus: Record<string, ReportSectionStatus>;
   providers: ProviderRow[];
+  ms: number;
+  trace: TraceRow[];
   scope: Scope;
   me: string | null;
   params: Record<string, unknown>;
@@ -73,7 +97,8 @@ export type ReportResult = {
 // A named query from a catalog.
 export async function runQuery<Q extends Query<string, Entry>>(query: Q, options: RunOptions): Promise<RunResult<Record<string, unknown>>> {
   const state = await prepare(query.meta.reads, [...query.meta.params], options);
-  return { rows: await state.db.all(query, state.params as never), ...state };
+  const rows = await state.db.all(query, state.params as never);
+  return { rows, ...resultMetadata(state, performance.now()) };
 }
 
 export function sqlParameterNames(sql: string): string[] {
@@ -87,7 +112,7 @@ export async function runSql(sql: string, options: RunOptions): Promise<RunResul
   const statement = state.raw.prepare(sql);
   const bound = Object.fromEntries(names.map((name) => [name, state.params[name] ?? null]));
   const rows = statement.all(bound as Record<string, never>).map((row) => ({ ...row })) as Record<string, unknown>[];
-  return { rows, ...state };
+  return { rows, ...resultMetadata(state, performance.now()) };
 }
 
 // A report composes named queries after one loader pass. Its sections remain
@@ -99,8 +124,10 @@ export async function runReport(sections: readonly ReportSection[], options: Run
   const values: Record<string, Record<string, unknown>[]> = Object.create(null);
   const sectionStatus: Record<string, ReportSectionStatus> = Object.create(null);
   const providerByName = new Map(state.providers.map((provider) => [provider.name, provider]));
+  let statementEnded = performance.now();
   for (const [name, query] of sections) {
     values[name] = await state.db.all(query, state.params as never);
+    statementEnded = performance.now();
     const direct = directLoadersFor(options.loaders, query.meta.reads);
     const errors = direct.flatMap((loader) => {
       const provider = providerByName.get(loader.name);
@@ -115,27 +142,54 @@ export async function runReport(sections: readonly ReportSection[], options: Run
       errors,
     };
   }
-  return { sections: values, sectionStatus, ...state };
+  return { sections: values, sectionStatus, ...resultMetadata(state, statementEnded) };
 }
 
 type RunState = {
   raw: DatabaseSync;
   db: Database;
   providers: ProviderRow[];
+  started: number;
+  trace: TraceRow[];
   scope: Scope;
   me: string | null;
   params: Record<string, unknown>;
 };
 
 async function prepare(tables: readonly string[] | ((raw: DatabaseSync) => readonly string[]), paramNames: readonly string[], options: RunOptions): Promise<RunState> {
+  const started = performance.now();
   const raw = new DatabaseSync(":memory:");
   migrate(raw, migrations);
   const db = node(raw);
   const root = options.params?.["root"];
   const scope = options.scope ?? (typeof root === "string" && paramNames.includes("root") ? "root" : "agents");
+  const trace: TraceRow[] = [];
+  let currentProvider: string | null = null;
+  const execute = options.exec === undefined || options.exec === exec ? childExec : options.exec;
+  const tracedExec: Exec = async (command, args, cwd, execOptions) => {
+    if (currentProvider === null) throw new Error("a child process started outside a loader");
+    const processStarted = performance.now();
+    const row: TraceRow = {
+      provider: currentProvider,
+      command,
+      args: [...args],
+      cwd: cwd ?? null,
+      started_ms: round(processStarted - started),
+      ms: 0,
+      ok: 0,
+    };
+    trace.push(row);
+    try {
+      const result = await executeWithStatus(execute, command, args, cwd, execOptions);
+      row.ok = result.ok;
+      return result.stdout;
+    } finally {
+      row.ms = round(performance.now() - processStarted);
+    }
+  };
   const ctx = {
     db,
-    exec: options.exec ?? exec,
+    exec: tracedExec,
     scope,
     roots: typeof root === "string" ? [root] : [],
     env: options.env ?? process.env,
@@ -147,6 +201,7 @@ async function prepare(tables: readonly string[] | ((raw: DatabaseSync) => reado
   // its tables empty; a loader that runs after it sees the empty tables and
   // is not itself a failure.
   for (const loader of needed) {
+    currentProvider = loader.name;
     const started = performance.now();
     const observed_at = Date.now();
     try {
@@ -154,6 +209,8 @@ async function prepare(tables: readonly string[] | ((raw: DatabaseSync) => reado
       providers.push({ name: loader.name, ok: 1, observed_at, ms: round(performance.now() - started), error: null });
     } catch (e) {
       providers.push({ name: loader.name, ok: 0, observed_at, ms: round(performance.now() - started), error: e instanceof Error ? e.message : String(e) });
+    } finally {
+      currentProvider = null;
     }
   }
   const recorded = await db.run(providerCommands.record, { rows: providers.map((p) => ({ ...p, name: p.name as ProvidersId })) });
@@ -164,7 +221,12 @@ async function prepare(tables: readonly string[] | ((raw: DatabaseSync) => reado
     if (params["me"] === undefined) {
       for (const loader of needed) {
         if (!loader.self) continue;
-        me = await loader.self(ctx);
+        currentProvider = loader.name;
+        try {
+          me = await loader.self(ctx);
+        } finally {
+          currentProvider = null;
+        }
         if (me !== null) break;
       }
       params["me"] = me;
@@ -177,7 +239,18 @@ async function prepare(tables: readonly string[] | ((raw: DatabaseSync) => reado
     if (params[name] === undefined) throw new Error(`missing parameter: ${name}`);
     bound[name] = params[name];
   }
-  return { raw, db, providers: await db.all(providerQueries.all), scope, me, params: bound };
+  return { raw, db, providers: await db.all(providerQueries.all), started, trace, scope, me, params: bound };
+}
+
+function resultMetadata(state: RunState, statementEnded: number): Omit<RunResult<never>, "rows"> {
+  return {
+    providers: state.providers,
+    ms: round(statementEnded - state.started),
+    trace: state.trace,
+    scope: state.scope,
+    me: state.me,
+    params: state.params,
+  };
 }
 
 function round(ms: number): number {

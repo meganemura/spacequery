@@ -2,7 +2,7 @@
 
 ## The envelope
 
-JSON is the default output:
+JSON is the default output, and this example uses `--trace`:
 
 ```json
 {
@@ -10,6 +10,10 @@ JSON is the default output:
   "scope": "agents",
   "me": "w3S:p1",
   "params": { "root": "/workspace/example", "me": "w3S:p1" },
+  "ms": 186.0,
+  "trace": [
+    { "provider": "herdr", "command": "herdr", "args": ["api", "snapshot"], "cwd": null, "started_ms": 2.1, "ms": 185.2, "ok": 1 }
+  ],
   "rows": [ { "pane_id": "w12:p2", "name": null, "agent": "claude", "agent_status": "idle", "cwd": "...", "title": "HQ" } ],
   "providers": [
     { "name": "herdr", "ok": 1, "observed_at": 1789038132395, "ms": 185.2, "error": null }
@@ -23,6 +27,8 @@ JSON is the default output:
 | `scope` | `root`, `agents`, or `all`. |
 | `me` | The caller's pane, or null when the environment names none. |
 | `params` | Every value the statement bound. |
+| `ms` | The wall time from the start of call preparation through the end of the statement. |
+| `trace` | With `--trace`, the envelope has one row per child process, in start order. Each row has `provider`, `command`, the full `args` list, `cwd`, `started_ms`, `ms`, and `ok`. |
 | `rows` | The rows, in the order the query defines. |
 | `providers` | One row per provider this call ran: `ok` 1 or 0, `observed_at` in milliseconds since the epoch, `ms` the time it took, `error` the message when it failed. |
 
@@ -40,6 +46,7 @@ A report has a report envelope instead of `query` and `rows`:
   "scope": "agents",
   "me": "w3S:p1",
   "params": { "root": "/workspace/example", "me": "w3S:p1" },
+  "ms": 194.8,
   "sections": { "agents": [], "git": [] },
   "section_status": {
     "agents": { "providers": ["herdr"], "ok": 1, "errors": [] },
@@ -51,6 +58,9 @@ A report has a report envelope instead of `query` and `rows`:
   ]
 }
 ```
+
+A report always carries its call duration in `ms`.
+With `--trace`, a report also lists its child processes in `trace`.
 
 `root` is the resolved root for a root-bound report. It is absent for a wide report.
 `sections` keeps the report order and each value
@@ -65,12 +75,16 @@ For `--scope agents` and `--scope all`, also read the report-level `providers`.
 A section status does not show whether providers that enumerate roots answered.
 
 `--tsv` prints a header line and the rows, tab separated, null as an empty cell.
+With `--trace`, it writes the trace header and rows to standard error.
+The `args` cell is a JSON array, so it keeps the full argument list.
 A failed provider goes to standard error as `spacequery: provider <name> failed: <error>`.
 For a report, TSV prints `# <section>` before each non-empty section's TSV
 table and an empty line after that table. An empty section prints only its
 `# <section>` line.
 
-Times are milliseconds since the epoch (`observed_at`, `started_at`, `updated_at`, `last_turn_at`).
+`observed_at`, `started_at`, `updated_at`, and `last_turn_at` are milliseconds since the epoch.
+`started_ms` is milliseconds since the start of the call.
+Other `ms` values are durations in milliseconds.
 `idle_minutes` is computed at call time.
 
 Read activity in this order: `agent_status` from herdr describes the present.
@@ -88,6 +102,7 @@ derives from `updated_at`.
 | `--me PANE` | The pane to exclude. Default: the caller's own pane, from `HERDR_PANE_ID`, then `CLAUDE_CODE_SESSION_ID` matched to a session, then the pane herdr has in focus. `--me ""` keeps every pane. |
 | `--tsv` | Rows only, tab separated. A report prints named sections. |
 | `--json` | The default. |
+| `--trace` | List every child process with its provider, command, full arguments, directory, start offset, duration, and result. JSON adds `trace`; TSV writes it to standard error. |
 | `--<name> VALUE` | A parameter of a built-in or user query, bound as text. |
 | `--expect-empty` | Exit 3 after output when the query or report gate section returned rows. `here` uses `agents`. `dependency-report` uses `shared`. |
 | `--strict` | Exit 4 after output when a provider did not answer. |

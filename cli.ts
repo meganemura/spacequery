@@ -1,10 +1,9 @@
 #!/usr/bin/env node
-// The command line: spacequery <query|report> [--root DIR] [--scope root|agents|all] [--me PANE] [--json|--tsv] [--expect-empty] [--strict]
-//                   spacequery --sql <text> [--root DIR] [--me PANE] [--scope root|agents|all] [--expect-empty] [--strict]
+// The command line: spacequery <query|report> [--root DIR] [--scope root|agents|all] [--me PANE] [--json|--tsv] [--trace] [--expect-empty] [--strict]
+//                   spacequery --sql <text> [--root DIR] [--me PANE] [--scope root|agents|all] [--json|--tsv] [--trace] [--expect-empty] [--strict]
 //                   spacequery --help
-// The JSON envelope carries the rows and the `providers` rows, so a caller
-// sees which provider answered and when. TSV carries the rows only, and a
-// provider that failed goes to stderr.
+// The JSON envelope carries the call time, rows, and provider status.
+// A requested trace lists child processes. TSV keeps stdout for result rows.
 // Boundary: parsing arguments and printing. core/run.ts does the work.
 import { execFileSync } from "node:child_process";
 import { realpathSync } from "node:fs";
@@ -14,12 +13,12 @@ import { parseArgs, type ParseArgsOptionsConfig } from "node:util";
 import { catalog, reportParams, reports } from "./catalog.ts";
 import { callCounts, callsPath, recordCall } from "./core/calls.ts";
 import type { Scope } from "./core/loader.ts";
-import { runQuery, runReport, runSql, type ProviderRow, type ReportResult, type RunResult } from "./core/run.ts";
+import { runQuery, runReport, runSql, type ProviderRow, type ReportResult, type RunResult, type TraceRow } from "./core/run.ts";
 import { fsRepo } from "./core/repo.ts";
 import { loadUserQueries, type UserQuery } from "./core/user-queries.ts";
 import { loaders } from "./spacequery.config.ts";
 
-const commandOptions = new Set(["root", "scope", "me", "sql", "json", "tsv", "help", "expect-empty", "strict"]);
+const commandOptions = new Set(["root", "scope", "me", "sql", "json", "tsv", "trace", "help", "expect-empty", "strict"]);
 
 type HelpQuery = { name: string; description: string; params: readonly string[]; source: "built-in" | "user" };
 type HelpReport = { name: string; description: string; params: readonly string[]; sections: readonly (readonly [string, string])[]; source: "report" };
@@ -53,8 +52,8 @@ function usage(userQueries: readonly UserQuery[], env: Readonly<Record<string, s
   const userLines = queries.filter((query) => query.source === "user").map((query) => queryLine(query.name, query.description, query.params, width));
   const reportLines = reportEntries.map((report) => queryLine(report.name, report.description, report.params, width));
   return [
-    "usage: spacequery <query|report> [--root DIR] [--scope root|agents|all] [--me PANE] [--json|--tsv] [--expect-empty] [--strict]",
-    "       spacequery --sql <text> [--root DIR] [--me PANE] [--scope root|agents|all] [--json|--tsv] [--expect-empty] [--strict]",
+    "usage: spacequery <query|report> [--root DIR] [--scope root|agents|all] [--me PANE] [--json|--tsv] [--trace] [--expect-empty] [--strict]",
+    "       spacequery --sql <text> [--root DIR] [--me PANE] [--scope root|agents|all] [--json|--tsv] [--trace] [--expect-empty] [--strict]",
     "",
     "queries:",
     ...lines,
@@ -66,6 +65,7 @@ function usage(userQueries: readonly UserQuery[], env: Readonly<Record<string, s
     "A root-bound query defaults to --scope root. --scope agents uses roots with an agent; --scope all also uses every ghq root.",
     "--root defaults to the git toplevel of the current directory.",
     "--me excludes one pane; by default the caller's own pane, found from the environment.",
+    "--trace lists every child process of the call, with its provider, start offset, and duration.",
     "--expect-empty exits 3 after it prints rows when the query returned rows.",
     "--strict exits 4 after it prints rows when a provider did not answer.",
     `queries are listed by how often you called them (the count is in ${callsPath(env)})`,
@@ -85,6 +85,7 @@ function optionsFor(userQueries: readonly UserQuery[]): ParseArgsOptionsConfig {
   options["sql"] = { type: "string" };
   options["json"] = { type: "boolean" };
   options["tsv"] = { type: "boolean" };
+  options["trace"] = { type: "boolean" };
   options["help"] = { type: "boolean", short: "h" };
   options["expect-empty"] = { type: "boolean" };
   options["strict"] = { type: "boolean" };
@@ -146,17 +147,26 @@ function reportTsv(sections: Record<string, Record<string, unknown>[]>): string 
     : `# ${name}\n${tsv(rows)}\n`).join("");
 }
 
+function traceTsv(trace: readonly TraceRow[]): string {
+  return tsv(trace.map((row) => ({ ...row, args: JSON.stringify(row.args) })));
+}
+
 function warn(providers: ProviderRow[]): void {
   for (const p of providers) if (!p.ok) process.stderr.write(`spacequery: provider ${p.name} failed: ${p.error}\n`);
 }
 
-export function reportJson(name: string, result: ReportResult): Record<string, unknown> {
+function callJson(result: Pick<RunResult<unknown>, "ms" | "trace">, includeTrace: boolean): Record<string, unknown> {
+  return { ms: result.ms, ...(includeTrace ? { trace: result.trace } : {}) };
+}
+
+export function reportJson(name: string, result: ReportResult, includeTrace = false): Record<string, unknown> {
   return {
     report: name,
     root: result.params["root"],
     scope: result.scope,
     me: result.me,
     params: result.params,
+    ...callJson(result, includeTrace),
     sections: result.sections,
     section_status: result.sectionStatus,
     providers: result.providers,
@@ -184,6 +194,7 @@ async function main(argv: string[]): Promise<number> {
   const scope = textOption(values, "scope");
   const me = textOption(values, "me");
   const help = values["help"] === true;
+  const includeTrace = values["trace"] === true;
   const requestedName = positionals[0];
   const report = sql === undefined && requestedName !== undefined && Object.hasOwn(reports, requestedName)
     ? reports[requestedName as keyof typeof reports]
@@ -270,17 +281,28 @@ async function main(argv: string[]): Promise<number> {
   }
   recordCall(process.env, name);
   if (reportResult !== undefined) {
-    if (values["tsv"] === true) process.stdout.write(reportTsv(reportResult.sections));
-    else console.log(JSON.stringify(reportJson(name, reportResult), null, 2));
+    if (values["tsv"] === true) {
+      process.stdout.write(reportTsv(reportResult.sections));
+      if (includeTrace) process.stderr.write(traceTsv(reportResult.trace));
+    } else console.log(JSON.stringify(reportJson(name, reportResult, includeTrace), null, 2));
     warn(reportResult.providers);
     return exitCodeFor({ rows: reportResult.sections[report!.gateSection] ?? [], providers: reportResult.providers }, { expectEmpty: values["expect-empty"] === true, strict: values["strict"] === true });
   }
   if (result === undefined) throw new Error(`no result for ${name}`);
   if (values["tsv"] === true) {
     process.stdout.write(tsv(result.rows));
+    if (includeTrace) process.stderr.write(traceTsv(result.trace));
     warn(result.providers);
   } else {
-    console.log(JSON.stringify({ query: name, scope: result.scope, me: result.me, params: result.params, rows: result.rows, providers: result.providers }, null, 2));
+    console.log(JSON.stringify({
+      query: name,
+      scope: result.scope,
+      me: result.me,
+      params: result.params,
+      ...callJson(result, includeTrace),
+      rows: result.rows,
+      providers: result.providers,
+    }, null, 2));
   }
   return exitCodeFor(result, { expectEmpty: values["expect-empty"] === true, strict: values["strict"] === true });
 }

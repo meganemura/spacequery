@@ -73,7 +73,9 @@ test("the CLI binds a user query flag as text", async () => {
   }, async (configHome) => {
     const options = { cwd: process.cwd(), encoding: "utf8" as const, env: { ...process.env, XDG_CONFIG_HOME: configHome } };
     const { stdout } = await execFileAsync(process.execPath, ["cli.ts", "branch", "--branch", "42"], options);
-    assert.deepEqual(JSON.parse(stdout), {
+    const { ms, ...result } = JSON.parse(stdout);
+    assert.equal(typeof ms, "number");
+    assert.deepEqual(result, {
       query: "branch",
       scope: "agents",
       me: null,

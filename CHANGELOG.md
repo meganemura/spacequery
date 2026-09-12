@@ -2,6 +2,10 @@
 
 The format follows Keep a Changelog, and the versions follow SemVer. Before 1.0 a minor version may change the queries, the tables, or the flags; the entry says what changed.
 
+## Unreleased
+
+- JSON envelopes always include the call `ms`; `--trace` adds each child process with its provider, start offset, duration, and result.
+
 ## 0.1.0 (2026-09-12)
 
 The first release. The tool was developed as panoram and renamed to spacequery before this release; the package `panoram` was unpublished and nothing depends on it.

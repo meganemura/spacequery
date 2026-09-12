@@ -52,23 +52,29 @@ test("report JSON exposes section_status in the CLI envelope", () => {
       agents: { providers: ["herdr"], ok: 0, errors: [{ name: "herdr", error: "spawn herdr ENOENT" }] },
     },
     providers: [{ name: "herdr", ok: 0, observed_at: 1, ms: 2, error: "spawn herdr ENOENT" }],
+    ms: 3,
+    trace: [{ provider: "herdr", command: "herdr", args: ["api", "snapshot"], cwd: null, started_ms: 0.1, ms: 2, ok: 0 }],
     scope: "root",
     me: null,
     params: { root: "/workspace/example" },
   };
 
-  assert.deepEqual(reportJson("here", result), {
+  const envelope = reportJson("here", result);
+  assert.equal(Object.hasOwn(envelope, "trace"), false);
+  assert.deepEqual(envelope, {
     report: "here",
     root: "/workspace/example",
     scope: "root",
     me: null,
     params: { root: "/workspace/example" },
+    ms: 3,
     sections: { agents: [] },
     section_status: {
       agents: { providers: ["herdr"], ok: 0, errors: [{ name: "herdr", error: "spawn herdr ENOENT" }] },
     },
     providers: [{ name: "herdr", ok: 0, observed_at: 1, ms: 2, error: "spawn herdr ENOENT" }],
   });
+  assert.deepEqual(reportJson("here", result, true).trace, result.trace);
 });
 
 test("expect-empty returns 3 after it prints rows", async () => {
@@ -76,7 +82,9 @@ test("expect-empty returns 3 after it prints rows", async () => {
     execFileAsync(process.execPath, ["cli.ts", "--sql", "select 1 as x", "--expect-empty"], { cwd: process.cwd(), encoding: "utf8" }),
     (error: NodeJS.ErrnoException & { code?: number; stdout?: string }) => {
       assert.equal(error.code, 3);
-      assert.deepEqual(JSON.parse(error.stdout!), { query: "sql", scope: "agents", me: null, params: {}, rows: [{ x: 1 }], providers: [] });
+      const { ms, ...result } = JSON.parse(error.stdout!);
+      assert.equal(typeof ms, "number");
+      assert.deepEqual(result, { query: "sql", scope: "agents", me: null, params: {}, rows: [{ x: 1 }], providers: [] });
       return true;
     },
   );
@@ -84,7 +92,9 @@ test("expect-empty returns 3 after it prints rows", async () => {
 
 test("expect-empty returns 0 for an empty result", async () => {
   const { stdout } = await execFileAsync(process.execPath, ["cli.ts", "--sql", "select 1 as x where 0", "--expect-empty"], { cwd: process.cwd(), encoding: "utf8" });
-  assert.deepEqual(JSON.parse(stdout), { query: "sql", scope: "agents", me: null, params: {}, rows: [], providers: [] });
+  const { ms, ...result } = JSON.parse(stdout);
+  assert.equal(typeof ms, "number");
+  assert.deepEqual(result, { query: "sql", scope: "agents", me: null, params: {}, rows: [], providers: [] });
 });
 
 test("the root scope is accepted", async () => {
