@@ -7,7 +7,7 @@ It needs a terminal with at least 60 columns and 16 rows.
 Tables shows built-in and user provider tables with their column types, nullable columns, and keys.
 Queries shows built-in and user queries with descriptions, SQL, parameters, and result columns.
 Definition opens when an entry is selected or the catalog is switched.
-It combines SQL, column types, and links between tables and queries.
+It shows SQL first, then Columns, then links to related tables or queries.
 Section headings, blank lines, and aligned column types separate these definitions.
 Active catalog and view tabs use a cyan background and brackets; inactive tabs use dim text.
 Execution opens Results, which contains observed values with column headings and source status.

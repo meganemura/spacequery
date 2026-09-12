@@ -172,13 +172,14 @@ export function Browser({ items, initial, execute = observe }: { items: Item[]; 
   const sourceStart = Math.min(sourceOffset, Math.max(0, sourceLines.length - (sourceHeight - 1)));
   const columnWidth = Math.max(0, ...(item?.columns.map((column) => column.name.length) ?? []));
   const definitionRows: { text: string; heading?: boolean; target?: Item }[] = item ? [
-    { text: item.kind === "table" ? "Queries using this table" : "Tables used by this query", heading: true },
-    { text: "" },
-    ...(related.length ? related.map((entry) => ({ text: `  ${entry.name}`, target: entry })) : [{ text: "  (none)" }]),
-    { text: "" }, { text: "SQL", heading: true }, { text: "" },
+    { text: "SQL", heading: true }, { text: "" },
     ...lines(item.sql.trim()).map((text) => ({ text: `  ${text}` })),
     { text: "" }, { text: "Columns", heading: true }, { text: "" },
     ...item.columns.map((column) => ({ text: `  ${column.name.padEnd(columnWidth)}  ${column.type}${item.kind === "table" ? `${column.nullable ? "?" : ""}${column.key ? "  KEY" : ""}` : ""}` })),
+    { text: "" },
+    { text: item.kind === "table" ? "Queries using this table" : "Tables used by this query", heading: true },
+    { text: "" },
+    ...(related.length ? related.map((entry) => ({ text: `  ${entry.name}`, target: entry })) : [{ text: "  (none)" }]),
   ] : [];
   const definitionLines = definitionRows.map((row) => row.text);
   const rowLines = expanded && observation ? Object.entries(observation.rows[offset] ?? {}).flatMap(([name, value]) =>
