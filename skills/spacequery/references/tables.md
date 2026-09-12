@@ -4,6 +4,20 @@ What each provider fills, for a user query or an ad hoc statement.
 Every table is empty until a statement reads it; a statement pays only for the providers it reads.
 `root` is the join key across providers: the git toplevel of a directory.
 
+## `path_entries` and `path_commands` (search_path)
+
+`path_entries`: `position` (zero-based key), `dir`, `exists`, `duplicate_of?`.
+The `dir` value keeps the PATH entry text, except that an empty entry becomes `.`.
+`exists` is 1 when the entry is a directory.
+`duplicate_of` names the first position with the same `dir` text.
+
+`path_commands`: `name`, `dir`, `position`, `effective`, with `position` and `name` as the key.
+Each row is a regular executable file in one PATH entry.
+The executable test follows symbolic links and requires `X_OK` permission.
+`effective` is 1 for the first match of a name in PATH order.
+The row keeps `dir/name` as written and does not use the real path.
+The tables describe the caller's PATH and do not change with `--scope`.
+
 ## `agents` (herdr)
 
 | Column | Type | Meaning |

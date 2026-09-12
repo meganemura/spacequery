@@ -7,7 +7,7 @@ description: Use when an agent wants to know the state of the developer's machin
 # spacequery
 
 spacequery answers questions about one developer's machine.
-Each call observes the providers (herdr, git, ghq, mise, Homebrew, gh, Docker, ps, lsof, beads, headsign state files, the session records, skill and plugin files) at that moment, joins them in an in-memory database, and prints rows.
+Each call observes the providers (herdr, git, ghq, mise, Homebrew, gh, Docker, ps, lsof, beads, headsign state files, the session records, skill and plugin files, the caller's PATH) at that moment, joins them in an in-memory database, and prints rows.
 Nothing is cached, and spacequery never writes to a provider.
 
 Call it from anywhere:
@@ -32,7 +32,7 @@ Exact provider JSON names and their state sources: [references/providers.md](ref
 1. **Before you start work in a repository**: `here` (one call: who else is here with `in-dir`, the checkout with `git-status` and `worktrees`, its pull request with `branch-pull-requests`, ports with `ports-in-dir`, processes with `processes-in-dir`, Docker containers with `containers-in-dir` and `container-ports-in-dir`, tools with `tools-in-dir`, issues, and the workflow). The rows exclude your own pane. As a gate: `spacequery here --expect-empty --strict` exits 0 only when nobody else is here and every provider answered.
 2. **When the user asks what is going on**: `agents-with-sessions` (names, idle time), `working`, `idle-sessions`, `workspaces`.
 3. **When you look for a place to work**: `idle-worktrees` (a worktree with nobody in it), `dirty-unattended` (changes nobody is tending).
-4. **When a tool is missing or the wrong version**: `tools-in-dir`, `repository-versions`, `missing-tools-with-agents`, `tool-versions-split`.
+4. **When a tool is missing or the wrong version**: `which`, `path-entries`, `shadowed-commands`, `tools-in-dir`, `repository-versions`, `missing-tools-with-agents`, `tool-versions-split`.
    `repository-versions` reads static files only. It does not prove which runtime or library is installed.
    Use `installed-software` to see the installed mise and Homebrew versions together.
 5. **When no query fits**: read the tables in [references/tables.md](references/tables.md) and ask the user to add a query file; how: [references/user-queries.md](references/user-queries.md). A user query shows up in `--help` with its description and is called like a built-in.
@@ -61,6 +61,9 @@ The table lists the queries the workflow names. Every query, with its parameters
 | `workspaces` | | Which workspace holds agents of which repository. |
 | `idle-worktrees` | | Linked worktrees with no agent in them. |
 | `dirty-unattended` | | Repositories with uncommitted changes and no agent. |
+| `path-entries` | | The caller's PATH entries, including dead and duplicate entries. |
+| `which` | `--q` | Every executable match for one name, in PATH order. |
+| `shadowed-commands` | | Executable names that occur in more than one PATH directory. |
 | `tools-in-dir` | `--root` | The tools mise activates in one repository. |
 | `missing-tools-with-agents` | | Repositories with an agent where a requested tool is not installed. |
 | `tool-versions-split` | | Tools whose active version differs between repositories with an agent. |

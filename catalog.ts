@@ -2,6 +2,7 @@
 // to an agent: the skill lists it, and this file maps it to a statement.
 // Boundary: the mapping only. The statements live in the modules.
 import type { Entry, Query } from "solarsql";
+import { searchPathQueries } from "./providers/search-path/public.ts";
 import { herdrQueries } from "./providers/herdr/public.ts";
 import { gitQueries } from "./providers/git/public.ts";
 import { miseQueries } from "./providers/mise/public.ts";
@@ -22,6 +23,9 @@ export type Named = { query: Query<string, Entry>; description: string; params: 
 export type Report = { description: string; sections: readonly (readonly [string, keyof typeof catalog])[]; gateSection: string };
 
 export const catalog: Readonly<Record<string, Named>> = {
+  "path-entries": { query: searchPathQueries.pathEntries, description: "The PATH entries of the caller, in order, with the ones that do not exist or repeat.", params: [] },
+  "which": { query: searchPathQueries.which, description: "Every executable with one name on the caller's PATH, in order; the first row is the one that runs.", params: ["q"] },
+  "shadowed-commands": { query: searchPathQueries.shadowedCommands, description: "Names that exist in more than one PATH directory, with the directory that wins.", params: [] },
   "agents": { query: herdrQueries.all, description: "Every agent herdr hosts, with its repository root.", params: [] },
   "find": { query: reportQueries.find, description: "Agents whose name, title, repository, or session name contains a word.", params: ["q"] },
   "in-dir": { query: herdrQueries.inDir, description: "The agents in one repository, by its root.", params: ["root"] },

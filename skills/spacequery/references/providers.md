@@ -14,6 +14,7 @@ The report-level `providers` list can include dependencies, such as providers th
 
 | Provider | What it gets |
 | --- | --- |
+| `search_path` | The caller's PATH entries and executable names, including missing entries, duplicate entries, and shadowed commands. It starts no process. |
 | `repos` | Repository locations and host, owner, and name identity known to `ghq list -p`. |
 | `herdr` | Live coding-agent panes from `herdr api snapshot`, including agent type, status, focus, working directory, repository root, workspace, tab, title, and linked session id. |
 | `github` | Open pull request metadata for GitHub repositories in scope, including branch names, author, draft state, review decision, last-commit check state, update time, and URL. |

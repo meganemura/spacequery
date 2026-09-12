@@ -109,6 +109,19 @@ CREATE TABLE listeners (
     root text,
     command text
   ) strict;
+CREATE TABLE path_commands (
+    name text not null,
+    dir text not null,
+    position integer not null,
+    effective integer not null check (effective in (0, 1)),
+    primary key (position, name)
+  ) strict;
+CREATE TABLE path_entries (
+    position integer primary key not null,
+    dir text not null,
+    "exists" integer not null check ("exists" in (0, 1)),
+    duplicate_of integer
+  ) strict;
 CREATE TABLE plugins (
     id text primary key not null,
     agent text not null,

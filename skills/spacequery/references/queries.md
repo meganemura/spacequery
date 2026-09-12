@@ -27,6 +27,23 @@ Columns marked `?` can be null.
 `root` is null for an agent outside any repository.
 `agents`, `find`, `in-dir`, and `working` exclude `me`.
 
+## Search path
+
+| Query | Parameters | Columns |
+| --- | --- | --- |
+| `path-entries` | | `position`, `dir`, `exists`, `duplicate_of?` |
+| `which` | `q` | `name`, `dir`, `position`, `effective` |
+| `shadowed-commands` | | `name`, `effective_dir`, `shadowed_dirs` |
+
+`path-entries` follows the caller's PATH order.
+An empty PATH entry appears as `.`.
+`duplicate_of` is the first position with the same `dir` text.
+`which` lists each executable match in PATH order.
+The row with `effective = 1` is the command that spacequery starts.
+`shadowed_dirs` is a comma-separated list of distinct directories in PATH order.
+The provider follows symbolic links for the executable test and keeps the path text as written.
+It starts no process, and `--scope` does not change its rows.
+
 ## Sessions (Claude Code, Codex)
 
 | Query | Parameters | Columns |

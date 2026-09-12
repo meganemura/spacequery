@@ -83,6 +83,9 @@ test("tablesRead finds every catalog query's declared tables", () => {
   const raw = migratedDatabase();
   try {
     const expected: Record<keyof typeof catalog, string[]> = {
+      "path-entries": ["path_entries"],
+      which: ["path_commands"],
+      "shadowed-commands": ["path_commands"],
       agents: ["agents"],
       find: ["agents", "sessions"],
       "in-dir": ["agents"],
