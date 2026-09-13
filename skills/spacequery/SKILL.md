@@ -38,7 +38,7 @@ See [references/ui.md](references/ui.md) for its keys and observation rules.
 
 1. **Before you start work in a repository**: `here` (one call: who else is here with `in-dir`, the checkout with `git-status` and `worktrees`, its pull request with `branch-pull-requests`, ports with `ports-in-dir`, processes with `processes-in-dir`, Docker containers with `containers-in-dir` and `container-ports-in-dir`, tools with `tools-in-dir`, issues, and the workflow). The rows exclude your own pane. As a gate: `spacequery here --expect-empty --strict` exits 0 only when nobody else is here and every provider answered.
 2. **When the user asks what is going on**: `agents-with-sessions` (names, idle time), `session-processes`, `working`, `idle-sessions`, `workspaces`.
-   Use `claude-usage` and `codex-usage` for quota percentages and reset information. Check record times; Codex reads historical local logs.
+   Use `claude-usage` and `codex-usage` for quota percentages and reset information. Check record times; Codex reads bounded tails of recently modified local logs.
    Use `claude-sessions` and `codex-sessions` for locally recorded model, effort, and session names.
    Claude metadata describes a recent response in the transcript tail; `metadata_at` gives its time. Unavailable values stay null.
 3. **When you look for a place to work**: `idle-worktrees` (a worktree with nobody in it), `dirty-unattended` (changes nobody is tending).

@@ -35,6 +35,7 @@ The report-level `providers` list can include dependencies, such as providers th
 
 `claude_usage` invokes the fixed local command `claude -p /usage --output-format json --no-session-persistence`.
 The CLI can contact its service. A missing subscription, unsupported output, or failed command fails this provider.
-`codex_usage` streams `.jsonl` files under `CODEX_HOME/sessions` and `CODEX_HOME/archived_sessions`.
+`codex_usage` inventories `.jsonl` modification times under `CODEX_HOME/sessions` and `CODEX_HOME/archived_sessions`.
+It reads the final 256 KiB of the 32 newest files by modification time, at most 8 MiB per call.
 `CODEX_HOME` defaults to `~/.codex`. This loader starts no process and makes no network request.
 These providers run independently when their tables are queried. Repository scope does not filter account quotas.

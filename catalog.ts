@@ -51,7 +51,7 @@ export const catalog: Readonly<Record<string, Named>> = {
   "shared-dependency-details": { query: repositoryVersionQueries.sharedDependencyDetails, description: "Source evidence for direct npm dependencies shared across repositories in scope.", params: [] },
   "dependency-coverage": { query: repositoryVersionQueries.coverage, description: "Static source and unresolved-evidence counts for repositories in scope.", params: [] },
   "claude-usage": { query: usageQueries.claude, description: "Subscription quota percentages reported by Claude /usage.", params: [] },
-  "codex-usage": { query: usageQueries.codex, description: "Latest quota percentages recorded in local Codex logs.", params: [] },
+  "codex-usage": { query: usageQueries.codex, description: "Quota percentages from the tails of the 32 most recently modified Codex logs.", params: [] },
   "sessions": { query: sessionQueries.all, description: "Every Claude Code and Codex session alive now.", params: [] },
   "idle-sessions": { query: sessionQueries.idle, description: "Sessions ordered by how long they have been idle.", params: [] },
   "claude-sessions": { query: sessionQueries.claude, description: "Claude Code sessions alive now, with observed model, effort, name, and status.", params: [] },

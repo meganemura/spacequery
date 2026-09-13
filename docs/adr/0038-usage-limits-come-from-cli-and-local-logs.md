@@ -10,11 +10,16 @@ The CLI may contact its service. Session persistence is disabled.
 Observed command durations ranged from about 2.3 seconds to 48 seconds under concurrent test load.
 Actual call durations appear in providers.
 
-codex-usage streams JSONL files under the local Codex sessions and archived_sessions directories.
-It retains the newest timestamped token_count quota observation for each limit ID and window length.
-Every call reads the logs anew. This is a history scan distinct from the live-session provider.
-Verification scans of about 1.9 GiB took about 30 to 72 seconds under concurrent test load.
-Its cost depends on log volume; actual call durations appear in providers.
+codex-usage inventories JSONL modification times under local sessions and archived_sessions directories.
+It reads at most the final 256 KiB of each of the 32 most recently modified files.
+Within those tails it retains the newest event timestamp per limit ID and window length.
+Modification times select files; event timestamps select observations. These clocks serve different purposes.
+The fixed limit lets missing windows fall back to other recent files without an unbounded content scan.
+A partial first record is skipped. Missing files during discovery or opening are skipped.
+Every call starts fresh and reads at most 8 MiB of log content, plus directory entries and file metadata.
+An earlier full scan of about 1.9 GiB took 30 to 72 seconds. The bounded scan took under one second on that machine.
+This observes recent evidence rather than proving the newest value across all history.
+Older files, events outside a tail, and windows absent from the inspected records can be omitted.
 It starts no process and makes no network request.
 
 Both tables report used percentages, window lengths in minutes, and observation times in epoch milliseconds.

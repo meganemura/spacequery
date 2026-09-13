@@ -1,9 +1,7 @@
 // Read quota snapshots through a fixed Claude command and local Codex logs.
 // These independent sources never perform inference, reset limits, or store a cache.
-import { createReadStream } from "node:fs";
-import { readdir } from "node:fs/promises";
+import { open, readdir, stat } from "node:fs/promises";
 import { join } from "node:path";
-import { createInterface } from "node:readline";
 import type { Loader } from "../../core/loader.ts";
 import type { ClaudeUsageId, CodexUsageId } from "./solarsql.generated.ts";
 import { usageCommands } from "./module.ts";
@@ -84,18 +82,38 @@ export const codexUsageLoader: Loader = {
   async load(ctx) {
     const home = ctx.env["CODEX_HOME"] || (ctx.env["HOME"] ? join(ctx.env["HOME"], ".codex") : null);
     if (!home) throw new Error("codex_usage: HOME or CODEX_HOME is required");
-    const latest = new Map<string, Usage>();
+    const candidates: { path: string; modified: number }[] = [];
     for (const directory of ["sessions", "archived_sessions"]) {
       for await (const path of logFiles(join(home, directory))) {
-        const input = createReadStream(path, { encoding: "utf8" });
-        const lines = createInterface({ input, crlfDelay: Infinity });
-        try {
-          for await (const line of lines) for (const row of parseCodexUsage(line, path)) {
-            const previous = latest.get(row.id);
-            if (!previous || row.recorded_at >= previous.recorded_at) latest.set(row.id, row);
-          }
-        } finally { lines.close(); input.destroy(); }
+        try { candidates.push({ path, modified: (await stat(path)).mtimeMs }); }
+        catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error; }
       }
+    }
+    candidates.sort((a, b) => b.modified - a.modified || a.path.localeCompare(b.path));
+    const latest = new Map<string, Usage>();
+    // Modification times rank likely evidence; record timestamps decide which
+    // observation wins. Fixed bounds also cover missing or sparse quota events.
+    for (const { path } of candidates.slice(0, 32)) {
+      let handle;
+      try { handle = await open(path, "r"); }
+      catch (error) {
+        if ((error as NodeJS.ErrnoException).code === "ENOENT") continue;
+        throw error;
+      }
+      try {
+        const size = (await handle.stat()).size;
+        const start = Math.max(0, size - 256 * 1024);
+        const buffer = Buffer.alloc(size - start);
+        const { bytesRead } = await handle.read(buffer, 0, buffer.length, start);
+        const lines = buffer.subarray(0, bytesRead).toString("utf8").split("\n");
+        // A tail starting mid-record must not parse that fragment as evidence.
+        for (const line of start > 0 ? lines.slice(1) : lines) {
+          for (const row of parseCodexUsage(line, path)) {
+            const previous = latest.get(row.id);
+            if (!previous || row.recorded_at > previous.recorded_at) latest.set(row.id, row);
+          }
+        }
+      } finally { await handle.close(); }
     }
     const result = await ctx.db.run(usageCommands.codex, { rows: [...latest.values()].map((row) => ({ ...row, id: row.id as CodexUsageId })) });
     if (!result.ok) throw new Error(`codex_usage: ${result.kind}`);

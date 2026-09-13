@@ -2,7 +2,7 @@
 // These tests never start a real agent or contact an account service.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { mkdtemp, mkdir, writeFile, rm } from "node:fs/promises";
+import { mkdtemp, mkdir, writeFile, rm, utimes } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { runSql } from "../core/run.ts";
@@ -55,6 +55,31 @@ test("Codex finds the latest event per window across active and archived logs", 
     await writeFile(join(home, "archived_sessions", "old.jsonl"), [event("2026-09-12T00:00:00Z", 2), event("2026-09-13T04:00:00Z", 7, 10080)].join("\n"));
     const result = await runSql("select limit_id, window_minutes, used_percent from codex_usage order by limit_id, window_minutes", { loaders: [claudeUsageLoader, codexUsageLoader], env: { CODEX_HOME: home }, params: {}, exec: async () => { throw new Error("Codex quota reads must not start a process"); } });
     assert.deepEqual(result.rows, [{ limit_id: "codex", window_minutes: 300, used_percent: 9 }, { limit_id: "codex", window_minutes: 10080, used_percent: 7 }, { limit_id: "other", window_minutes: 300, used_percent: 6 }]);
+    assert.equal(result.providers[0]?.ok, 1);
+  } finally { await rm(home, { recursive: true, force: true }); }
+});
+
+
+test("Codex bounds reads to recent file tails and compares event timestamps", async () => {
+  const home = await mkdtemp(join(tmpdir(), "spacequery-usage-recent-"));
+  try {
+    await mkdir(join(home, "sessions"));
+    for (let i = 0; i < 34; i++) {
+      const path = join(home, "sessions", `${i}.jsonl`);
+      // Old files and the beginning of large files carry deliberately newer
+      // timestamps. Reading either would violate the recent-tail contract.
+      const text = i < 2 ? event("2099-01-01T00:00:00Z", 99)
+        : i === 33 ? event("2099-01-01T00:00:00Z", 98) + "\n" + "x".repeat(300000) + "\n" + event("2026-09-13T01:00:00Z", 1)
+        : i === 32 ? event("2026-09-13T02:00:00Z", 2) + "\n" + event("2026-09-13T03:00:00Z", 3, 10080)
+        : '{"token_count":';
+      await writeFile(path, text);
+      await utimes(path, 1000 + i, 1000 + i);
+    }
+    const result = await runSql("select window_minutes, used_percent from codex_usage order by window_minutes", {
+      loaders: [codexUsageLoader], env: { CODEX_HOME: home }, params: {},
+      exec: async () => { throw new Error("Unexpected process"); },
+    });
+    assert.deepEqual(result.rows, [{ window_minutes: 300, used_percent: 2 }, { window_minutes: 10080, used_percent: 3 }]);
     assert.equal(result.providers[0]?.ok, 1);
   } finally { await rm(home, { recursive: true, force: true }); }
 });

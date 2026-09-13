@@ -4,6 +4,8 @@ The format follows Keep a Changelog, and the versions follow SemVer. Before 1.0 
 
 ## Unreleased
 
+- Changed: `codex-usage` reads bounded tails of the 32 most recently modified logs instead of scanning all history.
+
 - Added: `claude-usage` and `codex-usage` expose timestamped subscription quota percentages from the Claude CLI and local Codex logs.
 
 - Added: user provider declarations can fill local tables from shell-free commands and join them with built-in tables.

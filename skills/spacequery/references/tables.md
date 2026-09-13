@@ -252,10 +252,12 @@ Other labels have a null window length. Model labels are not hard-coded.
 `recorded_at` is the time the command returned; `source` is `claude /usage`.
 The command's own token usage and local attribution paragraphs are not quota windows.
 
-Codex rows retain the newest valid record for each limit ID and window length across local logs.
+Codex rows retain the newest valid record for each limit ID and window length within the inspected local log tails.
 `recorded_at` is the event timestamp, `resets_at` comes from the recorded epoch value,
 and `source` is the log path. `resets_text` is null.
-The scan includes saved and archived sessions, reads all log contents, and holds only the latest rows.
+The scan inventories saved and archived sessions, then reads the final 256 KiB of the 32 most recently modified logs.
+It reads at most 8 MiB of log contents. Older files and records outside the tails can contain omitted windows or newer event timestamps.
+The result describes recent local evidence, not an exhaustive history scan.
 Older accounts and expired windows can remain in the logs. Inspect the source and timestamps before treating a row as current.
 A missing window yields no row. These percentages describe account quotas, which can include activity on other devices.
 Token totals and local-only usage accounting are separate from these tables.
