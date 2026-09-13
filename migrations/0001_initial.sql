@@ -21,6 +21,10 @@ CREATE TABLE brew_packages (
   ) strict;
 CREATE TABLE claude_sessions (
     session_id text primary key not null references sessions(session_id),
+    model text,
+    effort text,
+    per_turn_effort text,
+    metadata_at integer,
     kind text,
     entrypoint text,
     status text,

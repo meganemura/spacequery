@@ -24,6 +24,10 @@ export const sessions = table(`
 export const claudeSessions = table(`
   create table claude_sessions (
     session_id text primary key not null references sessions(session_id),
+    model text,
+    effort text,
+    per_turn_effort text,
+    metadata_at integer,
     kind text,
     entrypoint text,
     status text,
@@ -63,7 +67,7 @@ export const sessionQueries = queries(generated, {
            cast((unixepoch('subsec') * 1000 - updated_at) / 60000 as integer) as idle_minutes
     from sessions order by updated_at asc`,
   claude: `
-    select c.session_id, s.cwd, s.root, s.name, s.updated_at, c.kind, c.entrypoint, c.status, c.status_updated_at, c.name_source, c.version, c.pid_domain, c.peer_protocol
+    select c.session_id, s.cwd, s.root, s.name, s.updated_at, c.model, c.effort, c.per_turn_effort, c.metadata_at, c.kind, c.entrypoint, c.status, c.status_updated_at, c.name_source, c.version, c.pid_domain, c.peer_protocol
     from claude_sessions c join sessions s on s.session_id = c.session_id
     order by s.updated_at desc`,
   codex: `
@@ -82,8 +86,8 @@ export const sessionCommands = commands(generated, {
   },
   loadClaude: {
     plan: [
-      `insert or ignore into claude_sessions (session_id, kind, entrypoint, status, status_updated_at, name_source, version, pid_domain, peer_protocol)
-       select value ->> 'session_id', value ->> 'kind', value ->> 'entrypoint', value ->> 'status', value ->> 'status_updated_at', value ->> 'name_source', value ->> 'version', value ->> 'pid_domain', value ->> 'peer_protocol'
+      `insert or ignore into claude_sessions (session_id, model, effort, per_turn_effort, metadata_at, kind, entrypoint, status, status_updated_at, name_source, version, pid_domain, peer_protocol)
+       select value ->> 'session_id', value ->> 'model', value ->> 'effort', value ->> 'per_turn_effort', value ->> 'metadata_at', value ->> 'kind', value ->> 'entrypoint', value ->> 'status', value ->> 'status_updated_at', value ->> 'name_source', value ->> 'version', value ->> 'pid_domain', value ->> 'peer_protocol'
        from json_each(:rows)`,
     ],
   },

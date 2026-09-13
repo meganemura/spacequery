@@ -51,7 +51,7 @@ export const catalog: Readonly<Record<string, Named>> = {
   "dependency-coverage": { query: repositoryVersionQueries.coverage, description: "Static source and unresolved-evidence counts for repositories in scope.", params: [] },
   "sessions": { query: sessionQueries.all, description: "Every Claude Code and Codex session alive now.", params: [] },
   "idle-sessions": { query: sessionQueries.idle, description: "Sessions ordered by how long they have been idle.", params: [] },
-  "claude-sessions": { query: sessionQueries.claude, description: "Claude Code sessions alive now, with kind, status, and version.", params: [] },
+  "claude-sessions": { query: sessionQueries.claude, description: "Claude Code sessions alive now, with observed model, effort, name, and status.", params: [] },
   "codex-sessions": { query: sessionQueries.codex, description: "Codex threads alive now, with model, effort, and source.", params: [] },
   "pull-requests": { query: githubQueries.open, description: "Open pull requests of one repository.", params: ["root"] },
   "branch-pull-requests": { query: reportQueries.branchPullRequests, description: "Open pull requests for the branch one repository is on, with checks.", params: ["root"] },

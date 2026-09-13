@@ -57,14 +57,16 @@ mise can prepend directories, so these rows can differ from the caller search pa
 | --- | --- | --- |
 | `sessions` | | `session_id`, `agent`, `pid?`, `cwd`, `root?`, `name?`, `started_at?`, `updated_at?`, `last_turn_at?`, `last_branch?` |
 | `idle-sessions` | | the same, plus `idle_minutes?`, ordered by `updated_at` ascending |
-| `claude-sessions` | | `session_id`, `cwd`, `root?`, `name?`, `updated_at?`, `kind?`, `entrypoint?`, `status?`, `status_updated_at?`, `name_source?`, `version?`, `pid_domain?`, `peer_protocol?` |
+| `claude-sessions` | | `session_id`, `cwd`, `root?`, `name?`, `updated_at?`, `model?`, `effort?`, `per_turn_effort?`, `metadata_at?`, `kind?`, `entrypoint?`, `status?`, `status_updated_at?`, `name_source?`, `version?`, `pid_domain?`, `peer_protocol?` |
 | `codex-sessions` | | `session_id`, `cwd`, `root?`, `name?`, `updated_at?`, `model?`, `reasoning_effort?`, `source?`, `thread_source?`, `model_provider?`, `cli_version?`, `sandbox_policy?`, `approval_mode?`, `git_branch?`, `git_origin_url?`, `title?`, `tokens_used`, `archived` |
 | `agents-with-sessions` | | `pane_id`, `agent`, `agent_status`, `name?`, `claude_status?`, `kind?`, `model?`, `source?`, `started_at?`, `updated_at?`, `last_turn_at?`, `last_branch?`, `root?`, `idle_minutes?` |
 | `session-processes` | | `session_id`, `agent`, `name?`, `session_pid`, `pid`, `command`, `elapsed_s`, `cpu`, `root` |
 | `sessions-without-pane` | | `session_id`, `agent`, `cwd`, `root?`, `name?`, `updated_at?` |
 | `codex-threads-with-agents` | | `pane_id`, `root?`, `model?`, `reasoning_effort?`, `source?`, `tokens_used`, `updated_at?` |
 
-`name` is the name the user gave the session.
+`name` is the session registry or database name. Claude `name_source` identifies its source.
+For Claude, `model`, `effort`, and `per_turn_effort` describe one recorded assistant response; `metadata_at` gives its time.
+These nullable fields use a bounded transcript tail. See [session tables](tables.md#sessions-claude_sessions-and-codex_sessions) for the observation rules.
 `kind` and `claude_status` are Claude Code values. `source` is a Codex value.
 A session joins an agent through the session id herdr's integration reports.
 `agents-with-sessions` keeps an agent with no session and returns null session columns.

@@ -44,12 +44,22 @@ The tables describe the caller's PATH and do not change with `--scope`.
 | `agent` | text | `claude` or `codex`. |
 | `pid` | integer? | The process. |
 | `cwd`, `root` | text, text? | Where it runs. |
-| `name` | text? | The name the user gave. |
+| `name` | text? | The registry or database name. Claude `name_source` identifies its source. |
 | `started_at`, `updated_at` | integer? | Milliseconds since the epoch. |
 | `last_turn_at` | integer? | The timestamp of the last record in the transcript. |
 | `last_branch` | text? | The branch the last record names. |
 
-`claude_sessions`: `session_id` (key and `sessions` reference), `kind?`, `entrypoint?`, `status?`, `status_updated_at?`, `name_source?`, `version?`, `pid_domain?`, `peer_protocol?`.
+`claude_sessions`: `session_id` (key and `sessions` reference), `model?`, `effort?`, `per_turn_effort?`, `metadata_at?`, `kind?`, `entrypoint?`, `status?`, `status_updated_at?`, `name_source?`, `version?`, `pid_domain?`, `peer_protocol?`.
+
+Claude `model`, `effort`, and `per_turn_effort` come from the latest matching
+assistant response in the final 8 KiB of the live session transcript.
+`metadata_at` is that response's timestamp in milliseconds since the epoch.
+These fields describe the recorded response; later setting changes can differ.
+Missing fields stay null, including an effort omitted by an older Claude version.
+The loader keeps all fields from one response and skips synthetic and sidechain responses.
+When cwd changes, it probes the live session ID in the immediate project directories.
+An ambiguous fallback or a missing transcript leaves the metadata null.
+It reads local files only and does not install hooks or infer values from defaults.
 
 `codex_sessions`: `session_id` (key and `sessions` reference), `source?`, `thread_source?`, `model?`, `model_provider?`, `reasoning_effort?`, `cli_version?`, `sandbox_policy?`, `approval_mode?`, `git_branch?`, `git_origin_url?`, `title?`, `tokens_used`, `archived`.
 

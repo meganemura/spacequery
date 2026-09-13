@@ -38,6 +38,8 @@ See [references/ui.md](references/ui.md) for its keys and observation rules.
 
 1. **Before you start work in a repository**: `here` (one call: who else is here with `in-dir`, the checkout with `git-status` and `worktrees`, its pull request with `branch-pull-requests`, ports with `ports-in-dir`, processes with `processes-in-dir`, Docker containers with `containers-in-dir` and `container-ports-in-dir`, tools with `tools-in-dir`, issues, and the workflow). The rows exclude your own pane. As a gate: `spacequery here --expect-empty --strict` exits 0 only when nobody else is here and every provider answered.
 2. **When the user asks what is going on**: `agents-with-sessions` (names, idle time), `session-processes`, `working`, `idle-sessions`, `workspaces`.
+   Use `claude-sessions` and `codex-sessions` for locally recorded model, effort, and session names.
+   Claude metadata describes a recent response in the transcript tail; `metadata_at` gives its time. Unavailable values stay null.
 3. **When you look for a place to work**: `idle-worktrees` (a worktree with nobody in it), `dirty-unattended` (changes nobody is tending).
 4. **When a tool is missing or the wrong version**: `which-in-dir`, `which`, `path-entries`, `shadowed-commands`, `tools-in-dir`, `repository-versions`, `missing-tools-with-agents`, `tool-versions-split`.
    `repository-versions` reads static files only. It does not prove which runtime or library is installed.
@@ -65,6 +67,8 @@ The table lists the queries the workflow names. Every query, with its parameters
 | `behind-upstream-with-agents` | | Repositories behind their upstream that have an agent in them. |
 | `agents-with-sessions` | | Agents with the name, start time, and last activity of their session. |
 | `session-processes` | | Processes that live sessions started through their child process chains. |
+| `claude-sessions` | | Live Claude sessions with name, recorded model, effort, and metadata time. |
+| `codex-sessions` | | Live Codex threads with name, title, model, and reasoning effort. |
 | `working` | | The agents that work right now. |
 | `idle-sessions` | | Sessions ordered by how long they have been idle. |
 | `workspaces` | | Which workspace holds agents of which repository. |

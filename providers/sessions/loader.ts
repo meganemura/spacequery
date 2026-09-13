@@ -3,7 +3,7 @@
 // one provider; rows from a working source remain useful and the provider row
 // reports the failed source.
 // Boundary: this provider's tables only.
-import { open, readdir, readFile } from "node:fs/promises";
+import { open, readdir, readFile, stat } from "node:fs/promises";
 import { basename, join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import type { LoadContext, Loader } from "../../core/loader.ts";
@@ -27,6 +27,10 @@ type SessionRow = {
 
 type ClaudeSessionRow = {
   session_id: ClaudeSessionsId;
+  model: string | null;
+  effort: string | null;
+  per_turn_effort: string | null;
+  metadata_at: number | null;
   kind: string | null;
   entrypoint: string | null;
   status: string | null;
@@ -57,6 +61,27 @@ type CodexSessionRow = {
 type LoadedSource = { session: SessionRow; claude?: ClaudeSessionRow; codex?: CodexSessionRow };
 
 type TranscriptTail = { timestamp: number | null; gitBranch: string | null };
+type ClaudeMetadata = { model: string | null; effort: string | null; per_turn_effort: string | null; metadata_at: number | null };
+const emptyMetadata: ClaudeMetadata = { model: null, effort: null, per_turn_effort: null, metadata_at: null };
+
+// Keep one response's fields together: an older effort must not be assigned
+// to a newer model. Synthetic responses do not describe an inference request.
+export function parseClaudeMetadata(chunk: string, startsAtZero: boolean, sessionId: string): ClaudeMetadata {
+  const lines = chunk.split("\n");
+  const complete = startsAtZero ? lines : lines.slice(1);
+  for (let index = complete.length - 1; index >= 0; index -= 1) {
+    try {
+      const entry = object(JSON.parse(complete[index]!));
+      if (entry?.type !== "assistant" || entry.isSidechain === true || entry.sessionId !== sessionId) continue;
+      const model = string(object(entry.message)?.model);
+      if (model === null || model === "" || model === "<synthetic>") continue;
+      return { model, effort: string(entry.effort), per_turn_effort: string(entry.perTurnEffort), metadata_at: milliseconds(entry.timestamp) };
+    } catch {
+      // Concurrent appends and truncated lines can leave incomplete JSON.
+    }
+  }
+  return { ...emptyMetadata };
+}
 
 function object(value: unknown): Record<string, unknown> | null {
   return value !== null && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null;
@@ -95,14 +120,15 @@ export function parseTranscriptTail(chunk: string, startsAtZero: boolean): Trans
   return { timestamp: null, gitBranch: null };
 }
 
-async function tailOf(path: string): Promise<TranscriptTail> {
+async function tailOf(path: string, sessionId?: string): Promise<TranscriptTail & ClaudeMetadata> {
   const handle = await open(path, "r");
   try {
     const size = (await handle.stat()).size;
     const length = Math.min(size, tailBytes);
     const buffer = Buffer.alloc(length);
     await handle.read(buffer, 0, length, Math.max(0, size - length));
-    return parseTranscriptTail(buffer.toString("utf8"), size <= tailBytes);
+    const chunk = buffer.toString("utf8");
+    return { ...parseTranscriptTail(chunk, size <= tailBytes), ...(sessionId === undefined ? emptyMetadata : parseClaudeMetadata(chunk, size <= tailBytes, sessionId)) };
   } finally {
     await handle.close();
   }
@@ -124,6 +150,39 @@ function claudeSlug(cwd: string): string {
 async function loadClaude(home: string): Promise<LoadedSource[]> {
   const directory = join(home, ".claude", "sessions");
   const names = (await readdir(directory)).filter((name) => name.endsWith(".json"));
+  const projects = join(home, ".claude", "projects");
+  let projectDirectories: Promise<string[]> | undefined;
+  // A resumed session can change cwd while its transcript stays in the original
+  // project. Probe only the live session's filename; never read historical logs.
+  async function transcriptTail(cwd: string, sessionId: string): Promise<TranscriptTail & ClaudeMetadata> {
+    const missing = { timestamp: null, gitBranch: null, ...emptyMetadata };
+    if (basename(sessionId) !== sessionId) return missing;
+    const expected = join(projects, claudeSlug(cwd), `${sessionId}.jsonl`);
+    try {
+      return await tailOf(expected, sessionId);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+    }
+    projectDirectories ??= readdir(projects, { withFileTypes: true }).then((entries) => entries.filter((entry) => entry.isDirectory()).map((entry) => entry.name)).catch((error: NodeJS.ErrnoException) => {
+      if (error.code === "ENOENT") return [];
+      throw error;
+    });
+    const candidates = await Promise.all((await projectDirectories).map(async (directory) => {
+      const path = join(projects, directory, `${sessionId}.jsonl`);
+      try {
+        return (await stat(path)).isFile() ? path : null;
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
+        throw error;
+      }
+    }));
+    const found = candidates.filter((path) => path !== null);
+    if (found.length !== 1) return missing;
+    return tailOf(found[0]!, sessionId).catch((error: NodeJS.ErrnoException) => {
+      if (error.code === "ENOENT") return missing;
+      throw error;
+    });
+  }
   const rows = await Promise.all(names.map(async (name) => {
     const record = object(JSON.parse(await readFile(join(directory, name), "utf8")));
     if (record === null) throw new Error(`Claude registry ${name} is not an object`);
@@ -132,17 +191,15 @@ async function loadClaude(home: string): Promise<LoadedSource[]> {
     const cwd = string(record.cwd);
     if (pid === null || sessionId === null || cwd === null) throw new Error(`Claude registry ${name} is invalid`);
     if (!isAlive(pid)) return null;
-    const transcript = join(home, ".claude", "projects", claudeSlug(cwd), `${sessionId}.jsonl`);
-    let tail: TranscriptTail = { timestamp: null, gitBranch: null };
-    try {
-      tail = await tailOf(transcript);
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
-    }
+    const tail = await transcriptTail(cwd, sessionId);
     return {
       session: { session_id: sessionId as SessionsId, agent: "claude" as const, pid, cwd, root: null, name: string(record.name), started_at: number(record.startedAt), updated_at: number(record.updatedAt), last_turn_at: tail.timestamp, last_branch: tail.gitBranch },
       claude: {
         session_id: sessionId as ClaudeSessionsId,
+        model: tail.model,
+        effort: tail.effort,
+        per_turn_effort: tail.per_turn_effort,
+        metadata_at: tail.metadata_at,
         kind: string(record.kind),
         entrypoint: string(record.entrypoint),
         status: string(record.status),

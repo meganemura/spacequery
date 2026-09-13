@@ -2,7 +2,7 @@
 // They prove the loader reads bounded transcript data and keeps a useful half
 // when the other session source fails.
 import assert from "node:assert/strict";
-import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, rm, rename, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
@@ -12,7 +12,7 @@ import * as gs from "@hegeldev/hegel/generators";
 import type { Exec } from "../core/loader.ts";
 import type { Repo } from "../core/repo.ts";
 import { runSql } from "../core/run.ts";
-import { sessionsLoader, parseTranscriptTail } from "../providers/sessions/loader.ts";
+import { sessionsLoader, parseTranscriptTail, parseClaudeMetadata } from "../providers/sessions/loader.ts";
 import { sessionCommands } from "../providers/sessions/module.ts";
 import type { ClaudeSessionsId } from "../providers/sessions/solarsql.generated.ts";
 import { migrations } from "../migrations/index.ts";
@@ -120,7 +120,7 @@ test("a Claude session needs its parent session", async () => {
   try {
     migrate(raw, migrations);
     const db = node(raw);
-    const result = await db.run(sessionCommands.loadClaude, { rows: [{ session_id: "absent" as ClaudeSessionsId, kind: null, entrypoint: null, status: null, status_updated_at: null, name_source: null, version: null, pid_domain: null, peer_protocol: null }] });
+    const result = await db.run(sessionCommands.loadClaude, { rows: [{ session_id: "absent" as ClaudeSessionsId, model: null, effort: null, per_turn_effort: null, metadata_at: null, kind: null, entrypoint: null, status: null, status_updated_at: null, name_source: null, version: null, pid_domain: null, peer_protocol: null }] });
     assert.equal(result.ok, false);
   } finally {
     raw.close();
@@ -151,3 +151,50 @@ test("the transcript tail parser returns the final timestamp record", () => hege
   const expected = entries.at(-1)!;
   assert.deepEqual(actual, { timestamp: Date.parse(expected.timestamp), gitBranch: expected.gitBranch });
 }));
+
+const noMetadata = { model: null, effort: null, per_turn_effort: null, metadata_at: null };
+function response(extra: Record<string, unknown> = {}): string {
+  return JSON.stringify({ type: "assistant", sessionId: claudeId, timestamp: "2026-09-10T00:00:00.000Z", message: { model: "claude-test" }, effort: "high", perTurnEffort: "medium", ...extra });
+}
+
+test("Claude metadata keeps the newest response fields together", () => hegel.test((tc) => {
+  const count = tc.draw(gs.integers({ minValue: 1, maxValue: 20 }));
+  const earlier = Array.from({ length: count }, () => response());
+  const latest = response({ message: { model: "claude-next" }, effort: undefined, perTurnEffort: undefined });
+  const ignored = [response({ message: { model: "<synthetic>" } }), response({ sessionId: "another-session" }), response({ isSidechain: true }), '{"type":'];
+  assert.deepEqual(parseClaudeMetadata([...earlier, latest, ...ignored].join("\n"), true, claudeId), {
+    model: "claude-next", effort: null, per_turn_effort: null, metadata_at: Date.parse("2026-09-10T00:00:00.000Z"),
+  });
+}));
+
+test("Claude metadata ignores truncated and malformed records", () => {
+  assert.deepEqual(parseClaudeMetadata(response(), false, claudeId), noMetadata);
+  assert.deepEqual(parseClaudeMetadata('null\n[]\n{}\n{"type":"assistant","message":null}', true, claudeId), noMetadata);
+  assert.deepEqual(parseClaudeMetadata(response({ effort: {}, perTurnEffort: 42, timestamp: "invalid" }), true, claudeId), {
+    model: "claude-test", effort: null, per_turn_effort: null, metadata_at: null,
+  });
+});
+
+test("Claude metadata follows a live session across project directories", async () => {
+  const home = await fixtureHome();
+  try {
+    const original = join(home, ".claude", "projects", "-work-original");
+    await rename(join(home, ".claude", "projects", "-work-claude"), original);
+    const transcript = join(original, `${claudeId}.jsonl`);
+    await writeFile(transcript, response() + "\n");
+    const options = { loaders: [sessionsLoader], exec: execFor(home), repo: fixtureRepo(), env: { HOME: home }, params: {} };
+    const sql = "select model, effort, per_turn_effort, metadata_at from claude_sessions";
+    assert.deepEqual((await runSql(sql, options)).rows, [{ model: "claude-test", effort: "high", per_turn_effort: "medium", metadata_at: Date.parse("2026-09-10T00:00:00.000Z") }]);
+    await writeFile(transcript, response() + "\n" + "x".repeat(9000));
+    assert.deepEqual((await runSql(sql, options)).rows, [noMetadata]);
+    await rm(transcript);
+    assert.deepEqual((await runSql(sql, options)).rows, [noMetadata]);
+    await writeFile(transcript, response());
+    const duplicate = join(home, ".claude", "projects", "-work-duplicate");
+    await mkdir(duplicate);
+    await writeFile(join(duplicate, `${claudeId}.jsonl`), response());
+    assert.deepEqual((await runSql(sql, options)).rows, [noMetadata]);
+  } finally {
+    await rm(home, { recursive: true, force: true });
+  }
+});
