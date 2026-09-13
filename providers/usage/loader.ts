@@ -53,6 +53,39 @@ export function parseCodexUsage(line: string, source: string): Usage[] {
   return rows;
 }
 
+// Read backward in byte blocks, but parse only complete JSONL records. Keeping
+// the leading fragment as bytes also preserves UTF-8 across block boundaries.
+export async function readCodexUsageTail(path: string): Promise<{ rows: Usage[]; bytesRead: number }> {
+  const handle = await open(path, "r");
+  let bytesRead = 0;
+  try {
+    let position = (await handle.stat()).size;
+    let blockSize = 4 * 1024;
+    let fragment = Buffer.alloc(0);
+    const maximum = 256 * 1024;
+    while (position > 0 && bytesRead < maximum) {
+      const length = Math.min(position, blockSize, maximum - bytesRead);
+      const block = Buffer.alloc(length);
+      position -= length;
+      let filled = 0;
+      while (filled < length) {
+        const read = await handle.read(block, filled, length - filled, position + filled);
+        bytesRead += read.bytesRead;
+        if (read.bytesRead === 0) return { rows: [], bytesRead };
+        filled += read.bytesRead;
+      }
+      const combined = Buffer.concat([block, fragment]);
+      const boundary = position === 0 ? -1 : combined.indexOf(10);
+      const complete = position === 0 ? combined : boundary < 0 ? Buffer.alloc(0) : combined.subarray(boundary + 1);
+      fragment = position === 0 ? Buffer.alloc(0) : boundary < 0 ? combined : combined.subarray(0, boundary);
+      const rows = complete.toString("utf8").split("\n").flatMap((line) => parseCodexUsage(line, path));
+      if (rows.length) return { rows, bytesRead };
+      blockSize *= 2;
+    }
+    return { rows: [], bytesRead };
+  } finally { await handle.close(); }
+}
+
 async function* logFiles(directory: string): AsyncGenerator<string> {
   let entries;
   try { entries = await readdir(directory, { withFileTypes: true }); }
@@ -94,26 +127,16 @@ export const codexUsageLoader: Loader = {
     // Modification times rank likely evidence; record timestamps decide which
     // observation wins. Fixed bounds also cover missing or sparse quota events.
     for (const { path } of candidates.slice(0, 32)) {
-      let handle;
-      try { handle = await open(path, "r"); }
+      let rows: Usage[];
+      try { rows = (await readCodexUsageTail(path)).rows; }
       catch (error) {
         if ((error as NodeJS.ErrnoException).code === "ENOENT") continue;
         throw error;
       }
-      try {
-        const size = (await handle.stat()).size;
-        const start = Math.max(0, size - 256 * 1024);
-        const buffer = Buffer.alloc(size - start);
-        const { bytesRead } = await handle.read(buffer, 0, buffer.length, start);
-        const lines = buffer.subarray(0, bytesRead).toString("utf8").split("\n");
-        // A tail starting mid-record must not parse that fragment as evidence.
-        for (const line of start > 0 ? lines.slice(1) : lines) {
-          for (const row of parseCodexUsage(line, path)) {
-            const previous = latest.get(row.id);
-            if (!previous || row.recorded_at > previous.recorded_at) latest.set(row.id, row);
-          }
-        }
-      } finally { await handle.close(); }
+      for (const row of rows) {
+        const previous = latest.get(row.id);
+        if (!previous || row.recorded_at > previous.recorded_at) latest.set(row.id, row);
+      }
     }
     const result = await ctx.db.run(usageCommands.codex, { rows: [...latest.values()].map((row) => ({ ...row, id: row.id as CodexUsageId })) });
     if (!result.ok) throw new Error(`codex_usage: ${result.kind}`);

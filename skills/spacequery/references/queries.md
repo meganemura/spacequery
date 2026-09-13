@@ -270,5 +270,5 @@ excludes `me`.
 | `codex-usage` | | The same columns, from local Codex logs. |
 
 These queries observe account quota windows, not per-session token totals.
-Claude reads the CLI result. Codex selects the latest recorded timestamp per limit and window within the final 256 KiB of the 32 most recently modified logs.
+Claude reads the CLI result. Codex selects the latest recorded timestamp per limit and window within adaptively read tails of the 32 most recently modified logs (4 KiB initial read, 256 KiB maximum per file).
 Codex rows can be stale; they do not certify the currently signed-in account.

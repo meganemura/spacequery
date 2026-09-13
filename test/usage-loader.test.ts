@@ -6,7 +6,7 @@ import { mkdtemp, mkdir, writeFile, rm, utimes } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { runSql } from "../core/run.ts";
-import { claudeUsageLoader, codexUsageLoader, parseClaudeUsage, parseCodexUsage } from "../providers/usage/loader.ts";
+import { claudeUsageLoader, codexUsageLoader, parseClaudeUsage, parseCodexUsage, readCodexUsageTail } from "../providers/usage/loader.ts";
 import * as hegel from "@hegeldev/hegel";
 import * as gs from "@hegeldev/hegel/generators";
 
@@ -81,5 +81,37 @@ test("Codex bounds reads to recent file tails and compares event timestamps", as
     });
     assert.deepEqual(result.rows, [{ window_minutes: 300, used_percent: 2 }, { window_minutes: 10080, used_percent: 3 }]);
     assert.equal(result.providers[0]?.ok, 1);
+  } finally { await rm(home, { recursive: true, force: true }); }
+});
+
+
+test("Codex stops at the first block with quota records", async () => {
+  const home = await mkdtemp(join(tmpdir(), "spacequery-usage-tail-"));
+  try {
+    const path = join(home, "log.jsonl");
+    await writeFile(path, "x".repeat(300000) + "\n" + event("2026-09-13T00:00:00Z", 7));
+    const result = await readCodexUsageTail(path);
+    assert.equal(result.bytesRead, 4096);
+    assert.equal(result.rows[0]?.used_percent, 7);
+    await writeFile(path, "x".repeat(300000));
+    const absent = await readCodexUsageTail(path);
+    assert.equal(absent.bytesRead, 256 * 1024);
+    assert.deepEqual(absent.rows, []);
+  } finally { await rm(home, { recursive: true, force: true }); }
+});
+
+test("Codex reconstructs quota lines and Unicode across backward blocks", async () => {
+  const home = await mkdtemp(join(tmpdir(), "spacequery-usage-boundary-"));
+  try {
+    const path = join(home, "log.jsonl");
+    for (const padding of [3500, 4090, 4100, 12000, 30000]) {
+      const quota = event("2026-09-13T00:00:00Z", 8, 300, "窓".repeat(2000));
+      const suffix = "\n" + JSON.stringify({ type: "other", content: "x".repeat(padding) });
+      await writeFile(path, quota + suffix);
+      const result = await readCodexUsageTail(path);
+      assert.equal(result.rows[0]?.limit_id, "窓".repeat(2000));
+      assert.equal(result.rows[0]?.used_percent, 8);
+      assert.ok(result.bytesRead <= 256 * 1024);
+    }
   } finally { await rm(home, { recursive: true, force: true }); }
 });

@@ -255,7 +255,9 @@ The command's own token usage and local attribution paragraphs are not quota win
 Codex rows retain the newest valid record for each limit ID and window length within the inspected local log tails.
 `recorded_at` is the event timestamp, `resets_at` comes from the recorded epoch value,
 and `source` is the log path. `resets_text` is null.
-The scan inventories saved and archived sessions, then reads the final 256 KiB of the 32 most recently modified logs.
+The scan inventories saved and archived sessions, then reads backward from the 32 most recently modified logs.
+Reads start at 4 KiB and double until complete quota records appear, the file starts, or 256 KiB has been read.
+Byte fragments are joined before decoding and parsing lines. Earlier blocks after a match are not read.
 It reads at most 8 MiB of log contents. Older files and records outside the tails can contain omitted windows or newer event timestamps.
 The result describes recent local evidence, not an exhaustive history scan.
 Older accounts and expired windows can remain in the logs. Inspect the source and timestamps before treating a row as current.
