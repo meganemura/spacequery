@@ -46,7 +46,7 @@ These arrows are also clickable. Sources has its own direction indicators.
 Arrows disappear at the corresponding edge; content that fits has no arrows.
 Vertical scrollbars show the position in the catalog, Definition, Results, open rows, and Sources.
 The thumb shows the visible share; top and bottom arrows indicate more content.
-Click the track to jump or its arrows to scroll. Catalog and result arrows move one page.
+Click the track to jump or its arrows to scroll one line.
 A one-line area uses a direction marker; clicking it switches between the first and last position.
 Scrollbars disappear when the content fits. Dragging is not supported.
 In Definition, select a related entry with Up/Down and press Enter to open it.
@@ -75,6 +75,10 @@ Click Tables or Queries to switch catalogs, or click Definition or Results to sw
 Click a catalog entry to select it, a related entry to open its definition, or a result row to open its details.
 Click `[r Run]` to execute; missing parameters still require input before execution.
 The wheel scrolls the area under the pointer: the catalog, definition, result rows, open row, or Sources.
+Catalog and result viewports have positions separate from their selections.
+The wheel, scrollbar, and PageUp or PageDown move the viewport without changing the selected query or result row.
+Clicks and Up or Down change selection. Keyboard selection brings the selected entry into view.
+A selection can remain outside the viewport after scrolling; Enter still opens that selection.
 Horizontal wheel events scroll long text or result columns when the terminal provides them.
 Mouse actions pause during input prompts and execution.
 Right clicks, modified clicks, and drag operations are ignored.

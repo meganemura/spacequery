@@ -39,6 +39,8 @@ export function Browser({ items, initial, execute = observe, mouse = true }: { i
   const [editing, setEditing] = useState<{ kind: "search" } | { kind: "field"; name: string; remaining: string[]; runAfter: boolean; changed: boolean } | null>(null);
   const [draft, setDraft] = useState("");
   const [selected, setSelected] = useState(0);
+  const [listOffset, setListOffset] = useState(0);
+  const [resultOffset, setResultOffset] = useState(0);
   const [focus, setFocus] = useState<"list" | "detail">("list");
   const [view, setView] = useState<View>("Definition");
   const [offset, setOffset] = useState(0);
@@ -71,11 +73,13 @@ export function Browser({ items, initial, execute = observe, mouse = true }: { i
   const rightWidth = Math.max(15, size.width - leftWidth - 5);
 
   function select(next: number | ((previous: number) => number)) {
-    setSelected((previous) => Math.max(0, Math.min(typeof next === "function" ? next(previous) : next, filtered.length - 1)));
+    const index = Math.max(0, Math.min(typeof next === "function" ? next(selected) : next, filtered.length - 1));
+    setSelected(index);
+    setListOffset((start) => index < start ? index : index >= start + listPageSize ? index - listPageSize + 1 : start);
     setView("Definition"); setSourcesFocused(false); setSourceOffset(0); setSourceColumn(0);
-    setOffset(0); setTextColumn(0); setColumn(0); setExpanded(false); setDetailOffset(0); setError("");
+    setOffset(0); setResultOffset(0); setTextColumn(0); setColumn(0); setExpanded(false); setDetailOffset(0); setError("");
   }
-  function changeView(next: View) { setView(next); setSourcesFocused(false); setTextColumn(0); setOffset(0); setExpanded(false); setDetailOffset(0); }
+  function changeView(next: View) { setView(next); setSourcesFocused(false); setTextColumn(0); setOffset(0); setResultOffset(0); setExpanded(false); setDetailOffset(0); }
   function invalidate() { setSourceOffset(0); setSourceColumn(0); setResult(null); setError(""); changeView("Definition"); }
   function editFields(names: readonly string[], values: Inputs, runAfter: boolean) {
     const [name, ...remaining] = names;
@@ -98,10 +102,11 @@ export function Browser({ items, initial, execute = observe, mouse = true }: { i
 
   function switchCatalog(next: Item["kind"]) {
     if (next === kind) return;
-    setKind(next); setSearch(""); select(0); changeView("Definition"); setFocus("list");
+    setKind(next); setSearch(""); setListOffset(0); select(0); changeView("Definition"); setFocus("list");
   }
   function follow(target: Item) {
     setKind(target.kind); setSearch(""); setSelected(items.filter((i) => i.kind === target.kind).indexOf(target));
+    setListOffset(Math.max(0, items.filter((i) => i.kind === target.kind).indexOf(target) - listPageSize + 1));
     setColumn(0); setError(""); changeView("Definition"); setFocus("detail");
   }
   function hit(name: string, event: MouseEvent) {
@@ -131,13 +136,12 @@ export function Browser({ items, initial, execute = observe, mouse = true }: { i
       for (const [name, bar] of [["listBar", listBar], ["detailBar", detailBar], ["sourceBar", sourceBar]] as const) {
         const point = hit(name, event);
         if (!point || !bar.end) continue;
-        const paged = name === "listBar" || (name === "detailBar" && view === "Results" && !expanded);
-        const arrow = bar.glyphs.length > 1 && (point.y === 0 || point.y === bar.glyphs.length - 1);
-        const next = paged && arrow ? Math.max(0, Math.min(bar.end, bar.start + (point.y === 0 ? -(name === "listBar" ? listPageSize : pageSize) : (name === "listBar" ? listPageSize : pageSize)))) : scrollbarTarget(bar, point.y);
-        if (name === "listBar") { setFocus("list"); select(next); }
+        const next = scrollbarTarget(bar, point.y);
+        if (name === "listBar") { setFocus("list"); setListOffset(next); }
         else { setFocus("detail"); setSourcesFocused(name === "sourceBar");
           if (name === "sourceBar") setSourceOffset(next);
           else if (expanded) setDetailOffset(next);
+          else if (view === "Results") setResultOffset(next);
           else setOffset(next);
         }
         return;
@@ -147,7 +151,7 @@ export function Browser({ items, initial, execute = observe, mouse = true }: { i
     const list = hit("list", event);
     if (list && list.x > 0 && list.x < list.width - 1 && list.y > 0 && list.y < list.height - 1) {
       setFocus("list");
-      if (event.kind === "scroll" && event.dy) select((previous) => previous + event.dy * 3);
+      if (event.kind === "scroll" && event.dy) setListOffset((previous) => Math.max(0, Math.min(previous + event.dy * 3, Math.max(0, filtered.length - listPageSize))));
       else if (event.kind === "click") {
         const index = listStart + list.y - 1;
         if (index < filtered.length && list.y - 1 < listPageSize) select(index);
@@ -167,6 +171,7 @@ export function Browser({ items, initial, execute = observe, mouse = true }: { i
     if (event.kind === "scroll") {
       if (event.dy) {
         if (expanded) setDetailOffset((previous) => Math.max(0, Math.min(previous + event.dy * 3, Math.max(0, contentLines.length - pageSize))));
+        else if (view === "Results") setResultOffset((previous) => Math.max(0, Math.min(previous + event.dy * 3, Math.max(0, contentCount - pageSize))));
         else setOffset((previous) => Math.max(0, Math.min(previous + event.dy * 3, Math.max(0, contentCount - 1))));
       }
       if (event.dx) scrollHorizontal(event.dx, false);
@@ -175,7 +180,7 @@ export function Browser({ items, initial, execute = observe, mouse = true }: { i
       const row = definitionRows[offset + content.y];
       if (row?.target) follow(row.target);
     } else if (!expanded && observation && content.y > 0 && content.y <= pageSize) {
-      const index = Math.floor(offset / pageSize) * pageSize + content.y - 1;
+      const index = resultStart + content.y - 1;
       if (index < observation.rows.length) { setOffset(index); setExpanded(true); setDetailOffset(0); setTextColumn(0); }
     }
   }
@@ -190,7 +195,7 @@ export function Browser({ items, initial, execute = observe, mouse = true }: { i
     if (editing !== null) {
       if (key.escape) { setEditing(null); setError(""); return; }
       if (key.return) {
-        if (editing.kind === "search") { setSearch(draft); select(0); setEditing(null); }
+        if (editing.kind === "search") { setSearch(draft); setListOffset(0); select(0); setEditing(null); }
         else {
           const field = editing.name;
           if (field === "scope" && !["auto", "root", "agents", "all"].includes(draft)) {
@@ -244,10 +249,20 @@ export function Browser({ items, initial, execute = observe, mouse = true }: { i
     const scrollPage = focus === "list" ? listPageSize : sourcesFocused ? sourceHeight - 1 : pageSize;
     const direction = key.downArrow || input === "j" ? 1 : key.upArrow || input === "k" ? -1 : key.pageDown ? scrollPage : key.pageUp ? -scrollPage : 0;
     if (direction) {
-      if (focus === "list") select(selected + direction);
+      if (focus === "list") {
+        if (key.pageDown || key.pageUp) setListOffset(Math.max(0, Math.min(listStart + direction, Math.max(0, filtered.length - listPageSize))));
+        else select(selected + direction);
+      }
       else if (sourcesFocused) setSourceOffset(() => Math.max(0, Math.min(sourceStart + direction, Math.max(0, sourceLines.length - (sourceHeight - 1)))));
       else if (expanded) setDetailOffset((n) => Math.max(0, Math.min(n + direction, Math.max(0, contentLines.length - pageSize))));
-      else setOffset((n) => Math.max(0, Math.min(n + direction, Math.max(0, contentCount - 1))));
+      else if (view === "Results") {
+        if (key.pageDown || key.pageUp) setResultOffset(Math.max(0, Math.min(resultStart + direction, Math.max(0, contentCount - pageSize))));
+        else {
+          const next = Math.max(0, Math.min(offset + direction, Math.max(0, contentCount - 1)));
+          setOffset(next);
+          setResultOffset(next < resultStart ? next : next >= resultStart + pageSize ? next - pageSize + 1 : resultStart);
+        }
+      } else setOffset((n) => Math.max(0, Math.min(n + direction, Math.max(0, contentCount - 1))));
       return;
     }
     if (!key.return || !item) return;
@@ -298,12 +313,13 @@ export function Browser({ items, initial, execute = observe, mouse = true }: { i
     color: active ? "black" : undefined, backgroundColor: active ? "cyan" : undefined,
     bold: active, dimColor: !active,
   });
-  const listStart = Math.floor(selected / listPageSize) * listPageSize;
+  const listStart = Math.min(listOffset, Math.max(0, filtered.length - listPageSize));
+  const resultStart = Math.min(resultOffset, Math.max(0, (observation?.rows.length ?? 0) - pageSize));
   const listVisible = listPageSize;
-  const listBar = scrollbar(filtered.length, listVisible, listStart, bodyHeight - 2, Math.floor(Math.max(0, filtered.length - 1) / listPageSize) * listPageSize);
-  const detailStart = expanded ? detailOffset : view === "Definition" ? offset : Math.floor(offset / pageSize) * pageSize;
+  const listBar = scrollbar(filtered.length, listVisible, listStart, bodyHeight - 2, Math.max(0, filtered.length - listPageSize));
+  const detailStart = expanded ? detailOffset : view === "Definition" ? offset : resultStart;
   const detailTotal = expanded ? contentLines.length : contentCount;
-  const detailEnd = expanded ? Math.max(0, detailTotal - pageSize) : view === "Definition" ? Math.max(0, detailTotal - 1) : Math.floor(Math.max(0, detailTotal - 1) / pageSize) * pageSize;
+  const detailEnd = expanded ? Math.max(0, detailTotal - pageSize) : view === "Definition" ? Math.max(0, detailTotal - 1) : Math.max(0, detailTotal - pageSize);
   const detailBar = scrollbar(detailTotal, pageSize, detailStart, detailHeight, detailEnd);
   const sourceBar = scrollbar(sourceLines.length, sourceHeight - 1, sourceStart, sourceHeight - 1, Math.max(0, sourceLines.length - (sourceHeight - 1)));
   const renderBar = (name: string, bar: Scrollbar) => h(Box, { ref: region(name), flexDirection: "column", width: 1, flexShrink: 0 },
@@ -335,7 +351,7 @@ export function Browser({ items, initial, execute = observe, mouse = true }: { i
     const width = Math.max(1, Math.floor(rightWidth / Math.max(1, shown.length)));
     const gridRow = (values: unknown[], highlighted: boolean, heading = false) => h(Box, { flexDirection: "row" }, ...values.map((value) => h(Box, { width, paddingRight: 1, backgroundColor: highlighted && !heading && focus === "detail" && !sourcesFocused ? "blue" : undefined }, text(value, { color: heading ? "cyan" : highlighted && focus === "detail" && !sourcesFocused ? "whiteBright" : undefined, bold: highlighted || heading }))));
     detail.push(gridRow(shown, false, true));
-    const start = Math.floor(offset / pageSize) * pageSize;
+    const start = resultStart;
     detail.push(...observation.rows.slice(start, start + pageSize).map((row, i) => gridRow(shown.map((key, col) => `${col === 0 ? (start + i === offset ? "> " : "  ") : ""}${lineText(row[key])}`), start + i === offset)));
   }
   const receiptTime = observation ? new Date(observation.receivedAt).toLocaleTimeString(undefined, { hour12: false, hour: "2-digit", minute: "2-digit", second: "2-digit" }) : "";

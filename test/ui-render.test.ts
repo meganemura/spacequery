@@ -328,10 +328,12 @@ for (const height of [16, 24]) {
     try {
       await ui.key(mouseAt(ui.frame(), "[r Run]"));
       await ui.key(mouseAt(ui.frame(), "value-0", 65));
-      assert.match(ui.frame(), /> value-3/);
+      assert.match(ui.frame(), /value-3/);
+      assert.doesNotMatch(ui.frame(), /> value-3/);
       await ui.key(mouseAt(ui.frame(), "Sources", 65));
       assert.match(ui.frame(), /Sources \[focused\]  4\/20/);
-      assert.match(ui.frame(), /> value-3/);
+      assert.match(ui.frame(), /value-3/);
+      assert.doesNotMatch(ui.frame(), /> value-3/);
       await ui.key(mouseAt(ui.frame(), "value-3"));
       assert.match(ui.frame(), /Row 4/);
       assert.ok(ui.frame().split("\n").length <= height + 1);
@@ -393,7 +395,8 @@ test("coalesced wheel reports preserve each scroll step", async () => {
     await ui.key("r");
     const wheel = mouseAt(ui.frame(), "value-0", 65);
     await ui.parts([wheel + wheel + wheel]);
-    assert.match(ui.frame(), /> value-9/);
+    assert.match(ui.frame(), /value-9/);
+    assert.doesNotMatch(ui.frame(), /> value-9/);
   } finally { await ui.close(); }
 });
 
@@ -526,7 +529,8 @@ test("result scrollbar arrows move the viewport without opening a row", async ()
   try {
     await ui.key("r");
     await ui.key(mouseAt(ui.frame(), "↓"));
-    assert.match(ui.frame(), /> value-6/);
+    assert.match(ui.frame(), /value-1/);
+    assert.doesNotMatch(ui.frame(), /> value-1/);
     assert.doesNotMatch(ui.frame(), /Row 7/);
     await ui.key(mouseAt(ui.frame(), "↑"));
     assert.match(ui.frame(), /> value-0/);
@@ -546,7 +550,10 @@ test("catalog pagination stays stable when the detail view changes", async () =>
     assert.equal(catalog(), before);
     await ui.key("\u001b");
     await ui.key("\u001b[6~");
-    assert.match(ui.frame(), /> query-23/);
+    assert.match(ui.frame(), /query-23/);
+    assert.doesNotMatch(ui.frame(), /> query-23/);
+    await ui.key("r");
+    assert.match(ui.frame(), /query-10/);
   } finally { await ui.close(); }
 });
 
@@ -638,5 +645,42 @@ test("catalog, result, and source scrolling keep the pane boundary fixed", async
     await ui.key("s"); fixed();
     for (let i = 0; i < 3; i++) { await ui.key("\u001b[6~"); fixed(); }
     await ui.key("\u001b[C"); fixed();
+  } finally { await ui.close(); }
+});
+
+test("catalog scrolling preserves the inspected query and its result", async () => {
+  const items = Array.from({ length: 30 }, (_, i) => ({ ...query, name: `entry-${i}`, params: [] }));
+  const calls: string[] = [];
+  const ui = await screen(items, async (item) => { calls.push(item.name); return observation; });
+  try {
+    await ui.key("r");
+    const wheel = mouseAt(ui.frame(), "entry-0", 65);
+    await ui.key(wheel);
+    assert.match(ui.frame(), /entry-3/);
+    assert.doesNotMatch(ui.frame(), /> entry-3/);
+    assert.match(ui.frame(), /2:\[Results\]/);
+    assert.match(ui.frame(), /a long value/);
+    await ui.key("r");
+    assert.deepEqual(calls, ["entry-0", "entry-0"]);
+    await ui.key(mouseAt(ui.frame(), "entry-3"));
+    assert.match(ui.frame(), /> entry-3/);
+    await ui.key("r");
+    assert.deepEqual(calls, ["entry-0", "entry-0", "entry-3"]);
+  } finally { await ui.close(); }
+});
+
+test("result scrolling preserves the selected row until a click", async () => {
+  const rows = Array.from({ length: 30 }, (_, i) => ({ value: `value-${i}` }));
+  const ui = await screen([{ ...query, params: [] }], async () => ({ ...observation, rows }));
+  try {
+    await ui.key("r");
+    await ui.key(mouseAt(ui.frame(), "value-0", 65));
+    assert.match(ui.frame(), /value-3/);
+    assert.doesNotMatch(ui.frame(), /> value-3/);
+    await ui.key("\r");
+    assert.match(ui.frame(), /Row 1 \/ 30/);
+    await ui.key("\u001b");
+    await ui.key(mouseAt(ui.frame(), "value-3"));
+    assert.match(ui.frame(), /Row 4 \/ 30/);
   } finally { await ui.close(); }
 });
