@@ -65,6 +65,7 @@ export function Browser({ items, initial, execute = observe, mouse = true }: { i
   const sourceHeight = view === "Results" ? Math.min(4, Math.max(2, Math.floor((bodyHeight - 5) / 3))) : 0;
   const detailHeight = bodyHeight - 2 - (compactResults ? 1 : 3) - sourceHeight;
   const pageSize = Math.max(1, detailHeight - 1);
+  const listPageSize = Math.max(1, bodyHeight - 2);
   const leftWidth = Math.max(20, Math.min(34, Math.floor(size.width * 0.29)));
   const rightWidth = Math.max(15, size.width - leftWidth - 5);
 
@@ -117,6 +118,8 @@ export function Browser({ items, initial, execute = observe, mouse = true }: { i
   function handleMouse(event: MouseEvent) {
     if (!mouseEnabled || pending.current || busy || editing || size.width < 60 || size.height < 16) return;
     if (event.kind === "click") {
+      if (hit("context", event)) { editFields(["root", "scope", "me"], inputs, false); return; }
+      if (hit("search", event)) { setEditing({ kind: "search" }); setDraft(search); return; }
       if (hit("tables", event)) { switchCatalog("table"); return; }
       if (hit("queries", event)) { switchCatalog("query"); return; }
       for (const name of views) if (hit(name, event)) { changeView(name); setFocus("detail"); return; }
@@ -129,7 +132,7 @@ export function Browser({ items, initial, execute = observe, mouse = true }: { i
         if (!point || !bar.end) continue;
         const paged = name === "listBar" || (name === "detailBar" && view === "Results" && !expanded);
         const arrow = bar.glyphs.length > 1 && (point.y === 0 || point.y === bar.glyphs.length - 1);
-        const next = paged && arrow ? Math.max(0, Math.min(bar.end, bar.start + (point.y === 0 ? -pageSize : pageSize))) : scrollbarTarget(bar, point.y);
+        const next = paged && arrow ? Math.max(0, Math.min(bar.end, bar.start + (point.y === 0 ? -(name === "listBar" ? listPageSize : pageSize) : (name === "listBar" ? listPageSize : pageSize)))) : scrollbarTarget(bar, point.y);
         if (name === "listBar") { setFocus("list"); select(next); }
         else { setFocus("detail"); setSourcesFocused(name === "sourceBar");
           if (name === "sourceBar") setSourceOffset(next);
@@ -146,7 +149,7 @@ export function Browser({ items, initial, execute = observe, mouse = true }: { i
       if (event.kind === "scroll" && event.dy) select((previous) => previous + event.dy * 3);
       else if (event.kind === "click") {
         const index = listStart + list.y - 1;
-        if (index < filtered.length && list.y - 1 < pageSize + 2) select(index);
+        if (index < filtered.length && list.y - 1 < listPageSize) select(index);
       }
       return;
     }
@@ -237,7 +240,7 @@ export function Browser({ items, initial, execute = observe, mouse = true }: { i
       if (focus === "detail") scrollHorizontal(key.rightArrow ? 1 : -1, sourcesFocused);
       return;
     }
-    const scrollPage = focus === "detail" && sourcesFocused ? sourceHeight - 1 : pageSize;
+    const scrollPage = focus === "list" ? listPageSize : sourcesFocused ? sourceHeight - 1 : pageSize;
     const direction = key.downArrow || input === "j" ? 1 : key.upArrow || input === "k" ? -1 : key.pageDown ? scrollPage : key.pageUp ? -scrollPage : 0;
     if (direction) {
       if (focus === "list") select(selected + direction);
@@ -258,9 +261,8 @@ export function Browser({ items, initial, execute = observe, mouse = true }: { i
   // Preserve source lines. Horizontal scrolling exposes long lines without
   // inserting breaks into SQL identifiers or values.
   const lines = (value: string) => safeText(value).replaceAll("\t", "  ").split("\n");
-  const sourceLines = !observation ? [busy ? "Waiting for sources..." : "Run to inspect sources."] : (observation.providers.length
-    ? observation.providers.flatMap((provider) => lines(`${provider.ok ? "OK" : "FAILED"} ${provider.name} | ${provider.ms} ms | ${new Date(provider.observed_at).toISOString()}${provider.error ? `\n${provider.error}` : ""}`))
-    : ["This call ran no provider."]);
+  const sourceEntries = observation?.providers.flatMap((provider) => lines(`${provider.ok ? "OK" : "FAILED"} ${provider.name} | ${provider.ms} ms | ${new Date(provider.observed_at).toISOString()}${provider.error ? `\n${provider.error}` : ""}`).map((text) => ({ text, color: provider.ok ? "green" : "redBright" }))) ?? [];
+  const sourceLines = !observation ? [busy ? "Waiting for sources..." : "Run to inspect sources."] : (sourceEntries.length ? sourceEntries.map((entry) => entry.text) : ["This call ran no provider."]);
   const sourceStart = Math.min(sourceOffset, Math.max(0, sourceLines.length - (sourceHeight - 1)));
   const columnWidth = Math.max(0, ...(item?.columns.map((column) => column.name.length) ?? []));
   const definitionRows: { text: string; heading?: boolean; target?: Item }[] = item ? [
@@ -295,9 +297,9 @@ export function Browser({ items, initial, execute = observe, mouse = true }: { i
     color: active ? "black" : undefined, backgroundColor: active ? "cyan" : undefined,
     bold: active, dimColor: !active,
   });
-  const listStart = Math.floor(selected / pageSize) * pageSize;
-  const listVisible = Math.min(pageSize + 2, bodyHeight - 2);
-  const listBar = scrollbar(filtered.length, listVisible, listStart, bodyHeight - 2, Math.floor(Math.max(0, filtered.length - 1) / pageSize) * pageSize);
+  const listStart = Math.floor(selected / listPageSize) * listPageSize;
+  const listVisible = listPageSize;
+  const listBar = scrollbar(filtered.length, listVisible, listStart, bodyHeight - 2, Math.floor(Math.max(0, filtered.length - 1) / listPageSize) * listPageSize);
   const detailStart = expanded ? detailOffset : view === "Definition" ? offset : Math.floor(offset / pageSize) * pageSize;
   const detailTotal = expanded ? contentLines.length : contentCount;
   const detailEnd = expanded ? Math.max(0, detailTotal - pageSize) : view === "Definition" ? Math.max(0, detailTotal - 1) : Math.floor(Math.max(0, detailTotal - 1) / pageSize) * pageSize;
@@ -307,7 +309,10 @@ export function Browser({ items, initial, execute = observe, mouse = true }: { i
     ...bar.glyphs.map((glyph) => text(glyph, { color: glyph === "│" ? "gray" : "cyan", bold: glyph !== "│" })));
   const failed = observation?.providers.filter((provider) => !provider.ok) ?? [];
   const detail: ReturnType<typeof h>[] = [];
-  if (!item) detail.push(text("No matches. Press / to change the search."));
+  if (!item) {
+    detail.push(text("No matches", { bold: true }));
+    if (detailHeight >= 3) detail.push(text(" "), text("Press / or click Search to change the filter.", { dimColor: true }));
+  }
   else if (expanded || view === "Definition") {
     if (expanded) detail.push(text(`Row ${offset + 1} / ${observation!.rows.length}  |  Esc closes`, { bold: true }));
     const start = expanded ? detailOffset : offset;
@@ -318,18 +323,39 @@ export function Browser({ items, initial, execute = observe, mouse = true }: { i
       return text(link && i === 0 && textStart === 0 ? `> ${value.trimStart()}` : value || " ", { color: row?.heading ? "cyan" : link ? "blueBright" : undefined, bold: row?.heading || (link && i === 0) });
     }));
   } else if (!observation) {
-    detail.push(text(busy ? "Fetching rows..." : "No result yet. Press r to run.", { color: "yellow" }));
+    detail.push(text(busy ? "Fetching rows..." : error && !editing ? "Execution failed" : "No result yet. Press r to run.", { bold: true, color: busy ? "cyan" : error && !editing ? "redBright" : undefined }));
+    if (detailHeight >= 3) detail.push(text(" "), text(busy ? "Reading a fresh snapshot of the selected scope." : error ? "Check the error below; press r to retry." : "Review Definition, then press r or click Run.", { dimColor: true }));
   } else if (!observation.rows.length) {
-    detail.push(text(failed.length ? "Unknown: a source failed." : "0 rows in this scope."));
+    detail.push(text(failed.length ? "Unknown: a source failed." : "0 rows in this scope.", { bold: true, color: failed.length ? "yellow" : undefined }));
+    if (detailHeight >= 3) detail.push(text(" "), text(failed.length ? "Inspect Sources before interpreting this result." : "Press c to review the scope, or e to edit parameters.", { dimColor: true }));
   } else {
     const keys = observation.rows.length ? Object.keys(observation.rows[0]!) : item.columns.map((c) => c.name);
     const shown = keys.slice(columnStart, columnStart + shownColumnCount);
     const width = Math.max(1, Math.floor(rightWidth / Math.max(1, shown.length)));
-    const gridRow = (values: unknown[], highlighted: boolean) => h(Box, { flexDirection: "row" }, ...values.map((value) => h(Box, { width, paddingRight: 1 }, text(value, { color: highlighted ? "cyan" : undefined, bold: highlighted }))));
-    detail.push(gridRow(shown, true));
+    const gridRow = (values: unknown[], highlighted: boolean, heading = false) => h(Box, { flexDirection: "row" }, ...values.map((value) => h(Box, { width, paddingRight: 1, backgroundColor: highlighted && !heading && focus === "detail" && !sourcesFocused ? "blue" : undefined }, text(value, { color: heading ? "cyan" : highlighted && focus === "detail" && !sourcesFocused ? "whiteBright" : undefined, bold: highlighted || heading }))));
+    detail.push(gridRow(shown, false, true));
     const start = Math.floor(offset / pageSize) * pageSize;
     detail.push(...observation.rows.slice(start, start + pageSize).map((row, i) => gridRow(shown.map((key, col) => `${col === 0 ? (start + i === offset ? "> " : "  ") : ""}${lineText(row[key])}`), start + i === offset)));
   }
+  const receiptTime = observation ? new Date(observation.receivedAt).toLocaleTimeString(undefined, { hour12: false, hour: "2-digit", minute: "2-digit", second: "2-digit" }) : "";
+  const resultSummary = observation ? `${observation.rows.length} rows | scope: ${observation.scope} | received ${receiptTime}` : "";
+  const compactNameWidth = Math.max(1, size.width - resultSummary.length - 3);
+  const compactName = item && item.name.length > compactNameWidth ? `${item.name.slice(0, compactNameWidth - 1)}…` : item?.name ?? "";
+  const rawFieldLabel = editing?.kind === "search" ? "Search" : lineText(editing?.name ?? "");
+  const labelLimit = Math.max(8, Math.floor(size.width / 3));
+  const fieldLabel = Array.from(rawFieldLabel).length > labelLimit ? `${Array.from(rawFieldLabel).slice(0, labelLimit - 1).join("")}…` : rawFieldLabel;
+  const rootStart = horizontalLimit([inputs.root], Math.max(1, size.width - 34));
+  const rootLabel = `${rootStart ? "…" : ""}${horizontalText(inputs.root, rootStart)}`;
+  const fieldValue = editing?.kind === "field" && editing.name === "me" && !editing.changed && inputs.me === undefined ? "(auto)" : draft;
+  const inputStart = horizontalLimit([`${fieldValue}█`], Math.max(1, size.width - fieldLabel.length - 4));
+  const prompt = `${fieldLabel}: ${inputStart ? "…" : ""}${horizontalText(fieldValue, inputStart)}█`;
+  const inputHint = editing?.kind === "search" ? "Enter Apply filter · Ctrl+U Clear · Esc Cancel"
+    : `Enter ${editing?.kind === "field" && !editing.remaining.length ? editing.runAfter ? "Run query" : "Save" : "Next"} · Ctrl+U Clear · Esc Cancel${editing?.kind === "field" && editing.remaining.length ? ` · ${editing.remaining.length} remaining` : ""}`;
+  const focusHint = focus === "list" ? "Catalog · ↑↓ Select · Enter Inspect · q Quit"
+    : sourcesFocused ? "Sources · ↑↓ Lines · ←→ Scroll · s Rows · q Quit"
+    : expanded ? "Row detail · ↑↓ Lines · ←→ Scroll · Esc Close · q Quit"
+    : view === "Definition" ? "Definition · ↑↓ Lines · ←→ Scroll · Enter Follow · Esc List"
+    : "Results · ↑↓ Select row · ←→ Scroll · Enter Open · Esc List";
   if (size.width < 60 || size.height < 16) return h(Box, { flexDirection: "column" }, text("spacequery ui needs at least 60 columns and 16 rows."), text("Resize the terminal, or press q to quit."));
   return h(Box, { flexDirection: "column", width: size.width, height: size.height - 1 },
     h(Box, { flexDirection: "row", height: 1, flexShrink: 0 },
@@ -338,20 +364,20 @@ export function Browser({ items, initial, execute = observe, mouse = true }: { i
       h(Box, { ref: region("queries"), flexShrink: 0 }, tab(kind === "query" ? "[Queries]" : "Queries", kind === "query")),
       h(Box, { flexShrink: 0 }, text(`  t  m mouse:${mouseEnabled ? "on" : "off"}`, { dimColor: true })),
       text(`   scope: ${inputs.scope}${busy ? "   Loading..." : ""}`, { dimColor: !busy, color: busy ? "yellow" : undefined })),
-    text(`root: ${inputs.root}  |  me: ${inputs.me === undefined ? "auto" : inputs.me || "all"}  [c edit]`, { dimColor: true }),
-    text(`Search: ${search || "(all)"}   |   ${filtered.length} entries`, { dimColor: true }),
+    h(Box, { ref: region("context"), height: 1 }, text(`root: ${rootLabel}  |  me: ${inputs.me === undefined ? "auto" : inputs.me || "all"}  [c edit]`, { dimColor: true })),
+    h(Box, { ref: region("search"), height: 1 }, text(`Search: ${search || "(all)"}   |   ${filtered.length} entries`, { color: editing?.kind === "search" ? "cyan" : undefined, dimColor: editing?.kind !== "search" })),
     h(Box, { flexDirection: "row", height: bodyHeight },
       h(Box, { flexDirection: "column", ref: region("list"), width: leftWidth, borderStyle: "round", borderColor: focus === "list" ? "cyan" : "gray", paddingX: 1 },
         h(Box, { flexDirection: "row", height: bodyHeight - 2 },
           h(Box, { flexDirection: "column", flexGrow: 1, minWidth: 0 },
-            ...filtered.slice(listStart, listStart + listVisible).map((entry, i) => text(`${listStart + i === selected ? ">" : " "} ${entry.name}`, { color: listStart + i === selected ? "cyan" : undefined }))),
+            ...filtered.slice(listStart, listStart + listVisible).map((entry, i) => h(Box, { backgroundColor: listStart + i === selected && focus === "list" ? "blue" : undefined }, text(`${listStart + i === selected ? ">" : " "} ${entry.name}`, { bold: listStart + i === selected, color: listStart + i === selected ? focus === "list" ? "whiteBright" : "cyan" : undefined })))),
           renderBar("listBar", listBar))),
       h(Box, { flexDirection: "column", flexGrow: 1, borderStyle: "round", borderColor: focus === "detail" ? "cyan" : "gray", paddingX: 1 },
-        ...(compactResults ? [] : [text(`${item?.name ?? ""}  ${item?.source ?? ""}`, { bold: true }),
+        ...(compactResults ? [] : [h(Text, { wrap: "truncate-end" }, text(item?.name ?? "", { bold: true }), text(`  ${item?.source ?? ""}`, { dimColor: true })),
           text(item?.description ?? "", { dimColor: true })]),
         h(Box, { flexDirection: "row", height: 1, flexShrink: 0 }, ...views.flatMap((name, i) => [
           ...(i ? [text(" ")] : []), h(Box, { ref: region(name), flexShrink: 0 }, tab(`${i + 1}:${name === view ? `[${name}]` : name}`, name === view)),
-        ]), text("  "), h(Box, { ref: region("run"), flexShrink: 0 }, text("[r Run]", { color: "green", bold: true })),
+        ]), text("  "), h(Box, { ref: region("run"), flexShrink: 0 }, text(busy ? "[Wait]" : "[r Run]", { color: busy ? "cyan" : "green", bold: true, dimColor: busy })),
           h(Box, { flexGrow: 1, justifyContent: "flex-end" },
             ...(horizontalPosition > 0 ? [h(Box, { ref: region("scrollLeft"), flexShrink: 0 }, text("←", { color: "yellow", bold: true }))] : []),
             ...(horizontalPosition < horizontalEnd ? [h(Box, { ref: region("scrollRight"), flexShrink: 0 }, text("→", { color: "yellow", bold: true }))] : []))),
@@ -365,10 +391,10 @@ export function Browser({ items, initial, execute = observe, mouse = true }: { i
               ...(sourceTextStart < sourceLimit ? [h(Box, { ref: region("sourceRight"), flexShrink: 0 }, text("→", { bold: true, color: "yellow" }))] : []))),
           h(Box, { flexDirection: "row", height: sourceHeight - 1 },
             h(Box, { flexDirection: "column", flexGrow: 1, minWidth: 0 },
-              ...sourceLines.slice(sourceStart, sourceStart + sourceHeight - 1).map((line) => text(horizontalText(line, sourceTextStart) || " "))),
+              ...sourceLines.slice(sourceStart, sourceStart + sourceHeight - 1).map((line, i) => text(horizontalText(line, sourceTextStart) || " ", { color: sourceEntries[sourceStart + i]?.color }))),
             renderBar("sourceBar", sourceBar)))] : []))),
-    text(observation ? `${observation.rows.length} rows | scope: ${observation.scope} | ${observation.ms} ms | received ${new Date(observation.receivedAt).toLocaleTimeString()}` : busy ? "Fetching a fresh observation..." : "Press r or click Run to load data."),
-    text(error || item?.error || (failed.length ? `Incomplete: ${failed.map((p) => p.name).join(", ")} failed. Press s for source details.` : ""), { color: "yellow" }),
-    text(editing !== null ? `${editing.kind === "search" ? "Search" : editing.name}: ${editing.kind === "field" && editing.name === "me" && !editing.changed && inputs.me === undefined ? "(auto)" : draft}█  (Enter next, Ctrl+U clear, Esc cancel)` : "t Switch / Search Tab Focus 1-2 View r Run e Edit c Context"),
-    text("↑↓ Move ←→ Scroll Enter Open Esc Back s Sources q Quit", { dimColor: true }));
+    text(observation ? compactResults ? `${compactName} | ${resultSummary}` : `${observation.rows.length} rows | scope: ${observation.scope} | ${observation.ms} ms | received ${receiptTime}` : busy ? "Fetching a fresh observation..." : "Press r or click Run to load data.", { dimColor: !busy, color: busy ? "cyan" : undefined }),
+    text(error || item?.error || (failed.length ? `Incomplete: ${failed.map((p) => p.name).join(", ")} failed. Press s for source details.` : " "), { color: error || item?.error ? "redBright" : "yellow" }),
+    h(Box, { height: 1, backgroundColor: editing ? "blue" : undefined }, text(editing ? prompt : "t Switch / Search Tab Focus 1-2 View r Run e Edit c Context", { bold: !!editing, color: editing ? "whiteBright" : undefined })),
+    text(editing ? inputHint : busy ? "Loading · q or Ctrl+C Cancel and quit" : focusHint, { dimColor: true }));
 }

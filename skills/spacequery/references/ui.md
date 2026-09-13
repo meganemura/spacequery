@@ -10,6 +10,9 @@ Definition opens when an entry is selected or the catalog is switched.
 It shows SQL first, then Columns, then links to related tables or queries.
 Section headings, blank lines, and aligned column types separate these definitions.
 Active catalog and view tabs use a cyan background and brackets; inactive tabs use dim text.
+The focused selection uses a blue background and a marker. Source metadata uses dim text.
+The catalog uses its full height and keeps the same page when the detail view changes.
+Sources uses green for successful retrieval and red for failures, with OK and FAILED labels.
 Execution opens Results, which contains observed values with column headings and source status.
 Column definitions stay in Definition; an unexecuted Results view shows an execution hint.
 A broken user query keeps its SQL and an error message in the catalog.
@@ -48,6 +51,11 @@ A one-line area uses a direction marker; clicking it switches between the first 
 Scrollbars disappear when the content fits. Dragging is not supported.
 In Definition, select a related entry with Up/Down and press Enter to open it.
 The header shows root, scope, and caller context.
+Long root paths show their tail; the context editor retains the complete value.
+Click the context line to edit it, or click Search to edit the filter.
+The bottom help line follows the focused area.
+Input prompts keep the cursor visible and show instructions on a separate line.
+The final prompt says whether Enter saves the value or runs the query.
 Press `c` to edit these values or `e` to edit the selected query's parameters.
 Enter accepts a value and advances to the next field; Ctrl+U clears the field and Esc cancels the remaining prompts.
 When `r` requests missing parameters, accepting the last value starts execution.

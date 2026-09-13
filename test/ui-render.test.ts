@@ -532,3 +532,61 @@ test("result scrollbar arrows move the viewport without opening a row", async ()
     assert.match(ui.frame(), /> value-0/);
   } finally { await ui.close(); }
 });
+
+test("catalog pagination stays stable when the detail view changes", async () => {
+  const items = Array.from({ length: 30 }, (_, i) => ({ ...query, name: `query-${i}`, params: [] }));
+  const ui = await screen(items, async () => observation);
+  try {
+    for (let i = 0; i < 10; i++) await ui.key("j");
+    const catalog = () => ui.frame().split("\n").filter((line) => line.startsWith("│")).map((line) => line.split("│")[1]).join("\n");
+    const before = catalog();
+    await ui.key("2");
+    assert.equal(catalog(), before);
+    await ui.key("r");
+    assert.equal(catalog(), before);
+    await ui.key("\u001b");
+    await ui.key("\u001b[6~");
+    assert.match(ui.frame(), /> query-23/);
+  } finally { await ui.close(); }
+});
+
+test("long input retains its cursor and shows the final action separately", async () => {
+  const ui = await screen([query], async () => observation, 16, true, 60);
+  try {
+    await ui.key(mouseAt(ui.frame(), "root:"));
+    await ui.key("\u0015");
+    await ui.key("/workspace/".repeat(15) + "TAIL");
+    assert.match(ui.frame(), /root: ….*TAIL█/);
+    assert.match(ui.frame(), /Enter Next/);
+    await ui.key("\u001b");
+    await ui.key("r");
+    assert.match(ui.frame(), /Enter Run query/);
+    await ui.key("\u001b");
+    await ui.key(mouseAt(ui.frame(), "Search:"));
+    assert.match(ui.frame(), /Enter Apply filter/);
+    assert.ok(ui.frame().split("\n").length <= 17, ui.frame());
+  } finally { await ui.close(); }
+});
+
+test("execution failures have a recovery state instead of the unexecuted hint", async () => {
+  const ui = await screen([{ ...query, params: [] }], async () => { throw new Error("Fixture execution error"); });
+  try {
+    await ui.key("r");
+    assert.match(ui.frame(), /Execution failed/);
+    assert.match(ui.frame(), /Fixture execution error/);
+    assert.match(ui.frame(), /press r to retry/);
+    assert.doesNotMatch(ui.frame(), /No result yet/);
+  } finally { await ui.close(); }
+});
+
+test("compact Results reserves space for scope and receipt time", async () => {
+  const ui = await screen([{ ...query, name: "repository-config-files-in-scope", params: [] }], async () => observation, 16, true, 60);
+  try {
+    await ui.key("r");
+    const summary = ui.frame().split("\n").find((line) => line.includes("received"));
+    assert.ok(summary, ui.frame());
+    assert.match(summary, /scope: root/);
+    assert.match(summary, /received \d{2}:\d{2}:\d{2}/);
+    assert.match(summary, /…/);
+  } finally { await ui.close(); }
+});
