@@ -4,6 +4,8 @@ The format follows Keep a Changelog, and the versions follow SemVer. Before 1.0 
 
 ## Unreleased
 
+- Added: query JSON includes `row_count` beside the call duration.
+
 - Changed: `codex-usage` reads backward in expanding blocks and stops each log when quota records appear.
 
 - Changed: `codex-usage` reads bounded tails of the 32 most recently modified logs instead of scanning all history.

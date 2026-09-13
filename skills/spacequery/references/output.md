@@ -11,6 +11,7 @@ JSON is the default output, and this example uses `--trace`:
   "me": "w3S:p1",
   "params": { "root": "/workspace/example", "me": "w3S:p1" },
   "ms": 186.0,
+  "row_count": 1,
   "trace": [
     { "provider": "herdr", "command": "herdr", "path": "/usr/local/bin/herdr", "args": ["api", "snapshot"], "cwd": null, "started_ms": 2.1, "ms": 185.2, "ok": 1 }
   ],
@@ -29,6 +30,7 @@ JSON is the default output, and this example uses `--trace`:
 | `params` | Every value the statement bound. |
 | `ms` | The wall time from the start of call preparation through the end of the statement. |
 | `trace` | With `--trace`, the envelope has one row per child process, in start order. Each row has `provider`, `command`, `path`, the full `args` list, `cwd`, `started_ms`, `ms`, and `ok`. `path` is the executable path, or null when resolution failed. |
+| `row_count` | The number of returned rows, after SQL filtering and limits. Zero for an empty result. |
 | `rows` | The rows, in the order the query defines. |
 | `providers` | One row per provider this call ran: `source` is `built-in` or `user`, `ok` is 1 or 0, `observed_at` is milliseconds since the epoch, `ms` is its duration, and `error` is its failure message. |
 

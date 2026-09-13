@@ -84,7 +84,7 @@ test("expect-empty returns 3 after it prints rows", async () => {
       assert.equal(error.code, 3);
       const { ms, ...result } = JSON.parse(error.stdout!);
       assert.equal(typeof ms, "number");
-      assert.deepEqual(result, { query: "sql", scope: "agents", me: null, params: {}, rows: [{ x: 1 }], providers: [] });
+      assert.deepEqual(result, { query: "sql", scope: "agents", me: null, params: {}, row_count: 1, rows: [{ x: 1 }], providers: [] });
       return true;
     },
   );
@@ -94,7 +94,7 @@ test("expect-empty returns 0 for an empty result", async () => {
   const { stdout } = await execFileAsync(process.execPath, ["cli.ts", "--sql", "select 1 as x where 0", "--expect-empty"], { cwd: process.cwd(), encoding: "utf8" });
   const { ms, ...result } = JSON.parse(stdout);
   assert.equal(typeof ms, "number");
-  assert.deepEqual(result, { query: "sql", scope: "agents", me: null, params: {}, rows: [], providers: [] });
+  assert.deepEqual(result, { query: "sql", scope: "agents", me: null, params: {}, row_count: 0, rows: [], providers: [] });
 });
 
 test("the root scope is accepted", async () => {
@@ -276,4 +276,12 @@ test("query documentation names every catalog query", async () => {
   const text = await readFile("skills/spacequery/references/queries.md", "utf8");
   const names = new Set([...text.matchAll(/^\| `([^`]+)` \|/gm)].map((match) => match[1]!));
   assert.deepEqual(names, new Set(Object.keys(catalog)));
+});
+
+
+test("JSON row_count counts returned rows after filtering and limits", async () => {
+  const { stdout } = await execFileAsync(process.execPath, ["cli.ts", "--sql", "select 1 as x union all select 2 union all select 3 limit 2"], { encoding: "utf8" });
+  const result = JSON.parse(stdout);
+  assert.equal(result.row_count, 2);
+  assert.equal(result.row_count, result.rows.length);
 });

@@ -313,6 +313,7 @@ async function main(argv: string[]): Promise<number> {
       me: result.me,
       params: result.params,
       ...callJson(result, includeTrace),
+      row_count: result.rows.length,
       rows: result.rows,
       providers: result.providers,
     }, null, 2));

@@ -18,7 +18,7 @@ spacequery <query> [--root DIR] [--scope root|agents|all] [--me PANE] [--tsv] [-
 
 `spacequery` is on PATH after `npm link` in the checkout; `node /path/to/spacequery/cli.ts` is the same command without the link.
 
-The query JSON envelope carries `rows` and `providers`.
+The query JSON envelope carries `rows`, `row_count`, and `providers`.
 Read `providers` before you trust `rows`: a provider with `ok` 0 left its tables empty in this call.
 A report such as `here` also carries `section_status`.
 Check the status for the section you will use.
