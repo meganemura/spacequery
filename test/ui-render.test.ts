@@ -590,3 +590,53 @@ test("compact Results reserves space for scope and receipt time", async () => {
     assert.match(summary, /…/);
   } finally { await ui.close(); }
 });
+
+for (const width of [60, 100, 160]) {
+  test(`pane boundaries stay fixed while definitions scroll at width ${width}`, async () => {
+    const sql = `select '${"x".repeat(240)}' as value\n${Array.from({ length: 20 }, () => "-- short").join("\n")}`;
+    const ui = await screen([{ ...query, sql }], async () => observation, 24, true, width);
+    const boundary = () => {
+      const border = ui.frame().split("\n").find((line) => line.startsWith("╭"));
+      assert.ok(border, ui.frame());
+      return [border.indexOf("╮"), border.lastIndexOf("╭"), border.length];
+    };
+    try {
+      await ui.key("1");
+      const before = boundary();
+      const leftWidth = Math.max(20, Math.min(34, Math.floor(width * 0.29)));
+      assert.deepEqual(before, [leftWidth - 1, leftWidth, width]);
+      for (let i = 0; i < 4; i++) await ui.key("\u001b[B");
+      assert.deepEqual(boundary(), before, "vertical scrolling moved the pane boundary");
+      for (let i = 0; i < 12; i++) await ui.key("\u001b[C");
+      assert.deepEqual(boundary(), before, "horizontal scrolling moved the pane boundary");
+    } finally { await ui.close(); }
+  });
+}
+
+
+test("catalog, result, and source scrolling keep the pane boundary fixed", async () => {
+  const items = Array.from({ length: 30 }, (_, index) => ({ ...query, name: `query_${index}_${"x".repeat(index * 3)}`, params: [] }));
+  const rows = Array.from({ length: 30 }, (_, index) => ({ value: "x".repeat(index * 40), other: index }));
+  const providers = Array.from({ length: 10 }, (_, index) => ({ ...observation.providers[0]!, error: "x".repeat(index * 50) }));
+  const ui = await screen(items, async () => ({ ...observation, rows, providers }));
+  const fixed = () => {
+    const border = ui.frame().split("\n").find((line) => line.startsWith("╭"));
+    assert.ok(border, ui.frame());
+    const leftWidth = Math.floor(100 * 0.29);
+    assert.equal(border.indexOf("╮"), leftWidth - 1);
+    assert.equal(border.lastIndexOf("╭"), leftWidth);
+    assert.equal(border.length, 100);
+  };
+  try {
+    fixed();
+    for (let i = 0; i < 3; i++) { await ui.key("\u001b[6~"); fixed(); }
+    await ui.key("r"); fixed();
+    for (let i = 0; i < 3; i++) { await ui.key("\u001b[6~"); fixed(); }
+    await ui.key("\r"); fixed();
+    await ui.key("\u001b[C"); fixed();
+    await ui.key("\u001b");
+    await ui.key("s"); fixed();
+    for (let i = 0; i < 3; i++) { await ui.key("\u001b[6~"); fixed(); }
+    await ui.key("\u001b[C"); fixed();
+  } finally { await ui.close(); }
+});

@@ -66,6 +66,7 @@ export function Browser({ items, initial, execute = observe, mouse = true }: { i
   const detailHeight = bodyHeight - 2 - (compactResults ? 1 : 3) - sourceHeight;
   const pageSize = Math.max(1, detailHeight - 1);
   const listPageSize = Math.max(1, bodyHeight - 2);
+  // Content changes during scrolling must not resize either pane.
   const leftWidth = Math.max(20, Math.min(34, Math.floor(size.width * 0.29)));
   const rightWidth = Math.max(15, size.width - leftWidth - 5);
 
@@ -367,12 +368,12 @@ export function Browser({ items, initial, execute = observe, mouse = true }: { i
     h(Box, { ref: region("context"), height: 1 }, text(`root: ${rootLabel}  |  me: ${inputs.me === undefined ? "auto" : inputs.me || "all"}  [c edit]`, { dimColor: true })),
     h(Box, { ref: region("search"), height: 1 }, text(`Search: ${search || "(all)"}   |   ${filtered.length} entries`, { color: editing?.kind === "search" ? "cyan" : undefined, dimColor: editing?.kind !== "search" })),
     h(Box, { flexDirection: "row", height: bodyHeight },
-      h(Box, { flexDirection: "column", ref: region("list"), width: leftWidth, borderStyle: "round", borderColor: focus === "list" ? "cyan" : "gray", paddingX: 1 },
+      h(Box, { flexDirection: "column", ref: region("list"), width: leftWidth, flexShrink: 0, borderStyle: "round", borderColor: focus === "list" ? "cyan" : "gray", paddingX: 1 },
         h(Box, { flexDirection: "row", height: bodyHeight - 2 },
           h(Box, { flexDirection: "column", flexGrow: 1, minWidth: 0 },
             ...filtered.slice(listStart, listStart + listVisible).map((entry, i) => h(Box, { backgroundColor: listStart + i === selected && focus === "list" ? "blue" : undefined }, text(`${listStart + i === selected ? ">" : " "} ${entry.name}`, { bold: listStart + i === selected, color: listStart + i === selected ? focus === "list" ? "whiteBright" : "cyan" : undefined })))),
           renderBar("listBar", listBar))),
-      h(Box, { flexDirection: "column", flexGrow: 1, borderStyle: "round", borderColor: focus === "detail" ? "cyan" : "gray", paddingX: 1 },
+      h(Box, { flexDirection: "column", width: size.width - leftWidth, flexShrink: 0, borderStyle: "round", borderColor: focus === "detail" ? "cyan" : "gray", paddingX: 1 },
         ...(compactResults ? [] : [h(Text, { wrap: "truncate-end" }, text(item?.name ?? "", { bold: true }), text(`  ${item?.source ?? ""}`, { dimColor: true })),
           text(item?.description ?? "", { dimColor: true })]),
         h(Box, { flexDirection: "row", height: 1, flexShrink: 0 }, ...views.flatMap((name, i) => [

@@ -32,6 +32,8 @@ SQL keeps its original line breaks, with horizontal scrolling for long lines.
 Header arrows indicate hidden text or result columns and stop at the last viewport.
 Each scrollable area has a vertical scrollbar with its own position and click targets.
 A reserved column keeps text and horizontal bounds stable when a scrollbar appears.
+Both pane widths depend on terminal size and cannot shrink to fit their contents.
+This keeps the catalog boundary fixed when scrolling changes the visible text.
 One-line areas use direction markers because there is no space for a track.
 Text scrolling preserves grapheme clusters and accounts for wide terminal characters.
 A fixed character count split identifiers and left half the pane unused for ASCII SQL.
