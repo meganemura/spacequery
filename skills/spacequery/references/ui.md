@@ -45,6 +45,9 @@ Yellow arrows at the right edge of the view header show which directions have hi
 These arrows are also clickable. Sources has its own direction indicators.
 Arrows disappear at the corresponding edge; content that fits has no arrows.
 Vertical scrollbars show the position in the catalog, Definition, Results, open rows, and Sources.
+The right pane has a horizontal scrollbar in its bottom border when its content extends beyond the viewport.
+It shows the position of Definition, result columns, or the open row. When Sources has focus, it shows the Sources position.
+Click its arrows to move one step or its track to jump. The left pane has no horizontal scrollbar.
 The thumb shows the visible share; top and bottom arrows indicate more content.
 Click the track to jump or its arrows to scroll one line.
 A one-line area uses a direction marker; clicking it switches between the first and last position.

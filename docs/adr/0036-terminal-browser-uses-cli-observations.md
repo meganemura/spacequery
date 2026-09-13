@@ -36,6 +36,9 @@ SQL keeps its original line breaks, with horizontal scrolling for long lines.
 Header arrows indicate hidden text or result columns and stop at the last viewport.
 Each scrollable area has a vertical scrollbar with its own position and click targets.
 A reserved column keeps text and horizontal bounds stable when a scrollbar appears.
+The right pane places a horizontal scrollbar in its bottom border when horizontal content overflows.
+This preserves content height at the minimum terminal size. The bar follows Sources when Sources has focus.
+Arrow and track clicks update the same horizontal position as keyboard and wheel input.
 Both pane widths depend on terminal size and cannot shrink to fit their contents.
 This keeps the catalog boundary fixed when scrolling changes the visible text.
 One-line areas use direction markers because there is no space for a track.

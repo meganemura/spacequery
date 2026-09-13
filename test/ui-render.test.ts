@@ -684,3 +684,52 @@ test("result scrolling preserves the selected row until a click", async () => {
     assert.match(ui.frame(), /Row 4 \/ 30/);
   } finally { await ui.close(); }
 });
+
+for (const height of [16, 24]) {
+  test(`right bottom scrollbar tracks text and accepts clicks at height ${height}`, async () => {
+    const ui = await screen([{ ...query, sql: `select '${"x".repeat(140)}TAIL_MARKER'` }], async () => observation, height);
+    try {
+      const bar = () => {
+        const lines = ui.frame().split("\n");
+        const y = lines.findIndex((line) => line.includes("━"));
+        assert.ok(y >= 0, ui.frame());
+        assert.ok(lines[y]!.startsWith("╰"), lines[y]!);
+        assert.ok(lines[y]!.indexOf("━") > Math.floor(100 * 0.29));
+        return { line: lines[y]!, y };
+      };
+      const before = bar();
+      const x = before.line.lastIndexOf("→") - 1;
+      await ui.key(`\u001b[<0;${x + 1};${before.y + 1}M`);
+      const after = bar();
+      assert.equal(after.y, before.y);
+      assert.ok(after.line.indexOf("━") > before.line.indexOf("━"));
+      assert.match(after.line, /←/);
+      assert.doesNotMatch(after.line, /→/);
+      assert.ok(ui.frame().split("\n").length <= height + 1);
+      // SQL can sit below the short viewport; scrolling vertically keeps its horizontal position.
+      await ui.key("j");
+      await ui.key("j");
+      assert.match(ui.frame(), /TAIL_MARKER/);
+    } finally { await ui.close(); }
+  });
+}
+
+test("bottom scrollbar changes result columns and follows Sources focus", async () => {
+  const rows = [{ first: "one", second: "two", third: "three", fourth: "four", fifth: "five", sixth: "six" }];
+  const ui = await screen([{ ...query, params: [] }], async () => ({ ...observation, rows }));
+  try {
+    await ui.key("r");
+    const lines = ui.frame().split("\n");
+    const y = lines.findIndex((line) => line.includes("━"));
+    assert.ok(y >= 0, ui.frame());
+    const x = lines[y]!.lastIndexOf("→") - 1;
+    await ui.key(`\u001b[<0;${x + 1};${y + 1}M`);
+    assert.match(ui.frame(), /sixth/);
+    assert.doesNotMatch(ui.frame(), /first/);
+    await ui.key("s");
+    assert.doesNotMatch(ui.frame(), /━/);
+    await ui.key("s");
+    assert.match(ui.frame(), /━/);
+    assert.match(ui.frame(), /sixth/);
+  } finally { await ui.close(); }
+});

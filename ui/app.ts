@@ -146,6 +146,15 @@ export function Browser({ items, initial, execute = observe, mouse = true }: { i
         }
         return;
       }
+      const horizontal = hit("horizontalBar", event);
+      if (horizontal && bottomBar.end) {
+        const next = scrollbarTarget(bottomBar, horizontal.x);
+        setFocus("detail");
+        if (sourcesFocused) setSourceColumn(next);
+        else if (view === "Definition" || expanded) setTextColumn(next);
+        else setColumn(next);
+        return;
+      }
       if (hit("run", event)) { void run(); return; }
     }
     const list = hit("list", event);
@@ -308,6 +317,12 @@ export function Browser({ items, initial, execute = observe, mouse = true }: { i
   const columnStart = Math.min(column, columnLimit);
   const horizontalPosition = view === "Definition" || expanded ? textStart : columnStart;
   const horizontalEnd = view === "Definition" || expanded ? textLimit : columnLimit;
+  // The bottom border hosts the bar so short terminals keep their content rows.
+  const bottomEnd = sourcesFocused && view === "Results" ? sourceLimit : horizontalEnd;
+  const bottomPosition = sourcesFocused && view === "Results" ? sourceTextStart : horizontalPosition;
+  const bottomVisible = view === "Results" && !expanded && !sourcesFocused ? shownColumnCount : contentWidth;
+  const bottomBar = scrollbar(bottomEnd + bottomVisible, bottomVisible, bottomPosition, size.width - leftWidth - 2, bottomEnd);
+  const bottomGlyphs = bottomBar.glyphs.map((glyph) => glyph === "↑" ? "←" : glyph === "↓" ? "→" : glyph === "┃" ? "━" : "─");
   const text = (value: unknown, options: Record<string, unknown> = {}) => h(Text, { wrap: "truncate-end", ...options }, lineText(value));
   const tab = (label: string, active: boolean) => text(label, {
     color: active ? "black" : undefined, backgroundColor: active ? "cyan" : undefined,
@@ -389,7 +404,8 @@ export function Browser({ items, initial, execute = observe, mouse = true }: { i
           h(Box, { flexDirection: "column", flexGrow: 1, minWidth: 0 },
             ...filtered.slice(listStart, listStart + listVisible).map((entry, i) => h(Box, { backgroundColor: listStart + i === selected && focus === "list" ? "blue" : undefined }, text(`${listStart + i === selected ? ">" : " "} ${entry.name}`, { bold: listStart + i === selected, color: listStart + i === selected ? focus === "list" ? "whiteBright" : "cyan" : undefined })))),
           renderBar("listBar", listBar))),
-      h(Box, { flexDirection: "column", width: size.width - leftWidth, flexShrink: 0, borderStyle: "round", borderColor: focus === "detail" ? "cyan" : "gray", paddingX: 1 },
+      h(Box, { flexDirection: "column", width: size.width - leftWidth, height: bodyHeight, flexShrink: 0 },
+      h(Box, { flexDirection: "column", width: size.width - leftWidth, height: bodyHeight, flexShrink: 0, borderStyle: "round", borderColor: focus === "detail" ? "cyan" : "gray", paddingX: 1 },
         ...(compactResults ? [] : [h(Text, { wrap: "truncate-end" }, text(item?.name ?? "", { bold: true }), text(`  ${item?.source ?? ""}`, { dimColor: true })),
           text(item?.description ?? "", { dimColor: true })]),
         h(Box, { flexDirection: "row", height: 1, flexShrink: 0 }, ...views.flatMap((name, i) => [
@@ -409,7 +425,9 @@ export function Browser({ items, initial, execute = observe, mouse = true }: { i
           h(Box, { flexDirection: "row", height: sourceHeight - 1 },
             h(Box, { flexDirection: "column", flexGrow: 1, minWidth: 0 },
               ...sourceLines.slice(sourceStart, sourceStart + sourceHeight - 1).map((line, i) => text(horizontalText(line, sourceTextStart) || " ", { color: sourceEntries[sourceStart + i]?.color }))),
-            renderBar("sourceBar", sourceBar)))] : []))),
+            renderBar("sourceBar", sourceBar)))] : [])),
+        ...(bottomEnd > 0 ? [h(Box, { ref: region("horizontalBar"), position: "absolute", bottom: 0, left: 1, width: size.width - leftWidth - 2, height: 1 },
+          text(bottomGlyphs.join(""), { color: "cyan" }))] : []))),
     text(observation ? compactResults ? `${compactName} | ${resultSummary}` : `${observation.rows.length} rows | scope: ${observation.scope} | ${observation.ms} ms | received ${receiptTime}` : busy ? "Fetching a fresh observation..." : "Press r or click Run to load data.", { dimColor: !busy, color: busy ? "cyan" : undefined }),
     text(error || item?.error || (failed.length ? `Incomplete: ${failed.map((p) => p.name).join(", ")} failed. Press s for source details.` : " "), { color: error || item?.error ? "redBright" : "yellow" }),
     h(Box, { height: 1, backgroundColor: editing ? "blue" : undefined }, text(editing ? prompt : "t Switch / Search Tab Focus 1-2 View r Run e Edit c Context", { bold: !!editing, color: editing ? "whiteBright" : undefined })),
