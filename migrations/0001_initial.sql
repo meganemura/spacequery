@@ -34,6 +34,16 @@ CREATE TABLE claude_sessions (
     pid_domain text,
     peer_protocol integer
   ) strict;
+CREATE TABLE claude_usage (
+  id text primary key not null,
+  limit_id text not null,
+  window_minutes integer,
+  used_percent real not null,
+  resets_at integer,
+  resets_text text,
+  recorded_at integer not null,
+  source text not null
+) strict;
 CREATE TABLE codex_sessions (
     session_id text primary key not null references sessions(session_id),
     source text,
@@ -50,6 +60,16 @@ CREATE TABLE codex_sessions (
     tokens_used integer not null default 0,
     archived integer not null default 0
   ) strict;
+CREATE TABLE codex_usage (
+  id text primary key not null,
+  limit_id text not null,
+  window_minutes integer,
+  used_percent real not null,
+  resets_at integer,
+  resets_text text,
+  recorded_at integer not null,
+  source text not null
+) strict;
 CREATE TABLE container_ports (
     id text primary key not null,
     container_id text not null references containers(id),

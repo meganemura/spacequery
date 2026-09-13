@@ -23,9 +23,11 @@ import { loader as skillsLoader } from "./providers/skills/public.ts";
 import { loader as beadsLoader } from "./providers/beads/public.ts";
 import { loader as headsignLoader } from "./providers/headsign/public.ts";
 
-export const loaders: readonly Loader[] = [searchPathLoader, repoLoader, herdrLoader, githubLoader, githubReviewsLoader, miseLoader, brewLoader, repositoryVersionsLoader, repositoryConfigFilesLoader, beadsLoader, dockerLoader, sessionsLoader, gitLoader, processesLoader, skillsLoader, headsignLoader];
+import { claudeUsageLoader, codexUsageLoader } from "./providers/usage/public.ts";
+
+export const loaders: readonly Loader[] = [claudeUsageLoader, codexUsageLoader, searchPathLoader, repoLoader, herdrLoader, githubLoader, githubReviewsLoader, miseLoader, brewLoader, repositoryVersionsLoader, repositoryConfigFilesLoader, beadsLoader, dockerLoader, sessionsLoader, gitLoader, processesLoader, skillsLoader, headsignLoader];
 
 export default config({
-  modules: ["./core/providers", "./providers/search-path", "./providers/repos", "./providers/herdr", "./providers/git", "./providers/mise", "./providers/brew", "./providers/repository-versions", "./providers/repository-config-files", "./providers/sessions", "./providers/github", "./providers/docker", "./providers/processes", "./providers/skills", "./providers/beads", "./providers/headsign", { dir: "./providers/report", readsAll: true }],
+  modules: ["./providers/usage","./core/providers", "./providers/search-path", "./providers/repos", "./providers/herdr", "./providers/git", "./providers/mise", "./providers/brew", "./providers/repository-versions", "./providers/repository-config-files", "./providers/sessions", "./providers/github", "./providers/docker", "./providers/processes", "./providers/skills", "./providers/beads", "./providers/headsign", { dir: "./providers/report", readsAll: true }],
   migrations: "./migrations",
 });

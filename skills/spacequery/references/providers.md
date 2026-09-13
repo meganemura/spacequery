@@ -30,3 +30,11 @@ The report-level `providers` list can include dependencies, such as providers th
 | `processes` | User processes whose working directory is inside a repository in scope, plus listening TCP sockets with address, port, command, and repository association when known. |
 | `skills` | Claude and Codex user, project, system, and plugin skills, plus installed plugin identity, source, version, path, and timestamps when those records exist. |
 | `headsign` | Readable `.headsign/state.json` files for repositories in scope, including workflow, status, phase, iteration counts, attempts, last failure, stop reason, driver agent, and phase entry time. |
+
+## Quota sources
+
+`claude_usage` invokes the fixed local command `claude -p /usage --output-format json --no-session-persistence`.
+The CLI can contact its service. A missing subscription, unsupported output, or failed command fails this provider.
+`codex_usage` streams `.jsonl` files under `CODEX_HOME/sessions` and `CODEX_HOME/archived_sessions`.
+`CODEX_HOME` defaults to `~/.codex`. This loader starts no process and makes no network request.
+These providers run independently when their tables are queried. Repository scope does not filter account quotas.

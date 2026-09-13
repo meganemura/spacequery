@@ -109,6 +109,8 @@ test("tablesRead finds every catalog query's declared tables", () => {
       "shared-dependencies": ["repository_versions"],
       "shared-dependency-details": ["repository_versions"],
       "dependency-coverage": ["repository_versions"],
+      "claude-usage": ["claude_usage"],
+      "codex-usage": ["codex_usage"],
       sessions: ["sessions"],
       "idle-sessions": ["sessions"],
       "claude-sessions": ["claude_sessions", "sessions"],

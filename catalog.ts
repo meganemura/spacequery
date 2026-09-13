@@ -11,6 +11,7 @@ import { repositoryVersionQueries } from "./providers/repository-versions/public
 import { repositoryConfigFileQueries } from "./providers/repository-config-files/public.ts";
 import { repoQueries } from "./providers/repos/public.ts";
 import { reportQueries } from "./providers/report/public.ts";
+import { usageQueries } from "./providers/usage/public.ts";
 import { sessionQueries } from "./providers/sessions/public.ts";
 import { githubQueries } from "./providers/github/public.ts";
 import { dockerQueries } from "./providers/docker/public.ts";
@@ -49,6 +50,8 @@ export const catalog: Readonly<Record<string, Named>> = {
   "shared-dependencies": { query: repositoryVersionQueries.sharedDependencies, description: "Direct npm dependencies declared by more than one repository in scope.", params: [] },
   "shared-dependency-details": { query: repositoryVersionQueries.sharedDependencyDetails, description: "Source evidence for direct npm dependencies shared across repositories in scope.", params: [] },
   "dependency-coverage": { query: repositoryVersionQueries.coverage, description: "Static source and unresolved-evidence counts for repositories in scope.", params: [] },
+  "claude-usage": { query: usageQueries.claude, description: "Subscription quota percentages reported by Claude /usage.", params: [] },
+  "codex-usage": { query: usageQueries.codex, description: "Latest quota percentages recorded in local Codex logs.", params: [] },
   "sessions": { query: sessionQueries.all, description: "Every Claude Code and Codex session alive now.", params: [] },
   "idle-sessions": { query: sessionQueries.idle, description: "Sessions ordered by how long they have been idle.", params: [] },
   "claude-sessions": { query: sessionQueries.claude, description: "Claude Code sessions alive now, with observed model, effort, name, and status.", params: [] },

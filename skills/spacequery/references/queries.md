@@ -261,3 +261,14 @@ to keep it distinct from a Claude Code plugin with the same marketplace ID.
 
 `attempts` and `last_failure` hold JSON text from the state file. `agents`
 excludes `me`.
+
+## Subscription quota observations
+
+| Query | Parameters | Columns |
+| --- | --- | --- |
+| `claude-usage` | | `id`, `limit_id`, `window_minutes?`, `used_percent`, `resets_at?`, `resets_text?`, `recorded_at`, `source` |
+| `codex-usage` | | The same columns, from local Codex logs. |
+
+These queries observe account quota windows, not per-session token totals.
+Claude reads the CLI result. Codex selects the latest recorded timestamp per limit and window.
+Codex rows can be stale; they do not certify the currently signed-in account.

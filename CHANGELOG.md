@@ -4,6 +4,8 @@ The format follows Keep a Changelog, and the versions follow SemVer. Before 1.0 
 
 ## Unreleased
 
+- Added: `claude-usage` and `codex-usage` expose timestamped subscription quota percentages from the Claude CLI and local Codex logs.
+
 - Added: user provider declarations can fill local tables from shell-free commands and join them with built-in tables.
 - Added: mise reports the search path and executable resolution for each repository root.
 - Added: `descendants`, `session-processes`, and `busy-processes` report process trees and current CPU use within the selected scope.

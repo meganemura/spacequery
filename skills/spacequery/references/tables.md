@@ -238,3 +238,24 @@ since the epoch.
 - Exclude the caller with `(:me is null or a.pane_id <> :me)`; the CLI binds `:me`.
 - Give every expression column a `cast(... as integer | real | text)` when you want a stable type; SQLite does not require it for a user query.
 - Every table is read in full; there are no indexes, and a call holds at most a few hundred rows per table.
+
+## `claude_usage` and `codex_usage`
+
+Each table has `id` (key), `limit_id`, `window_minutes?`, `used_percent`,
+`resets_at?`, `resets_text?`, `recorded_at`, and `source`.
+Percentages mean consumed quota, not remaining quota. Timestamps use epoch milliseconds.
+
+Claude rows preserve the CLI window label as `limit_id`.
+Current session maps to 300 minutes; Current week labels map to 10080 minutes.
+Other labels have a null window length. Model labels are not hard-coded.
+`resets_text` preserves the yearless reset date and timezone. `resets_at` stays null.
+`recorded_at` is the time the command returned; `source` is `claude /usage`.
+The command's own token usage and local attribution paragraphs are not quota windows.
+
+Codex rows retain the newest valid record for each limit ID and window length across local logs.
+`recorded_at` is the event timestamp, `resets_at` comes from the recorded epoch value,
+and `source` is the log path. `resets_text` is null.
+The scan includes saved and archived sessions, reads all log contents, and holds only the latest rows.
+Older accounts and expired windows can remain in the logs. Inspect the source and timestamps before treating a row as current.
+A missing window yields no row. These percentages describe account quotas, which can include activity on other devices.
+Token totals and local-only usage accounting are separate from these tables.
