@@ -12,7 +12,7 @@ export const repositoryVersions = table(`
     project_path text not null,
     ecosystem text not null,
     kind text not null,
-    dependency_role text check (dependency_role in ('runtime', 'development', 'optional', 'peer') or dependency_role is null),
+    dependency_role text check (dependency_role in ('runtime', 'development', 'optional', 'peer')),
     origin text not null check (origin in ('manifest', 'lock', 'version-file', 'source')),
     name text not null,
     requested text,

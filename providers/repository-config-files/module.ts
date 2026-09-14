@@ -12,8 +12,8 @@ export const repositoryConfigFiles = table(`
     project_path text not null,
     path text,
     format text,
-    category text check (category in ('manifest', 'lock', 'version-file', 'tool-config') or category is null),
-    parse_support text check (parse_support in ('supported', 'unsupported') or parse_support is null),
+    category text check (category in ('manifest', 'lock', 'version-file', 'tool-config')),
+    parse_support text check (parse_support in ('supported', 'unsupported')),
     observation_kind text not null check (observation_kind in ('file', 'discovery')),
     status text not null check (status in ('observed', 'skipped', 'incomplete', 'error')),
     detail text
