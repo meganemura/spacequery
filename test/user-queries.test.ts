@@ -80,6 +80,7 @@ test("the CLI binds a user query flag as text", async () => {
       scope: "agents",
       me: null,
       params: { branch: "42" },
+      row_count: 1,
       rows: [{ branch: "42" }],
       providers: [],
     });
