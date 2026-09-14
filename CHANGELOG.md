@@ -2,25 +2,20 @@
 
 The format follows Keep a Changelog, and the versions follow SemVer. Before 1.0 a minor version may change the queries, the tables, or the flags; the entry says what changed.
 
-## Unreleased
+## 0.2.0 (2026-09-15)
 
-- Changed: built with solarsql 0.4.0; a report binds each section only the parameters its query declares.
-
-- Added: query JSON includes `row_count` beside the call duration.
-
-- Changed: `codex-usage` reads backward in expanding blocks and stops each log when quota records appear.
-
-- Changed: `codex-usage` reads bounded tails of the 32 most recently modified logs instead of scanning all history.
-
-- Added: `claude-usage` and `codex-usage` expose timestamped subscription quota percentages from the Claude CLI and local Codex logs.
-
-- Added: user provider declarations can fill local tables from shell-free commands and join them with built-in tables.
-- Added: mise reports the search path and executable resolution for each repository root.
+- Added: `spacequery ui` browses tables, query SQL, parameters, results, and provider status in the terminal, with keyboard and mouse scrolling.
+- Added: the `search_path` provider reports the caller's PATH entries, executable resolution, and shadowed commands without starting a process (`path-entries`, `which`, `shadowed-commands`).
+- Added: mise reports the search path and executable resolution for each repository root (`path-entries-in-dir`, `which-in-dir`, `shadowed-commands-in-dir`).
 - Added: `descendants`, `session-processes`, and `busy-processes` report process trees and current CPU use within the selected scope.
-- Added: `spacequery ui` browses tables, query SQL, parameters, results, and provider status in the terminal.
-- Added: the `search_path` provider reports PATH entries, executable resolution, and shadowed commands without starting a process.
+- Added: user provider declarations under `$XDG_CONFIG_HOME/spacequery/providers/` fill local tables from shell-free commands and join them with built-in tables. Roots run concurrently, and a failure names its root.
+- Added: `claude-usage` and `codex-usage` expose timestamped subscription quota percentages from the Claude CLI and from bounded tails of recently modified Codex logs.
+- Added: `claude-sessions` reports the model, the effort, the per-turn effort, and the metadata time from local session transcripts.
+- Added: `--trace` lists each child process of a call with its provider, start offset, duration, and result.
+- Changed: JSON envelopes always include the call `ms` and the returned `row_count`.
+- Changed: built with solarsql 0.4.0.
 - Fixed: the core starts every command by absolute path; a burst of name-based spawns made the next non-Apple binary wait for seconds.
-- JSON envelopes always include the call `ms`; `--trace` adds each child process with its provider, start offset, duration, and result.
+- Fixed: an executable on PATH is a regular file; a directory with the command's name no longer shadows the real executable.
 
 ## 0.1.0 (2026-09-12)
 
