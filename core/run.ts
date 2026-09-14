@@ -139,7 +139,9 @@ export async function runReport(sections: readonly ReportSection[], options: Run
   const providerByName = new Map(state.providers.map((provider) => [provider.name, provider]));
   let statementEnded = performance.now();
   for (const [name, query] of sections) {
-    values[name] = await state.db.all(query, state.params as never);
+    // solarsql rejects a parameter the statement does not declare, so each section binds only its own.
+    const sectionParams = Object.fromEntries(query.meta.params.map((param) => [param, state.params[param]]));
+    values[name] = await state.db.all(query, sectionParams as never);
     statementEnded = performance.now();
     const direct = directLoadersFor([...options.loaders, ...(options.userProviders ?? [])], query.meta.reads);
     const errors = direct.flatMap((loader) => {

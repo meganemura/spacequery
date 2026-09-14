@@ -5,13 +5,12 @@ import type { Meta, SqlValue } from "solarsql";
 import type { AgentsId } from "../herdr/solarsql.generated.ts";
 import type { GitStatusId, WorktreesId } from "../git/solarsql.generated.ts";
 import type { SessionsId } from "../sessions/solarsql.generated.ts";
-import type { ProcessesId } from "../processes/solarsql.generated.ts";
 import type { WorkflowRunsId } from "../headsign/solarsql.generated.ts";
 
 export type Generated = {
   "\n    select cast('mise' as text) as manager, cast('tool' as text) as kind, tool as name, version from tools where installed = 1\n    union all\n    select cast('brew' as text) as manager, kind, name, version from brew_packages\n    order by manager, kind, name, version": {
     params: {};
-    row: { manager: string | null; kind: string | null; name: string; version: string };
+    row: { manager: string | null; kind: string | null | "formula" | "cask"; name: string; version: string };
   };
   "\n    select a.pane_id, a.agent, a.agent_status, a.name, a.title, a.root, a.cwd, s.name as session_name\n    from agents a left join sessions s on s.session_id = a.session_id\n    where (:me is null or a.pane_id <> :me)\n      and (a.name like '%' || :q || '%' or a.title like '%' || :q || '%' or a.root like '%' || :q || '%' or a.cwd like '%' || :q || '%' or s.name like '%' || :q || '%')\n    order by a.pane_id": {
     params: { me: AgentsId | null; q: SqlValue };
@@ -59,7 +58,7 @@ export type Generated = {
   };
   "\n    with recursive session_descendants(session_pid, pid) as (\n      select r.pid, p.pid\n      from (select distinct pid from sessions where pid is not null) r\n      join processes p on p.ppid = r.pid\n      union\n      select d.session_pid, p.pid\n      from session_descendants d join processes p on p.ppid = d.pid\n    )\n    select s.session_id, s.agent, s.name, s.pid as session_pid, p.pid, p.command, p.elapsed_s, p.cpu, p.root\n    from session_descendants d join sessions s on s.pid = d.session_pid\n    join processes p on p.pid = d.pid\n    order by s.session_id, p.pid": {
     params: {};
-    row: { session_id: SessionsId; agent: string; name: string | null; session_pid: number | null; pid: ProcessesId; command: string; elapsed_s: number; cpu: number; root: string };
+    row: { session_id: SessionsId; agent: string; name: string | null; session_pid: number | null; pid: number; command: string; elapsed_s: number; cpu: number; root: string };
   };
   "\n    select s.session_id, s.agent, s.cwd, s.root, s.name, s.updated_at\n    from sessions s left join agents a on a.session_id = s.session_id\n    where a.pane_id is null order by s.agent, s.updated_at": {
     params: {};
@@ -91,7 +90,7 @@ export type Generated = {
   };
   "\n    select p.root, p.pid, p.executable, p.elapsed_s, p.rss_kb\n    from processes p left join agents a on a.root = p.root\n    where p.elapsed_s > 3600 and a.pane_id is null order by p.elapsed_s desc": {
     params: {};
-    row: { root: string; pid: ProcessesId; executable: string; elapsed_s: number; rss_kb: number };
+    row: { root: string; pid: number; executable: string; elapsed_s: number; rss_kb: number };
   };
   "\n    select agent, name, cast(count(*) as integer) as sources, cast(group_concat(source, ',') as text) as source_list\n    from skills group by agent, name having count(*) > 1 order by agent, name": {
     params: {};

@@ -4,14 +4,13 @@
 import type { LoadContext, Loader } from "../../core/loader.ts";
 import { scanSearchPath } from "../../core/search-path.ts";
 import { searchPathCommands } from "./module.ts";
-import type { PathEntriesId } from "./solarsql.generated.ts";
 
 export const searchPathLoader: Loader = {
   name: "search_path", tables: ["path_entries", "path_commands"], after: [],
   async load(ctx: LoadContext) {
     const { entries, commands } = scanSearchPath(ctx.env["PATH"]);
     const loaded = await ctx.db.run(searchPathCommands.load, {
-      entries: entries.map((entry) => ({ ...entry, position: String(entry.position) as PathEntriesId })),
+      entries,
       commands,
     });
     if (!loaded.ok) throw new Error(`search_path: ${loaded.kind}`);

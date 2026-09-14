@@ -51,7 +51,7 @@
   "dependencies": {
     "ink": "7.1.1",
     "react": "19.2.8",
-    "solarsql": "0.3.0"
+    "solarsql": "0.4.0"
   },
   "devDependencies": {
     "@hegeldev/hegel": "0.4.5",

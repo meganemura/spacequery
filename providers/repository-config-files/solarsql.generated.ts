@@ -8,16 +8,16 @@ export type RepositoryConfigFilesId = Id<"repository_config_files">;
 
 export type Generated = {
   "insert or ignore into repository_config_files\n    (id, root, project_path, path, format, category, parse_support, observation_kind, status, detail)\n    select value ->> 'id', value ->> 'root', value ->> 'project_path', value ->> 'path', value ->> 'format',\n      value ->> 'category', value ->> 'parse_support', value ->> 'observation_kind', value ->> 'status', value ->> 'detail'\n    from json_each(:rows)": {
-    params: { rows: readonly { "id": RepositoryConfigFilesId; "root": string; "project_path": string; "path": string | null; "format": string | null; "category": "manifest" | "lock" | "version-file" | "tool-config" | null; "parse_support": "supported" | "unsupported" | null; "observation_kind": "file" | "discovery"; "status": "observed" | "skipped" | "incomplete" | "error"; "detail": string | null }[] };
+    params: { rows: readonly { "id": RepositoryConfigFilesId; "root": string; "project_path": string; "path": string | null; "format": string | null; "category": string | null; "parse_support": string | null; "observation_kind": "file" | "discovery"; "status": "observed" | "skipped" | "incomplete" | "error"; "detail": string | null }[] };
     row: {};
   };
   "select root, project_path, path, format, category, parse_support, observation_kind, status, detail\n    from repository_config_files where root = :root\n    order by observation_kind, project_path, path, format, detail": {
     params: { root: string };
-    row: { root: string; project_path: string; path: string | null; format: string | null; category: "manifest" | "lock" | "version-file" | "tool-config" | null; parse_support: "supported" | "unsupported" | null; observation_kind: "file" | "discovery"; status: "observed" | "skipped" | "incomplete" | "error"; detail: string | null };
+    row: { root: string; project_path: string; path: string | null; format: string | null; category: string | null; parse_support: string | null; observation_kind: "file" | "discovery"; status: "observed" | "skipped" | "incomplete" | "error"; detail: string | null };
   };
   "select root, project_path, path, format, category, parse_support, observation_kind, status, detail\n    from repository_config_files\n    order by root, observation_kind, project_path, path, format, detail": {
     params: {};
-    row: { root: string; project_path: string; path: string | null; format: string | null; category: "manifest" | "lock" | "version-file" | "tool-config" | null; parse_support: "supported" | "unsupported" | null; observation_kind: "file" | "discovery"; status: "observed" | "skipped" | "incomplete" | "error"; detail: string | null };
+    row: { root: string; project_path: string; path: string | null; format: string | null; category: string | null; parse_support: string | null; observation_kind: "file" | "discovery"; status: "observed" | "skipped" | "incomplete" | "error"; detail: string | null };
   };
 };
 

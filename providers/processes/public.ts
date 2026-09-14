@@ -2,4 +2,4 @@
 // Boundary: exports only.
 export { processQueries, processCommands } from "./module.ts";
 export { processesLoader as loader } from "./loader.ts";
-export type { ListenersId, ProcessesId } from "./solarsql.generated.ts";
+export type { ListenersId } from "./solarsql.generated.ts";

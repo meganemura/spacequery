@@ -5,12 +5,10 @@ import type { Id, Meta, SqlValue } from "solarsql";
 
 // The id of a row of listeners.
 export type ListenersId = Id<"listeners">;
-// The id of a row of processes.
-export type ProcessesId = Id<"processes">;
 
 export type Generated = {
   "insert or ignore into processes (pid, ppid, pgid, cwd, root, command, executable, elapsed_s, rss_kb, cpu)\n    select value ->> 'pid', value ->> 'ppid', value ->> 'pgid', value ->> 'cwd', value ->> 'root', value ->> 'command', value ->> 'executable', value ->> 'elapsed_s', value ->> 'rss_kb', value ->> 'cpu' from json_each(:rows)": {
-    params: { rows: readonly { "pid": ProcessesId; "ppid": number; "pgid": number; "cwd": string; "root": string; "command": string; "executable": string; "elapsed_s": number; "rss_kb": number; "cpu": number }[] };
+    params: { rows: readonly { "pid": number; "ppid": number; "pgid": number; "cwd": string; "root": string; "command": string; "executable": string; "elapsed_s": number; "rss_kb": number; "cpu": number }[] };
     row: {};
   };
   "insert or ignore into listeners (id, pid, address, port, cwd, root, command)\n    select value ->> 'id', value ->> 'pid', value ->> 'address', value ->> 'port', value ->> 'cwd', value ->> 'root', value ->> 'command' from json_each(:rows)": {
@@ -19,7 +17,7 @@ export type Generated = {
   };
   "\n    select pid, ppid, executable, command, cwd, elapsed_s, rss_kb, cpu\n    from processes where root = :root order by elapsed_s desc": {
     params: { root: string };
-    row: { pid: ProcessesId; ppid: number; executable: string; command: string; cwd: string; elapsed_s: number; rss_kb: number; cpu: number };
+    row: { pid: number; ppid: number; executable: string; command: string; cwd: string; elapsed_s: number; rss_kb: number; cpu: number };
   };
   "\n    select pid, address, port, cwd, root, command\n    from listeners order by port": {
     params: {};
@@ -27,11 +25,11 @@ export type Generated = {
   };
   "\n    with recursive process_descendants as (\n      select pid, ppid, command, executable, elapsed_s, cpu, root\n      from processes where ppid = cast(:q as integer)\n      union\n      select p.pid, p.ppid, p.command, p.executable, p.elapsed_s, p.cpu, p.root\n      from processes p join process_descendants d on p.ppid = d.pid\n    )\n    select d.pid, d.ppid, d.command, d.executable, d.elapsed_s, d.cpu, d.root\n    from process_descendants d order by d.pid": {
     params: { q: SqlValue };
-    row: { pid: ProcessesId; ppid: number; command: string; executable: string; elapsed_s: number; cpu: number; root: string };
+    row: { pid: number; ppid: number; command: string; executable: string; elapsed_s: number; cpu: number; root: string };
   };
   "\n    select pid, cpu, rss_kb, elapsed_s, root, command\n    from processes order by cpu desc, rss_kb desc": {
     params: {};
-    row: { pid: ProcessesId; cpu: number; rss_kb: number; elapsed_s: number; root: string; command: string };
+    row: { pid: number; cpu: number; rss_kb: number; elapsed_s: number; root: string; command: string };
   };
 };
 

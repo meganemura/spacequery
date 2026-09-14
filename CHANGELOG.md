@@ -4,6 +4,8 @@ The format follows Keep a Changelog, and the versions follow SemVer. Before 1.0 
 
 ## Unreleased
 
+- Changed: built with solarsql 0.4.0; a report binds each section only the parameters its query declares.
+
 - Added: query JSON includes `row_count` beside the call duration.
 
 - Changed: `codex-usage` reads backward in expanding blocks and stops each log when quota records appear.

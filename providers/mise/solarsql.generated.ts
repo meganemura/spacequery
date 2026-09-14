@@ -18,7 +18,7 @@ export type Generated = {
     row: {};
   };
   "insert into root_path_entries (root, position, dir, \"exists\", duplicate_of)\n       select value ->> 'root', value ->> 'position', value ->> 'dir', value ->> 'exists', value ->> 'duplicate_of'\n       from json_each(:entries)": {
-    params: { entries: readonly { "root": string; "position": number; "dir": string; "exists": number; "duplicate_of": number | null }[] };
+    params: { entries: readonly { "root": string; "position": number; "dir": string; "exists": 0 | 1; "duplicate_of": number | null }[] };
     row: {};
   };
   "insert into root_path_commands (root, name, dir, position, effective)\n       select value ->> 'root', value ->> 'name', value ->> 'dir', value ->> 'position', value ->> 'effective'\n       from json_each(:commands)": {
@@ -35,7 +35,7 @@ export type Generated = {
   };
   "\n    select root, position, dir, \"exists\", duplicate_of\n    from root_path_entries where root = :root order by position": {
     params: { root: string };
-    row: { root: string; position: number; dir: string; exists: number; duplicate_of: number | null };
+    row: { root: string; position: number; dir: string; exists: 0 | 1; duplicate_of: number | null };
   };
   "\n    select root, name, dir, position, effective\n    from root_path_commands where root = :root and name = :q order by position": {
     params: { root: string; q: string };

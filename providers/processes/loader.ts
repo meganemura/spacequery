@@ -5,10 +5,10 @@ import { basename } from "node:path";
 import type { LoadContext, Loader } from "../../core/loader.ts";
 import { rootsInScope } from "../../core/scope.ts";
 import { processCommands } from "./module.ts";
-import type { ListenersId, ProcessesId } from "./solarsql.generated.ts";
+import type { ListenersId } from "./solarsql.generated.ts";
 
 type Ps = { pid: number; ppid: number; pgid: number; elapsed_s: number; rss_kb: number; cpu: number; command: string; executable: string };
-type Process = Omit<Ps, "pid"> & { pid: ProcessesId; cwd: string; root: string };
+type Process = Ps & { cwd: string; root: string };
 type Listener = { id: ListenersId; pid: number; address: string; port: number; cwd: string | null; root: string | null; command: string | null };
 
 export function parseElapsed(value: string): number | null {
@@ -78,7 +78,7 @@ export const processesLoader: Loader = {
     const processes: Process[] = ps.flatMap((row) => {
       const cwd = cwdByPid.get(row.pid)?.[0];
       const root = cwd === undefined ? null : rootFor(cwd, roots);
-      return cwd === undefined || root === null ? [] : [{ ...row, pid: String(row.pid) as ProcessesId, cwd, root }];
+      return cwd === undefined || root === null ? [] : [{ ...row, cwd, root }];
     });
     const loadedProcesses = await ctx.db.run(processCommands.loadProcesses, { rows: processes });
     if (!loadedProcesses.ok) throw new Error(`processes: ${loadedProcesses.kind}`);
