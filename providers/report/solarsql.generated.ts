@@ -10,7 +10,7 @@ import type { WorkflowRunsId } from "../headsign/solarsql.generated.ts";
 export type Generated = {
   "\n    select cast('mise' as text) as manager, cast('tool' as text) as kind, tool as name, version from tools where installed = 1\n    union all\n    select cast('brew' as text) as manager, kind, name, version from brew_packages\n    order by manager, kind, name, version": {
     params: {};
-    row: { manager: string | null; kind: string | null | "formula" | "cask"; name: string; version: string };
+    row: { manager: string | null; kind: string | null; name: string; version: string };
   };
   "\n    select a.pane_id, a.agent, a.agent_status, a.name, a.title, a.root, a.cwd, s.name as session_name\n    from agents a left join sessions s on s.session_id = a.session_id\n    where (:me is null or a.pane_id <> :me)\n      and (a.name like '%' || :q || '%' or a.title like '%' || :q || '%' or a.root like '%' || :q || '%' or a.cwd like '%' || :q || '%' or s.name like '%' || :q || '%')\n    order by a.pane_id": {
     params: { me: AgentsId | null; q: SqlValue };

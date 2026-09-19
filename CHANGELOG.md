@@ -2,6 +2,10 @@
 
 The format follows Keep a Changelog, and the versions follow SemVer. Before 1.0 a minor version may change the queries, the tables, or the flags; the entry says what changed.
 
+## Unreleased
+
+- Changed: built with solarsql 0.5.0.
+
 ## 0.2.0 (2026-09-15)
 
 - Added: `spacequery ui` browses tables, query SQL, parameters, results, and provider status in the terminal, with keyboard and mouse scrolling.
