@@ -30,3 +30,4 @@ A work list includes a beads root that has no agent.
 `here` still reads open issues only.
 The two beads commands start together when a call reads both tables, after herdr and ghq under `--scope all`.
 This machine has no beads tree. The cost is the same per-root `bd` process as ADR 0019, and only for the table the call reads.
+The dashboard that shows both lists is one section list (ADR 0046).

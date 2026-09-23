@@ -31,6 +31,7 @@
   "files": [
     "cli.ts",
     "catalog.ts",
+    "dashboard.ts",
     "spacequery.config.ts",
     "core",
     "ui",

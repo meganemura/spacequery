@@ -69,4 +69,4 @@ Each execution pays process startup cost while retaining the existing CLI behavi
 Manual refresh gives the person control over provider work.
 A terminal with at least 60 columns and 16 rows can display the browser.
 Wide results expose successive columns and a vertical row detail view.
-Reports, SQL editing, and automatic refresh remain future work.
+Reports render the same section list as the CLI (ADR 0046). SQL editing and automatic refresh remain future work.

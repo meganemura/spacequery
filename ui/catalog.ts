@@ -2,7 +2,7 @@
 // This module inspects empty tables; provider execution stays with the CLI.
 import { DatabaseSync } from "node:sqlite";
 import { migrate } from "solarsql/node";
-import { catalog } from "../catalog.ts";
+import { catalog, reportParams, reports, type Report } from "../catalog.ts";
 import { emptyConfig, isProviderEnabled, type LoadedConfig } from "../core/config.ts";
 import { providersForReads } from "../core/help.ts";
 import { migrations } from "../migrations/index.ts";
@@ -13,7 +13,7 @@ import { tablesRead } from "../core/resolve.ts";
 
 export type Column = { name: string; type: string; nullable: boolean; key: boolean };
 export type Item = {
-  kind: "table" | "query";
+  kind: "table" | "query" | "report";
   name: string;
   source: string;
   description: string;
@@ -26,6 +26,10 @@ export type Item = {
   requires?: readonly string[];
   enabled?: boolean;
   error?: string;
+  // The report definition. Queries and tables leave this unset.
+  sections?: readonly (readonly [string, string])[];
+  defaultScope?: "root" | "agents" | "all";
+  refresh?: string;
 };
 
 export type ProviderToggle = { name: string; enabled: boolean; summary: string };
@@ -77,6 +81,21 @@ export function browserCatalog(userQueries: readonly UserQuery[] = [], userProvi
         item.columns = db.prepare(item.sql).columns().map((column) => ({ name: column.name, type: column.type ?? "expression", nullable: true, key: false }));
       } catch (error) { item.error = error instanceof Error ? error.message : String(error); }
     }
-    return [...tables, ...queries];
+    // A report stays visible when its gate section's providers are on, matching help.
+    // The section list is the dashboard definition, not a second layout.
+    const reportItems: Item[] = Object.entries(reports).map(([name, value]) => {
+      const report: Report = value;
+      const gate = report.sections.find(([section]) => section === report.gateSection);
+      const gateTables = gate === undefined ? [] : catalog[gate[1]]!.query.meta.reads;
+      return withProviders({
+        kind: "report", name, source: "built-in", description: report.description,
+        sql: "", params: reportParams(report), tables: gateTables, columns: [],
+        group: report.group, purpose: report.purpose,
+        sections: report.sections,
+        ...(report.defaultScope === undefined ? {} : { defaultScope: report.defaultScope }),
+        ...(report.refresh === undefined ? {} : { refresh: report.refresh }),
+      }, preferences, loaders);
+    });
+    return [...tables, ...queries, ...reportItems];
   } finally { db.close(); }
 }

@@ -25,7 +25,7 @@ spacequery --help
 
 ## Terminal Browser
 
-`spacequery ui` opens Tables and Queries in the terminal.
+`spacequery ui` opens Tables, Queries, and Reports in the terminal. Reports renders the same section list as `spacequery work`.
 Inspect columns and SQL, follow related tables and queries, then press `r` to fetch rows.
 The result includes provider status and observation times.
 See the [browser keys and scope rules](skills/spacequery/references/ui.md).

@@ -16,11 +16,17 @@ Columns marked `?` can be null.
 
 `work` runs `ready` (`issues-ready`), `issues` (`issues-in-scope`), `agents`
 (`agents-with-sessions`), and `cursor` (`cursor-agents`).
+That ordered list is the dashboard definition in `dashboard.ts`.
+`spacequery work --json` repeats it as `definition.sections`, with `definition.default_scope` and `definition.refresh`.
+`spacequery --help --json` has the same sections on the `work` report.
+`spacequery work --tsv` and `spacequery ui` render those sections in that order.
 It defaults to `--scope all`, so the issue sections include every ghq root with `.beads`.
 `--scope agents` narrows those sections and does not start ghq.
 Herdr, ghq, sessions, and the Cursor database load together; the two beads commands start after the roots are known.
 `--expect-empty` checks the `agents` section.
 `model` on `agents` is the Claude or Codex model for that pane. `model` on `cursor` is the local IDE model. Cloud Cursor agents are not in `cursor`.
+To refresh the rows, run `spacequery work` again. Each call is a new observation. Updated is each provider's `observed_at`.
+To extend the dashboard, edit `sections` in `dashboard.ts`, then run `spacequery work`. Do not add a second layout, and do not add cloud `bc-` agents.
 
 ## Agents (herdr)
 

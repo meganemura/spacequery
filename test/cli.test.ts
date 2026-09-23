@@ -115,6 +115,13 @@ test("report JSON exposes section_status in the CLI envelope", () => {
     providers: [{ name: "herdr", source: "built-in", ok: 0, observed_at: 1, ms: 2, error: "spawn herdr ENOENT" }],
   });
   assert.deepEqual(reportJson("here", result, true).trace, result.trace);
+  assert.equal(Object.hasOwn(envelope, "definition"), false);
+  const board = reportJson("work", result);
+  assert.deepEqual(board.definition, {
+    sections: reports.work.sections,
+    default_scope: "all",
+    refresh: reports.work.refresh,
+  });
 });
 
 test("expect-empty returns 3 after it prints rows", async () => {

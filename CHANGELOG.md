@@ -4,6 +4,7 @@ The format follows Keep a Changelog, and the versions follow SemVer. Before 1.0 
 
 ## Unreleased
 
+- Changed: the `work` dashboard is the section list in `dashboard.ts`. `spacequery work --json` includes that list as `definition`. `spacequery --help --json` includes the same sections, `default_scope`, and `refresh` on the `work` report. `spacequery work --tsv` and `spacequery ui` render those sections. Edit `dashboard.ts` to change the dashboard; run `spacequery work` again to refresh the rows. Each call is a new observation.
 - Changed: `issues-in-scope` defaults to `--scope all`. A call that omits `--scope` lists open beads issues in every ghq root that has `.beads`, including a root with no agent. `--scope agents` narrows that list and does not start ghq.
 - Added: `issues-ready` lists claimable beads issues from `bd ready --json --limit 0` for each in-scope root with `.beads`. It defaults to `--scope all`. `--scope agents` narrows it. `beads_ready` follows the beads on/off switch unless config sets `beads_ready` itself.
 - Added: `work` reports claimable issues, the open work list, herdr agents with their session models, and recent local Cursor agents. It defaults to `--scope all` and loads only those providers. `--expect-empty` checks the `agents` section.

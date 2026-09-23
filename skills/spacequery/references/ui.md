@@ -6,6 +6,7 @@ It needs a terminal with at least 60 columns and 16 rows.
 
 Tables shows built-in and user provider tables with their column types, nullable columns, and keys.
 Queries shows built-in and user queries with a purpose, a group, SQL, parameters, and result columns.
+Reports shows each catalog report. Definition lists that report's sections in order, the scope it uses when `--scope` is omitted, and the refresh rule. Those are the same sections as `spacequery <report> --json`. The `work` entry is the dashboard definition in `dashboard.ts`. Results prints `# <section>` and that section's rows. An empty section stays visible. Enter on a section opens its query.
 A query whose provider is off stays in the list and is dimmed.
 Providers lists each built-in provider. Enter toggles it and writes `$XDG_CONFIG_HOME/spacequery/config.json`.
 Definition opens when an entry is selected or the catalog is switched.
@@ -24,7 +25,7 @@ A broken user query keeps its SQL and an error message in the catalog.
 | Key | Action |
 | --- | --- |
 | `m` | Toggle mouse input. |
-| `t` | Cycle Tables, Queries, and Providers. |
+| `t` | Cycle Queries, Reports, Tables, and Providers. |
 | `/` | Edit the catalog search; Enter applies it and Esc cancels it. |
 | Tab | Move focus between the catalog and the detail pane. |
 | Up/Down or `k`/`j` | Select an entry, row, or text line in the focused pane. |
@@ -76,7 +77,7 @@ The header shows whether mouse input is on.
 Disable it when you want the terminal to handle text selection.
 Mouse input requires a terminal that forwards SGR mouse reports; a multiplexer must forward them too.
 
-Click Tables, Queries, or Providers to switch catalogs, or click Definition or Results to switch views.
+Click Tables, Queries, Reports, or Providers to switch catalogs, or click Definition or Results to switch views.
 Click a catalog entry to select it, a related entry to open its definition, or a result row to open its details.
 Click `[r Run]` to execute; missing parameters still require input before execution.
 The wheel scrolls the area under the pointer: the catalog, definition, result rows, open row, or Sources.
@@ -111,4 +112,5 @@ Press `s` after execution to focus Sources; arrow keys scroll its lines and long
 Press `s` or Esc to return to the rows.
 
 The browser supports manual execution and query inspection.
-Reports remain available through the CLI; SQL editing and automatic refresh are outside this version.
+A report runs through the same CLI path as `spacequery <report> --json`.
+SQL editing and automatic refresh are outside this version. Re-run to refresh. Edit `dashboard.ts` to change the `work` sections.

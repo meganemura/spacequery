@@ -31,5 +31,6 @@ A caller can read one section status before it trusts that section's rows.
 When a widened scope depends on another provider for root enumeration, the
 caller still reads the report-level `providers`.
 A user cannot define a report in this version.
+The work dashboard is that same list, kept in one file an agent edits (ADR 0046).
 `--expect-empty` on `here` reads its `agents` section.
 Measured after the change, on 2026-09-11 for this repository: `here` takes 1.1 to 1.4 s wall time (github 0.5 s, processes 0.2 to 0.4 s, mise 0.1 to 0.2 s, git 15 ms) instead of 5.4 s when every loader visited the roots of all 22 agents.

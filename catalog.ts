@@ -4,6 +4,7 @@
 // Boundary: the mapping only.
 import type { Entry, Query } from "solarsql";
 import type { Scope } from "./core/loader.ts";
+import { workDashboard } from "./dashboard.ts";
 import { searchPathQueries } from "./providers/search-path/public.ts";
 import { herdrQueries } from "./providers/herdr/public.ts";
 import { gitQueries } from "./providers/git/public.ts";
@@ -42,6 +43,8 @@ export type Report = {
   sections: readonly (readonly [string, keyof typeof catalog])[];
   gateSection: string;
   defaultScope?: Scope;
+  // Present when this report is a dashboard an agent edits. The CLI copies it into JSON.
+  refresh?: string;
 };
 
 function named(
@@ -167,18 +170,14 @@ export const reports = {
     gateSection: "shared",
   },
   work: {
-    description: "Claimable beads issues, open beads issues, herdr agents with their session models, and recent local Cursor agents.",
-    purpose: "When you want claimable beads issues, the open work list, and the models of herdr and Cursor agents.",
-    group: "Reports",
-    default: true,
-    defaultScope: "all",
-    sections: [
-      ["ready", "issues-ready"],
-      ["issues", "issues-in-scope"],
-      ["agents", "agents-with-sessions"],
-      ["cursor", "cursor-agents"],
-    ],
-    gateSection: "agents",
+    description: workDashboard.description,
+    purpose: workDashboard.purpose,
+    group: workDashboard.group,
+    default: workDashboard.default,
+    defaultScope: workDashboard.defaultScope,
+    sections: workDashboard.sections,
+    gateSection: workDashboard.gateSection,
+    refresh: workDashboard.refresh,
   },
 } as const satisfies Readonly<Record<string, Report>>;
 

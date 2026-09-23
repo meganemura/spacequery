@@ -199,6 +199,13 @@ export function queryJson(name: string, result: RunResult<Record<string, unknown
 }
 
 export function reportJson(name: string, result: ReportResult, includeTrace = false): Record<string, unknown> {
+  const defined = Object.hasOwn(reports, name) ? reports[name as keyof typeof reports] as Report : undefined;
+  // The definition travels with the rows so an agent does not keep a second section list.
+  const definition = defined?.refresh === undefined ? undefined : {
+    sections: defined.sections,
+    default_scope: defined.defaultScope ?? null,
+    refresh: defined.refresh,
+  };
   return {
     report: name,
     root: result.params["root"],
@@ -206,6 +213,7 @@ export function reportJson(name: string, result: ReportResult, includeTrace = fa
     me: result.me,
     params: result.params,
     ...callJson(result, includeTrace),
+    ...(definition === undefined ? {} : { definition }),
     sections: result.sections,
     section_status: result.sectionStatus,
     providers: result.providers,

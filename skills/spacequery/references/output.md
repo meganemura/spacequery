@@ -75,6 +75,12 @@ A section with no provider-owned tables has an empty provider list, `ok` 1,
 and an empty error list.
 For `--scope agents` and `--scope all`, also read the report-level `providers`.
 A section status does not show whether providers that enumerate roots answered.
+A report that is a dashboard also carries `definition`.
+`definition.sections` is the ordered `[section, query]` list, the same list the rows use.
+`definition.default_scope` is the scope used when `--scope` is omitted, or null.
+`definition.refresh` says how to reload the rows and how to change the list.
+`work` is that report. Its list is `dashboard.ts`.
+`spacequery --help --json` puts the same `sections`, `default_scope`, and `refresh` on the `work` report entry.
 
 `--tsv` prints a header line and the rows, tab separated, null as an empty cell.
 With `--trace`, it writes the trace header and rows to standard error.
@@ -237,7 +243,7 @@ Both of those print this object and no stack:
 | `--until <predicate>` | Watch only. `empty`, `nonempty`, or `<column>=<value>[|<value>...]`. Required with `watch`. |
 | `--interval <ms>` | Watch only. Milliseconds between ticks. Default 2000. |
 | `--timeout <sec>` | Watch only. Seconds before exit 5. Default 300. `0` means no deadline. |
-| `--help` | The short list: curated queries union the ones this machine calls most, after providers that are off are removed, capped at about 25. Curated queries stay when they exceed the cap. `--help --all` lists every enabled query. `--help --short` forces the short list when config asks for `all`. `--help --json` prints the same selection as a document with `mode`, `config`, `disabled_providers`, `queries`, and `reports`. Each entry has `group`, `purpose`, `default`, `enabled`, `requires`, `params`, and `source`. A report's `enabled` follows its gate section. Its `requires` lists every provider the sections read, so `here` can stay listed while beads is off. |
+| `--help` | The short list: curated queries union the ones this machine calls most, after providers that are off are removed, capped at about 25. Curated queries stay when they exceed the cap. `--help --all` lists every enabled query. `--help --short` forces the short list when config asks for `all`. `--help --json` prints the same selection as a document with `mode`, `config`, `disabled_providers`, `queries`, and `reports`. Each entry has `group`, `purpose`, `default`, `enabled`, `requires`, `params`, and `source`. A report also has `sections`. A report's `enabled` follows its gate section. Its `requires` lists every provider the sections read, so `here` can stay listed while beads is off. `work` also has `default_scope` and `refresh`. |
 
 A query that takes `--root` runs the loaders on that root alone by default (`--scope root`); `--scope agents` widens to every repository with an agent, `--scope all` to every ghq repository.
 `issues-in-scope`, `issues-ready`, and `work` take no `--root` and default to `--scope all`. `--scope agents` narrows them to roots with an agent.

@@ -116,7 +116,7 @@ test("t toggles catalogs and Esc preserves the selected entry and search", async
   const ui = await screen(entries, async () => observation);
   try {
     for (const [kind, name] of [["Queries", "second_query"], ["Tables", "second_table"]]) {
-      if (kind === "Tables") await ui.key("t");
+      if (kind === "Tables") { await ui.key("t"); await ui.key("t"); }
       assert.match(ui.frame(), new RegExp(`\\[${kind}\\]`));
       await ui.key("j");
       assert.ok(ui.frame().includes(`> ${name}`));
@@ -714,6 +714,41 @@ for (const height of [16, 24]) {
   });
 }
 
+test("a report renders its definition and the same sections", async () => {
+  const report: Item = {
+    kind: "report", name: "work", source: "built-in", description: "dashboard", sql: "", params: [],
+    tables: [], columns: [], purpose: "When you want the work list.",
+    sections: [["ready", "issues-ready"], ["agents", "agents-with-sessions"]],
+    defaultScope: "all", refresh: "Edit dashboard.ts. Re-run spacequery work.",
+  };
+  const ready: Item = { ...query, name: "issues-ready", purpose: "Claimable issues." };
+  const ui = await screen([ready, report], async () => ({
+    ...observation, rows: [], scope: "all",
+    sections: { ready: [{ issue_id: "g-1" }], agents: [] },
+  }));
+  try {
+    await ui.key("t");
+    assert.match(ui.frame(), /\[Reports\]/);
+    await ui.key("\t");
+    let sawReady = false;
+    let sawRefresh = false;
+    for (let i = 0; i < 16; i++) {
+      const frame = ui.frame();
+      if (frame.includes("issues-ready")) sawReady = true;
+      if (frame.includes("dashboard.ts")) sawRefresh = true;
+      await ui.key("j");
+    }
+    assert.equal(sawReady, true);
+    assert.equal(sawRefresh, true);
+    await ui.key("r");
+    assert.match(ui.frame(), /# ready/);
+    assert.match(ui.frame(), /g-1/);
+    assert.match(ui.frame(), /# agents/);
+    assert.match(ui.frame(), /\(empty\)/);
+    assert.match(ui.frame(), /scope: all/);
+  } finally { await ui.close(); }
+});
+
 test("Providers toggles a source and dims a query that needs it", async () => {
   const toggles: { name: string; enabled: boolean }[] = [];
   const providers: ProviderToggle[] = [{ name: "beads", enabled: false, summary: "Open beads issues. Off until you enable it." }];
@@ -721,6 +756,7 @@ test("Providers toggles a source and dims a query that needs it", async () => {
   const ui = await screen([item], async () => observation, 24, true, 100, providers, (name, enabled) => { toggles.push({ name, enabled }); });
   try {
     assert.match(ui.frame(), /issues {2}off/);
+    await ui.key("t");
     await ui.key("t");
     await ui.key("t");
     assert.match(ui.frame(), /\[Providers\]/);

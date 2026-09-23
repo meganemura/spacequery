@@ -66,6 +66,11 @@ test("the ship default short list is the visible curated queries", () => {
     assert.equal(reports.here.default, true);
     assert.equal(reports.work.default, true);
     assert.equal(reports.work.defaultScope, "all");
+    const board = document.reports.find((report) => report.name === "work");
+    assert.deepEqual(board?.sections, reports.work.sections);
+    assert.equal(board?.default_scope, "all");
+    assert.match(board?.refresh ?? "", /dashboard\.ts/);
+    assert.equal(document.reports.find((report) => report.name === "here")?.refresh, undefined);
     assert.equal(reports["dependency-report"].default, false);
   } finally {
     rmSync(root, { recursive: true, force: true });
@@ -122,6 +127,26 @@ test("enabling an optional provider returns its curated queries, and calls fill 
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
+});
+
+test("the work dashboard section list is the report and the query reference", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const { workDashboard } = await import("../dashboard.ts");
+  assert.deepEqual(reports.work.sections, workDashboard.sections);
+  assert.equal(reports.work.refresh, workDashboard.refresh);
+  const text = await readFile("skills/spacequery/references/queries.md", "utf8");
+  const work = text.slice(text.indexOf("`work` runs"), text.indexOf("## Agents")).replace(/\s+/g, " ");
+  let at = -1;
+  for (const [section, query] of reports.work.sections) {
+    const needle = `\`${section}\` (\`${query}\`)`;
+    const found = work.indexOf(needle);
+    assert.ok(found > at, needle);
+    at = found;
+  }
+  const skill = await readFile("skills/spacequery/SKILL.md", "utf8");
+  assert.match(skill, /dashboard\.ts/);
+  assert.match(skill, /definition\.sections/);
+  assert.match(skill, /observed_at/);
 });
 
 test("the skill table is the curated set, including here", async () => {

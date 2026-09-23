@@ -14,7 +14,7 @@ export async function startUi(args: string[]): Promise<void> {
     "no-mouse": { type: "boolean" }, root: { type: "string" }, scope: { type: "string" }, me: { type: "string" }, help: { type: "boolean", short: "h" },
   } });
   if (values.help) {
-    console.log("usage: spacequery ui [--root DIR] [--scope root|agents|all] [--me PANE] [--no-mouse]\n\nBrowse tables, query SQL, parameters, results, and provider status.\nPress r or click Run to load data. Use t to cycle Tables, Queries, and Providers. Enter on Providers toggles a source and writes config.json. Queries whose providers are off stay in the list, dimmed. Use 1-2 for Definition/Results. Required parameters are prompted before execution. Use e to edit parameters and c to edit context. Click to select, and use the wheel to scroll. Use m to toggle mouse input or --no-mouse to start without it.");
+    console.log("usage: spacequery ui [--root DIR] [--scope root|agents|all] [--me PANE] [--no-mouse]\n\nBrowse tables, query SQL, parameters, results, and provider status.\nReports renders each catalog report from the same section list as the CLI. The work dashboard is that list for work.\nPress r or click Run to load data. Use t to cycle Queries, Reports, Tables, and Providers. Enter on Providers toggles a source and writes config.json. Queries whose providers are off stay in the list, dimmed. Use 1-2 for Definition/Results. Required parameters are prompted before execution. Use e to edit parameters and c to edit context. Click to select, and use the wheel to scroll. Use m to toggle mouse input or --no-mouse to start without it.");
     return;
   }
   if (positionals.length) throw new Error("spacequery ui takes options only");

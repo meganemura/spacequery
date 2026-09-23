@@ -7,9 +7,10 @@ import { setTimeout as delay } from "node:timers/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { execFileSync } from "node:child_process";
-import { catalog } from "../catalog.ts";
+import { catalog, reports } from "../catalog.ts";
 import { browserCatalog } from "../ui/catalog.ts";
 import { executionArgs, observe } from "../ui/execute.ts";
+import { sectionLines } from "../ui/sections.ts";
 
 test("the browser derives columns and relations from the schema and catalog", () => {
   const items = browserCatalog();
@@ -33,6 +34,29 @@ test("the browser derives columns and relations from the schema and catalog", ()
   const issues = items.find((item) => item.kind === "query" && item.name === "issues")!;
   assert.equal(issues.enabled, false);
   assert.deepEqual(issues.requires, ["beads"]);
+});
+
+test("the browser report list is the work dashboard definition", () => {
+  const items = browserCatalog();
+  const work = items.find((item) => item.kind === "report" && item.name === "work")!;
+  assert.deepEqual(work.sections, reports.work.sections);
+  assert.equal(work.defaultScope, "all");
+  assert.equal(work.refresh, reports.work.refresh);
+  assert.equal(work.enabled, true);
+  assert.deepEqual(work.params, []);
+  assert.deepEqual(executionArgs(work, { root: "/workspace/a b", scope: "auto", params: {} }), [
+    "work", "--json", "--root", "/workspace/a b",
+  ]);
+  const lines = sectionLines(["cursor", "ready"], {
+    ready: [{ issue_id: "a" }],
+    issues: [{ issue_id: "skipped" }],
+  });
+  assert.deepEqual(lines, ["# cursor", "(empty)", "", "# ready", "issue_id", "a"]);
+  for (const [name, report] of Object.entries(reports)) {
+    const item = items.find((entry) => entry.kind === "report" && entry.name === name)!;
+    assert.deepEqual(item.sections, report.sections);
+    assert.equal(item.purpose, report.purpose);
+  }
 });
 
 test("an invalid user query stays inspectable without breaking the catalog", () => {
@@ -67,6 +91,7 @@ test("scope parameters share the context flag", () => {
 test("the UI help and non-terminal refusal do not need Ink or provider execution", () => {
   const output = execFileSync(process.execPath, ["cli.ts", "ui", "--no-mouse", "--help"], { encoding: "utf8" });
   assert.match(output, /spacequery ui/);
+  assert.match(output, /Reports/);
   assert.throws(() => execFileSync(process.execPath, ["cli.ts", "ui"], { encoding: "utf8", stdio: "pipe" }), (error: unknown) => {
     assert.match((error as { stderr: string }).stderr, /needs an interactive terminal/);
     return true;

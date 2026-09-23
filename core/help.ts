@@ -5,7 +5,7 @@
 import type { Loader } from "./loader.ts";
 import { callCounts } from "./calls.ts";
 import { disabledProviderNames, isProviderEnabled, type LoadedConfig } from "./config.ts";
-import { catalog, reportParams, reports } from "../catalog.ts";
+import { catalog, reportParams, reports, type Report } from "../catalog.ts";
 import type { UserQuery } from "./user-queries.ts";
 
 // Enough to show the curated set on a fresh machine and a handful of queries
@@ -25,6 +25,10 @@ export type HelpEntry = {
   params: readonly string[];
   source: HelpSource;
   sections?: readonly (readonly [string, string])[];
+  // Set when the report declares a scope for an omitted --scope.
+  default_scope?: "root" | "agents" | "all";
+  // Set when the report is a dashboard an agent can extend.
+  refresh?: string;
 };
 
 export type HelpDocument = {
@@ -102,19 +106,22 @@ export function helpDocument(options: {
     source: "user",
   }));
   const reportEntries = Object.entries(reports).map(([name, report]): HelpEntry => {
-    const requires = providersForReads(report.sections.flatMap(([, query]) => catalog[query]!.query.meta.reads), options.loaders);
-    const gate = report.sections.find(([section]) => section === report.gateSection);
+    const entry: Report = report;
+    const requires = providersForReads(entry.sections.flatMap(([, query]) => catalog[query]!.query.meta.reads), options.loaders);
+    const gate = entry.sections.find(([section]) => section === entry.gateSection);
     const gateRequires = gate === undefined ? [] : providersForReads(catalog[gate[1]]!.query.meta.reads, options.loaders);
     return {
       name,
-      description: report.description,
-      purpose: report.purpose,
-      group: report.group,
-      default: report.default,
+      description: entry.description,
+      purpose: entry.purpose,
+      group: entry.group,
+      default: entry.default,
       enabled: enabled(gateRequires),
       requires,
-      params: reportParams(report),
-      sections: report.sections,
+      params: reportParams(entry),
+      sections: entry.sections,
+      ...(entry.defaultScope === undefined ? {} : { default_scope: entry.defaultScope }),
+      ...(entry.refresh === undefined ? {} : { refresh: entry.refresh }),
       source: "report",
     };
   }).filter((report) => report.enabled);

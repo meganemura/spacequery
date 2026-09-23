@@ -7,7 +7,11 @@ import type { RunResult } from "../core/run.ts";
 import type { Item } from "./catalog.ts";
 
 export type Inputs = { root: string; scope: Scope | "auto"; me?: string; params: Record<string, string> };
-export type Observation = RunResult<Record<string, unknown>> & { receivedAt: number };
+export type Observation = RunResult<Record<string, unknown>> & {
+  receivedAt: number;
+  // Present when the CLI returned a report envelope. Rows stay on `sections`.
+  sections?: Record<string, Record<string, unknown>[]>;
+};
 
 export function executionArgs(item: Item, inputs: Inputs): string[] {
   // Binding root makes a table inspection local by default. The predicate
@@ -66,7 +70,12 @@ export function observe(item: Item, inputs: Inputs, signal?: AbortSignal): Promi
       if (signal?.aborted) { reject(new Error("Execution cancelled.")); return; }
       if (failure) { reject(failure); return; }
       if (code !== 0) { reject(new Error(stderr.trim() || `Query process exited with code ${code}.`)); return; }
-      try { resolve({ ...JSON.parse(stdout), receivedAt: Date.now() } as Observation); }
+      try {
+        const parsed = JSON.parse(stdout) as Observation;
+        // A report envelope has sections and no rows. The browser reads sections.
+        if (!Array.isArray(parsed.rows)) parsed.rows = [];
+        resolve({ ...parsed, receivedAt: Date.now() });
+      }
       catch (error) { reject(error); }
     });
     signal?.addEventListener("abort", cancel, { once: true });

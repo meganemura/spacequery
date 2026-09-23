@@ -47,7 +47,8 @@ The fields and exit codes: [references/output.md](references/output.md#doctor).
 
 ## Terminal browser
 
-`spacequery ui` opens an interactive browser for tables and named queries.
+`spacequery ui` opens an interactive browser for tables, named queries, and reports.
+Reports renders the same section list as the CLI. The `work` dashboard is that list.
 Use `--root DIR`, `--scope root|agents|all`, and `--me PANE` to set its initial context.
 The browser fetches data when you press `r`.
 See [references/ui.md](references/ui.md) for its keys and observation rules.
@@ -85,7 +86,7 @@ The predicate, the fingerprint, and the exit codes: [references/output.md](refer
    Use `claude-usage` and `codex-usage` for quota percentages and reset information. Check record times; Codex reads bounded tails of recently modified local logs.
    Use `claude-sessions` and `codex-sessions` for effort and the rest of the local session record.
    `cursor-agents` lists recent Cursor conversations from the local IDE database, including each conversation's model. It does not list cloud agents.
-   `work` puts claimable beads issues, the open work list, herdr agents with their session models, and those Cursor agents in one call. It defaults to `--scope all`.
+   `work` puts claimable beads issues, the open work list, herdr agents with their session models, and those Cursor agents in one call. It defaults to `--scope all`. The section list is the dashboard definition; see [Work dashboard](#work-dashboard).
    Claude metadata describes a recent response in the transcript tail; `metadata_at` gives its time. Unavailable values stay null.
 3. **When you look for a place to work**: `idle-worktrees` (a worktree with nobody in it), `dirty-unattended` (changes nobody is tending).
 4. **When a tool is missing or the wrong version**: `which-in-dir`, `which`, `path-entries`, `shadowed-commands`, `tools-in-dir`, `repository-versions`, `missing-tools-with-agents`, `tool-versions-split`.
@@ -102,6 +103,19 @@ The predicate, the fingerprint, and the exit codes: [references/output.md](refer
 10. **When you wait for a detached runtag command**: [runtag](https://github.com/meganemura/runtag) ([npm](https://www.npmjs.com/package/runtag)) records with `runtag exec --detach --cwd <repo> -- <cmd>...` and writes a job file with `id`. Then `spacequery watch runs-in-dir --root <repo> --until status=exited`. When that exits 0, `runtag status <id>` reads `exit_code`. spacequery reads the files and watches. An orphan stays `running` and does not satisfy the wait.
 11. **Before you choose a dependency or tool parser**: `repository-config-files --root DIR`. It inventories recognized file names without interpreting their bodies.
 
+## Work dashboard
+
+`work` is the dashboard. Its definition is the ordered section list in `dashboard.ts`: `ready` (`issues-ready`), `issues` (`issues-in-scope`), `agents` (`agents-with-sessions`), and `cursor` (`cursor-agents`).
+`cursor-agents` is the local IDE database. Do not add cloud `bc-` agents to this list.
+`spacequery work --json` returns that list as `definition.sections`, the omitted-scope default as `definition.default_scope`, and the refresh rule as `definition.refresh`. The `sections` object is the rows for those names, in that order.
+`spacequery --help --json` lists the same sections on the `work` report, without running providers.
+`spacequery work --tsv` prints a `# <section>` heading for each name in that order.
+`spacequery ui` shows the same list under Reports. Run loads those sections. It does not keep a separate board.
+
+Refresh the rows by running `spacequery work` again. Each call builds a new database. Updated means each provider's `observed_at` on that call. The dashboard keeps no previous copy.
+
+Extend the dashboard by editing `sections` in `dashboard.ts`. Each entry is a section name and a catalog query, in display order. Change `defaultScope` there to change the omitted `--scope`. The next `spacequery work`, the TSV headings, help JSON, and the terminal browser use the edited list.
+
 Every query, its parameters, and its columns: [references/queries.md](references/queries.md).
 `spacequery --help` prints the short list. `spacequery --help --all` prints every enabled query.
 
@@ -109,7 +123,7 @@ Every query, its parameters, and its columns: [references/queries.md](references
 
 The table is the curated set. It is not one machine's call history.
 `spacequery --help` prints these after it drops any query whose provider is off, then adds queries this machine calls often, up to about 25. The call log only ranks that list.
-`spacequery --help --json` is the same list as data, with `group`, `purpose`, `default`, `enabled`, and `requires`.
+`spacequery --help --json` is the same list as data, with `group`, `purpose`, `default`, `enabled`, and `requires`. A report entry also has `sections`. The `work` report adds `default_scope` and `refresh`.
 `spacequery --help --all` and `spacequery --help --all --json` list every enabled query. The columns for the rest are in [references/queries.md](references/queries.md).
 `beads`, `beads_ready`, `brew`, `headsign`, and `runtag` are off until you set them to `true` under `providers` in `$XDG_CONFIG_HOME/spacequery/config.json` (`~/.config/spacequery/config.json` when the variable is unset). Setting `beads` to true also enables `beads_ready` unless the file sets `beads_ready` itself. A named query and `--sql` still run when the provider is off in the list.
 

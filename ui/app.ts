@@ -9,6 +9,7 @@ import { horizontalLimit, horizontalText } from "./horizontal.ts";
 import { parseMouse, enableMouse, disableMouse, type MouseEvent } from "./mouse.ts";
 import type { Item, ProviderToggle } from "./catalog.ts";
 import { observe, type Inputs, type Observation } from "./execute.ts";
+import { sectionLines } from "./sections.ts";
 
 type View = "Definition" | "Results";
 const views: View[] = ["Definition", "Results"];
@@ -81,6 +82,10 @@ export function Browser({ items, initial, execute = observe, mouse = true, provi
   const listCount = listingProviders ? providerRows.length : filtered.length;
   const item = filtered[Math.min(selected, Math.max(0, filtered.length - 1))];
   const observation = result !== null && result.item === item ? result.observation : undefined;
+  const reportOrder = item?.sections?.map(([name]) => name) ?? [];
+  // Results for a report scroll the definition's sections. They do not invent a layout.
+  const reportLines = item?.kind === "report" && observation?.sections ? sectionLines(reportOrder, observation.sections) : undefined;
+  const textResults = reportLines !== undefined && view === "Results";
   const related = item ? items.filter((candidate) => candidate.kind !== item.kind && (item.kind === "table" ? candidate.tables.includes(item.name) : item.tables.includes(candidate.name))) : [];
   const bodyHeight = Math.max(3, size.height - 9);
   const compactResults = view === "Results" && size.height < 20;
@@ -147,7 +152,7 @@ export function Browser({ items, initial, execute = observe, mouse = true, provi
   }
   function scrollHorizontal(direction: number, sources: boolean) {
     if (sources) setSourceColumn((previous) => Math.max(0, Math.min(Math.min(previous, sourceLimit) + direction * 4, sourceLimit)));
-    else if (view === "Definition" || expanded) setTextColumn((previous) => Math.max(0, Math.min(Math.min(previous, textLimit) + direction * 4, textLimit)));
+    else if (view === "Definition" || expanded || textResults) setTextColumn((previous) => Math.max(0, Math.min(Math.min(previous, textLimit) + direction * 4, textLimit)));
     else setColumn((previous) => Math.max(0, Math.min(Math.min(previous, columnLimit) + direction, columnLimit)));
   }
   function handleMouse(event: MouseEvent) {
@@ -157,6 +162,7 @@ export function Browser({ items, initial, execute = observe, mouse = true, provi
       if (hit("search", event)) { setEditing({ kind: "search" }); setDraft(search); return; }
       if (hit("tables", event)) { switchCatalog("table"); return; }
       if (hit("queries", event)) { switchCatalog("query"); return; }
+      if (hit("reports", event)) { switchCatalog("report"); return; }
       if (hit("providers", event)) { switchCatalog("provider"); return; }
       for (const name of views) if (hit(name, event)) { changeView(name); setFocus("detail"); return; }
       if (hit("sourceLeft", event)) { setFocus("detail"); setSourcesFocused(true); scrollHorizontal(-1, true); return; }
@@ -211,7 +217,7 @@ export function Browser({ items, initial, execute = observe, mouse = true, provi
     if (event.kind === "scroll") {
       if (event.dy) {
         if (expanded) setDetailOffset((previous) => Math.max(0, Math.min(previous + event.dy * 3, Math.max(0, contentLines.length - pageSize))));
-        else if (view === "Results") setResultOffset((previous) => Math.max(0, Math.min(previous + event.dy * 3, Math.max(0, contentCount - pageSize))));
+        else if (view === "Results" && !textResults) setResultOffset((previous) => Math.max(0, Math.min(previous + event.dy * 3, Math.max(0, contentCount - pageSize))));
         else setOffset((previous) => Math.max(0, Math.min(previous + event.dy * 3, Math.max(0, contentCount - 1))));
       }
       if (event.dx) scrollHorizontal(event.dx, false);
@@ -219,7 +225,7 @@ export function Browser({ items, initial, execute = observe, mouse = true, provi
       if (content.y >= pageSize) return;
       const row = definitionRows[offset + content.y];
       if (row?.target) follow(row.target);
-    } else if (!expanded && observation && content.y > 0 && content.y <= pageSize) {
+    } else if (!expanded && !textResults && observation && content.y > 0 && content.y <= pageSize) {
       const index = resultStart + content.y - 1;
       if (index < observation.rows.length) { setOffset(index); setExpanded(true); setDetailOffset(0); setTextColumn(0); }
     }
@@ -264,7 +270,7 @@ export function Browser({ items, initial, execute = observe, mouse = true, provi
     if (input === "m") { setMouseEnabled(!mouseEnabled); return; }
     if (input === "/") { setEditing({ kind: "search" }); setDraft(search); return; }
     if (input === "t") {
-      const order: (Item["kind"] | "provider")[] = providers ? ["query", "table", "provider"] : ["query", "table"];
+      const order: (Item["kind"] | "provider")[] = providers ? ["query", "report", "table", "provider"] : ["query", "report", "table"];
       switchCatalog(order[(order.indexOf(kind) + 1) % order.length]!);
       return;
     }
@@ -300,7 +306,7 @@ export function Browser({ items, initial, execute = observe, mouse = true, provi
       }
       else if (sourcesFocused) setSourceOffset(() => Math.max(0, Math.min(sourceStart + direction, Math.max(0, sourceLines.length - (sourceHeight - 1)))));
       else if (expanded) setDetailOffset((n) => Math.max(0, Math.min(n + direction, Math.max(0, contentLines.length - pageSize))));
-      else if (view === "Results") {
+      else if (view === "Results" && !textResults) {
         if (key.pageDown || key.pageUp) setResultOffset(Math.max(0, Math.min(resultStart + direction, Math.max(0, contentCount - pageSize))));
         else {
           const next = Math.max(0, Math.min(offset + direction, Math.max(0, contentCount - 1)));
@@ -317,7 +323,7 @@ export function Browser({ items, initial, execute = observe, mouse = true, provi
     if (view === "Definition") {
       const target = definitionRows[offset]?.target;
       if (target) follow(target);
-    } else if (view === "Results" && observation && offset < observation.rows.length) { setExpanded(!expanded); setDetailOffset(0); setTextColumn(0); }
+    } else if (view === "Results" && !textResults && observation && offset < observation.rows.length) { setExpanded(!expanded); setDetailOffset(0); setTextColumn(0); }
   });
 
   // Preserve source lines. Horizontal scrolling exposes long lines without
@@ -339,6 +345,22 @@ export function Browser({ items, initial, execute = observe, mouse = true, provi
     { text: "  This list keeps that query and dims it." },
     { text: "  Enter toggles the provider and writes config.json." },
     { text: "  A named query still runs, and --sql still runs." },
+  ] : item?.kind === "report" ? [
+    ...(item.purpose ? [{ text: "Purpose", heading: true }, { text: "" }, { text: `  ${item.purpose}` }, { text: "" }] : []),
+    ...(item.group ? [{ text: `Group  ${item.group}` }, { text: "" }] : []),
+    { text: "Scope", heading: true }, { text: "" },
+    { text: item.defaultScope ? `  Omitting --scope uses ${item.defaultScope}.` : "  Scope follows the CLI default for this report." },
+    { text: "  Scope auto in this browser omits --scope, so Run uses that default." },
+    { text: "" }, { text: "Sections", heading: true }, { text: "" },
+    ...(item.sections ?? []).flatMap(([name, query]) => {
+      const target = items.find((entry) => entry.kind === "query" && entry.name === query);
+      return [
+        { text: `  ${name}  ${query}`, ...(target ? { target } : {}) },
+        ...(target?.purpose ? [{ text: `    ${target.purpose}` }] : []),
+      ];
+    }),
+    { text: "" }, { text: "Refresh", heading: true }, { text: "" },
+    ...(item.refresh ? item.refresh.split(/(?<=\.)\s+/).map((text) => ({ text: `  ${text}` })) : [{ text: "  Re-run the report. Each call is a new observation." }]),
   ] : item ? [
     ...(item.purpose ? [{ text: "Purpose", heading: true }, { text: "" }, { text: `  ${item.purpose}` }, { text: "" }] : []),
     ...(item.group ? [{ text: `Group  ${item.group}` }, { text: "" }] : []),
@@ -355,8 +377,9 @@ export function Browser({ items, initial, execute = observe, mouse = true, provi
   const definitionLines = definitionRows.map((row) => row.text);
   const rowLines = expanded && observation ? Object.entries(observation.rows[offset] ?? {}).flatMap(([name, value]) =>
     lines(`${name}: ${value === null ? "NULL" : typeof value === "object" ? JSON.stringify(value) : String(value)}`)) : [];
-  const contentLines = expanded ? rowLines : view === "Definition" ? definitionLines : sourceLines;
+  const contentLines = expanded ? rowLines : view === "Definition" ? definitionLines : textResults ? reportLines : sourceLines;
   const contentCount = view === "Definition" ? definitionLines.length
+    : textResults ? reportLines.length
     : observation ? observation.rows.length : 0;
   const contentWidth = Math.max(1, size.width - leftWidth - 5);
   const textLimit = horizontalLimit(contentLines, contentWidth);
@@ -367,12 +390,12 @@ export function Browser({ items, initial, execute = observe, mouse = true, provi
   const textStart = Math.min(textColumn, textLimit);
   const sourceTextStart = Math.min(sourceColumn, sourceLimit);
   const columnStart = Math.min(column, columnLimit);
-  const horizontalPosition = view === "Definition" || expanded ? textStart : columnStart;
-  const horizontalEnd = view === "Definition" || expanded ? textLimit : columnLimit;
+  const horizontalPosition = view === "Definition" || expanded || textResults ? textStart : columnStart;
+  const horizontalEnd = view === "Definition" || expanded || textResults ? textLimit : columnLimit;
   // The bottom border hosts the bar so short terminals keep their content rows.
   const bottomEnd = sourcesFocused && view === "Results" ? sourceLimit : horizontalEnd;
   const bottomPosition = sourcesFocused && view === "Results" ? sourceTextStart : horizontalPosition;
-  const bottomVisible = view === "Results" && !expanded && !sourcesFocused ? shownColumnCount : contentWidth;
+  const bottomVisible = view === "Results" && !expanded && !sourcesFocused && !textResults ? shownColumnCount : contentWidth;
   const bottomBar = scrollbar(bottomEnd + bottomVisible, bottomVisible, bottomPosition, size.width - leftWidth - 2, bottomEnd);
   const bottomGlyphs = bottomBar.glyphs.map((glyph) => glyph === "↑" ? "←" : glyph === "↓" ? "→" : glyph === "┃" ? "━" : "─");
   const text = (value: unknown, options: Record<string, unknown> = {}) => h(Text, { wrap: "truncate-end", ...options }, lineText(value));
@@ -384,9 +407,9 @@ export function Browser({ items, initial, execute = observe, mouse = true, provi
   const resultStart = Math.min(resultOffset, Math.max(0, (observation?.rows.length ?? 0) - pageSize));
   const listVisible = listPageSize;
   const listBar = scrollbar(listCount, listVisible, listStart, bodyHeight - 2, Math.max(0, listCount - listPageSize));
-  const detailStart = expanded ? detailOffset : view === "Definition" ? offset : resultStart;
+  const detailStart = expanded ? detailOffset : view === "Definition" || textResults ? offset : resultStart;
   const detailTotal = expanded ? contentLines.length : contentCount;
-  const detailEnd = expanded ? Math.max(0, detailTotal - pageSize) : view === "Definition" ? Math.max(0, detailTotal - 1) : Math.max(0, detailTotal - pageSize);
+  const detailEnd = expanded ? Math.max(0, detailTotal - pageSize) : view === "Definition" || textResults ? Math.max(0, detailTotal - 1) : Math.max(0, detailTotal - pageSize);
   const detailBar = scrollbar(detailTotal, pageSize, detailStart, detailHeight, detailEnd);
   const sourceBar = scrollbar(sourceLines.length, sourceHeight - 1, sourceStart, sourceHeight - 1, Math.max(0, sourceLines.length - (sourceHeight - 1)));
   const renderBar = (name: string, bar: Scrollbar) => h(Box, { ref: region(name), flexDirection: "column", width: 1, flexShrink: 0 },
@@ -397,11 +420,11 @@ export function Browser({ items, initial, execute = observe, mouse = true, provi
     detail.push(text("No matches", { bold: true }));
     if (detailHeight >= 3) detail.push(text(" "), text("Press / or click Search to change the filter.", { dimColor: true }));
   }
-  else if (expanded || view === "Definition") {
+  else if (expanded || view === "Definition" || textResults) {
     if (expanded) detail.push(text(`Row ${offset + 1} / ${observation!.rows.length}  |  Esc closes`, { bold: true }));
     const start = expanded ? detailOffset : offset;
     detail.push(...contentLines.slice(start, start + pageSize).map((line, i) => {
-      const row = !expanded ? definitionRows[start + i] : undefined;
+      const row = !expanded && view === "Definition" ? definitionRows[start + i] : undefined;
       const link = row?.target !== undefined;
       const value = horizontalText(line, textStart);
       return text(link && i === 0 && textStart === 0 ? `> ${value.trimStart()}` : value || " ", { color: row?.heading ? "cyan" : link ? "blueBright" : undefined, bold: row?.heading || (link && i === 0) });
@@ -422,7 +445,10 @@ export function Browser({ items, initial, execute = observe, mouse = true, provi
     detail.push(...observation.rows.slice(start, start + pageSize).map((row, i) => gridRow(shown.map((key, col) => `${col === 0 ? (start + i === offset ? "> " : "  ") : ""}${lineText(row[key])}`), start + i === offset)));
   }
   const receiptTime = observation ? new Date(observation.receivedAt).toLocaleTimeString(undefined, { hour12: false, hour: "2-digit", minute: "2-digit", second: "2-digit" }) : "";
-  const resultSummary = observation ? `${observation.rows.length} rows | scope: ${observation.scope} | received ${receiptTime}` : "";
+  const shownRows = textResults && observation?.sections
+    ? reportOrder.reduce((count, name) => count + (observation.sections?.[name]?.length ?? 0), 0)
+    : observation?.rows.length ?? 0;
+  const resultSummary = observation ? `${shownRows} rows | scope: ${observation.scope} | received ${receiptTime}` : "";
   const compactNameWidth = Math.max(1, size.width - resultSummary.length - 3);
   const compactName = item && item.name.length > compactNameWidth ? `${item.name.slice(0, compactNameWidth - 1)}…` : item?.name ?? "";
   const rawFieldLabel = editing?.kind === "search" ? "Search" : lineText(editing?.name ?? "");
@@ -443,13 +469,15 @@ export function Browser({ items, initial, execute = observe, mouse = true, provi
     : sourcesFocused ? "Sources · ↑↓ Lines · ←→ Scroll · s Rows · q Quit"
     : expanded ? "Row detail · ↑↓ Lines · ←→ Scroll · Esc Close · q Quit"
     : view === "Definition" ? "Definition · ↑↓ Lines · ←→ Scroll · Enter Follow · Esc List"
+    : textResults ? "Results · ↑↓ Lines · ←→ Scroll · Esc List"
     : "Results · ↑↓ Select row · ←→ Scroll · Enter Open · Esc List";
   if (size.width < 60 || size.height < 16) return h(Box, { flexDirection: "column" }, text("spacequery ui needs at least 60 columns and 16 rows."), text("Resize the terminal, or press q to quit."));
   return h(Box, { flexDirection: "column", width: size.width, height: size.height - 1 },
     h(Box, { flexDirection: "row", height: 1, flexShrink: 0 },
       h(Box, { flexShrink: 0 }, text("spacequery   ", { bold: true })),
       h(Box, { ref: region("tables"), flexShrink: 0 }, tab(kind === "table" ? "[Tables]" : "Tables", kind === "table")), text("  "),
-      h(Box, { ref: region("queries"), flexShrink: 0 }, tab(kind === "query" ? "[Queries]" : "Queries", kind === "query")),
+      h(Box, { ref: region("queries"), flexShrink: 0 }, tab(kind === "query" ? "[Queries]" : "Queries", kind === "query")), text("  "),
+      h(Box, { ref: region("reports"), flexShrink: 0 }, tab(kind === "report" ? "[Reports]" : "Reports", kind === "report")),
       ...(providers ? [text("  "), h(Box, { ref: region("providers"), flexShrink: 0 }, tab(kind === "provider" ? "[Providers]" : "Providers", kind === "provider"))] : []),
       h(Box, { flexShrink: 0 }, text(`  t  m mouse:${mouseEnabled ? "on" : "off"}`, { dimColor: true })),
       text(`   scope: ${inputs.scope}${busy ? "   Loading..." : ""}`, { dimColor: !busy, color: busy ? "yellow" : undefined })),
@@ -494,7 +522,7 @@ export function Browser({ items, initial, execute = observe, mouse = true, provi
             renderBar("sourceBar", sourceBar)))] : [])),
         ...(bottomEnd > 0 ? [h(Box, { ref: region("horizontalBar"), position: "absolute", bottom: 0, left: 1, width: size.width - leftWidth - 2, height: 1 },
           text(bottomGlyphs.join(""), { color: "cyan" }))] : []))),
-    text(observation ? compactResults ? `${compactName} | ${resultSummary}` : `${observation.rows.length} rows | scope: ${observation.scope} | ${observation.ms} ms | received ${receiptTime}` : busy ? "Fetching a fresh observation..." : "Press r or click Run to load data.", { dimColor: !busy, color: busy ? "cyan" : undefined }),
+    text(observation ? compactResults ? `${compactName} | ${resultSummary}` : `${shownRows} rows | scope: ${observation.scope} | ${observation.ms} ms | received ${receiptTime}` : busy ? "Fetching a fresh observation..." : "Press r or click Run to load data.", { dimColor: !busy, color: busy ? "cyan" : undefined }),
     text(error || item?.error || (failed.length ? `Incomplete: ${failed.map((p) => p.name).join(", ")} failed. Press s for source details.` : " "), { color: error || item?.error ? "redBright" : "yellow" }),
     h(Box, { height: 1, backgroundColor: editing ? "blue" : undefined }, text(editing ? prompt : "t Switch / Search Tab Focus 1-2 View r Run e Edit c Context", { bold: !!editing, color: editing ? "whiteBright" : undefined })),
     text(editing ? inputHint : busy ? "Loading · q or Ctrl+C Cancel and quit" : focusHint, { dimColor: true }));
