@@ -259,7 +259,8 @@ to keep it distinct from a Claude Code plugin with the same marketplace ID.
 | --- | --- | --- |
 | `runs-in-dir` | `root` | `id`, `status`, `exit_code?`, `orphan`, `repo_root?`, `cwd?`, `supervisor_pid?` |
 
-`runs-in-dir` reads job files written by [runtag](https://github.com/meganemura/runtag).
+`runs-in-dir` reads job files written by [runtag](https://github.com/meganemura/runtag) ([npm](https://www.npmjs.com/package/runtag)).
+runtag records the job with `runtag exec --detach --cwd <repo> -- <cmd>...`. spacequery reads the files and watches.
 It keeps a job whose `repo_root` or `cwd` equals `root` or is inside that directory.
 `repo/pkg` matches `repo`. `repo-other` does not.
 `status` is `running` or `exited`. There is no pass or fail column.

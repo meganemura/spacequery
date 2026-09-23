@@ -68,7 +68,7 @@ spacequery watch runs-in-dir --root <repo> --until status=exited
 `in-dir`, `working`, and `agents` carry `agent_status` (`working`, `idle`, `blocked`, `unknown`).
 `working` only returns agents that are working, so the wait for idle is `--until empty`.
 `claude-sessions` carries `status`. `runs-in-dir` carries `status` (`running` or `exited`). A column predicate matches when every returned row has one of the values. Zero rows do not match it; use `empty`.
-A runtag job whose file says `running` while `supervisor_pid` is dead stays `running` with `orphan` 1 and `exit_code` null. It does not satisfy `status=exited`.
+A [runtag](https://github.com/meganemura/runtag) ([npm](https://www.npmjs.com/package/runtag)) job whose file says `running` while `supervisor_pid` is dead stays `running` with `orphan` 1 and `exit_code` null. It does not satisfy `status=exited`.
 An incomplete observation does not match `--until`. Empty rows beside a provider with `ok` 0 stay unknown.
 The first snapshot prints immediately. Later snapshots print only when the observation changes.
 JSON from watch is one envelope per line. One-shot JSON stays indented.
@@ -93,7 +93,7 @@ The predicate, the fingerprint, and the exit codes: [references/output.md](refer
 7. **Before you start a server, a watcher, or a build**: `ports-in-dir`, `processes-in-dir`, and `container-ports-in-dir`; use `servers-with-agents` for host listeners. `ports-in-dir` shows the current checkout for the listener's working directory. It does not identify the commit loaded when the server started.
 8. **When you wonder which skill applies here, or whether a name collides**: `skills-in-dir`, `duplicate-skill-names`.
 9. **When you pick up a repository**: `issues` and `workflow` for its root; use `running-workflows-unattended` and `issues-unattended` for work nobody holds.
-10. **When you wait for a detached runtag command**: `runtag exec --detach --cwd <repo> -- <cmd>...` writes a job file with `id`. Then `spacequery watch runs-in-dir --root <repo> --until status=exited`. When that exits 0, `runtag status <id>` reads `exit_code`. Tagging and the job file belong to [runtag](https://github.com/meganemura/runtag). spacequery only reads the files. An orphan stays `running` and does not satisfy the wait.
+10. **When you wait for a detached runtag command**: [runtag](https://github.com/meganemura/runtag) ([npm](https://www.npmjs.com/package/runtag)) records with `runtag exec --detach --cwd <repo> -- <cmd>...` and writes a job file with `id`. Then `spacequery watch runs-in-dir --root <repo> --until status=exited`. When that exits 0, `runtag status <id>` reads `exit_code`. spacequery reads the files and watches. An orphan stays `running` and does not satisfy the wait.
 11. **Before you choose a dependency or tool parser**: `repository-config-files --root DIR`. It inventories recognized file names without interpreting their bodies.
 
 Every query, its parameters, and its columns: [references/queries.md](references/queries.md).

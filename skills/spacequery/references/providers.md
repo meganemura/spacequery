@@ -48,7 +48,7 @@ These providers run independently when their tables are queried. Repository scop
 
 ## Runtag jobs
 
-`runtag` reads the job files [runtag](https://github.com/meganemura/runtag) writes. It does not tag a command or interpret pass and fail.
+`runtag` reads the job files [runtag](https://github.com/meganemura/runtag) ([npm](https://www.npmjs.com/package/runtag)) writes with `runtag exec`. runtag records the command. This provider reads the files. `exit_code` stays the number the process returned.
 A missing jobs directory is an empty table and `ok` 1: runtag has no jobs yet. An empty directory is the same.
 A jobs path that exists but cannot be read, and a `*.json` file that is not a job, are `ok` 0. The error names the path. Valid jobs already read stay in the table.
 `spacequery doctor` uses this load. A machine with no jobs directory still has `runtag` `ok` 1. An unreadable jobs directory or a job file that does not parse makes doctor's `ok` 0.

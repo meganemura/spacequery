@@ -222,6 +222,7 @@ The table contains open issues from roots in scope that have `.beads`.
 ## `runtag_jobs` (runtag)
 
 `id` (key), `status`, `exit_code?`, `orphan`, `repo_root?`, `cwd?`, `supervisor_pid?`.
+[runtag](https://github.com/meganemura/runtag) ([npm](https://www.npmjs.com/package/runtag)) writes these files. spacequery reads them.
 The table contains every readable job file under `$XDG_DATA_HOME/runtag/jobs/`, or
 `~/.local/share/runtag/jobs/` when `XDG_DATA_HOME` is unset. `status` is `running`
 or `exited`. `orphan` is 1 when the file says `running` and `supervisor_pid` is not

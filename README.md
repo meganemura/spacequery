@@ -103,12 +103,16 @@ The build and ad hoc SQL resolver use `setAuthorizer` from `node:sqlite`.
 
 Put the tools you want spacequery to observe on `PATH`: `herdr`, `git`, `ghq`, `mise`, `brew`, `gh` logged in, `docker`, `lsof`, and `bd`.
 Headsign rows come from files and need no command on `PATH`.
-runtag rows come from `$XDG_DATA_HOME/runtag/jobs/` (or `~/.local/share/runtag/jobs/`). spacequery does not run runtag.
+Session rows come from records under `~/.claude` and `~/.codex`.
+Joining a pane to a session needs herdr's Claude Code and Codex integrations.
+runtag rows come from `$XDG_DATA_HOME/runtag/jobs/` (or `~/.local/share/runtag/jobs/`).
+[runtag](https://github.com/meganemura/runtag) ([npm](https://www.npmjs.com/package/runtag)) records those jobs. spacequery reads the files.
 
 ## Waiting on a runtag job
 
-[runtag](https://github.com/meganemura/runtag) tags a detached command and writes the job file.
-spacequery only reads that file.
+[runtag](https://github.com/meganemura/runtag) ([npm](https://www.npmjs.com/package/runtag)) records a command and writes the job file.
+Install it with `npm i -g runtag`.
+spacequery reads that file and watches.
 
 ```sh
 runtag exec --detach --cwd <repo> -- <cmd>...
@@ -122,8 +126,6 @@ A job whose file still says `running` after its supervisor pid has died stays `r
 That row does not satisfy `--until status=exited`.
 `runtag status <id>` is where the exit code is read after the watch exits 0.
 A missing jobs directory is an empty answer. `spacequery doctor` reports `runtag` as answered in that case, and as failed when the jobs directory cannot be read or a job file does not parse.
-Session rows come from records under `~/.claude` and `~/.codex`.
-Joining a pane to a session needs herdr's Claude Code and Codex integrations.
 
 A missing provider does not make a false row.
 It gives an empty table and a `providers` row that reports the failure.

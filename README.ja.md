@@ -100,12 +100,16 @@ build と ad hoc SQL の解決が `node:sqlite` の `setAuthorizer` を使うた
 spacequery に観測させたい道具を `PATH` に置く。
 対象は `herdr`、`git`、`ghq`、`mise`、ログイン済みの `gh`、`docker`、`lsof`、`bd` である。
 headsign rows は file から来るので、`PATH` 上の command は要らない。
-runtag rows は `$XDG_DATA_HOME/runtag/jobs/`（未設定なら `~/.local/share/runtag/jobs/`）の file から来る。spacequery は runtag を起動しない。
+session rows は `~/.claude` と `~/.codex` の記録から来る。
+pane と session の結合には、herdr の Claude Code integration と Codex integration が要る。
+runtag rows は `$XDG_DATA_HOME/runtag/jobs/`（未設定なら `~/.local/share/runtag/jobs/`）の file から来る。
+[runtag](https://github.com/meganemura/runtag)（[npm](https://www.npmjs.com/package/runtag)）がその job を記録する。spacequery はその file を読む。
 
 ## runtag job を待つ
 
-[runtag](https://github.com/meganemura/runtag) が detach した command に tag を付け、job file を書く。
-spacequery はその file を読む。
+[runtag](https://github.com/meganemura/runtag)（[npm](https://www.npmjs.com/package/runtag)）が command を記録し、job file を書く。
+導入は `npm i -g runtag` である。
+spacequery はその file を読み、待つ。
 
 ```sh
 runtag exec --detach --cwd <repo> -- <cmd>...
@@ -119,8 +123,6 @@ file が `running` のまま supervisor pid が死んでいる job は `running`
 その row は `--until status=exited` を満たさない。
 watch が 0 で終わったあと、`exit_code` は `runtag status <id>` で読む。
 jobs directory が無いときは空の答えである。`spacequery doctor` はそのとき `runtag` を答えありと報告し、directory を読めないときや job file が parse できないときは失敗と報告する。
-session rows は `~/.claude` と `~/.codex` の記録から来る。
-pane と session の結合には、herdr の Claude Code integration と Codex integration が要る。
 
 provider が無いとき、spacequery は偽の行を作らない。
 空の table と、失敗を示す `providers` row を返す。

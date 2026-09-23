@@ -136,7 +136,7 @@ spacequery watch runs-in-dir --root <repo> --until status=exited
 ```
 
 A runtag orphan stays `running` with `orphan` 1 and `exit_code` null. `--until status=exited` does not match it.
-The job files and `runtag status <id>` belong to [runtag](https://github.com/meganemura/runtag). spacequery only reads the files.
+The job files and `runtag status <id>` belong to [runtag](https://github.com/meganemura/runtag) ([npm](https://www.npmjs.com/package/runtag)). runtag records the job. spacequery reads the files and watches.
 
 The first snapshot prints immediately.
 A later snapshot prints only when a fingerprint of the rows, plus each provider's `name`, `ok`, and `error`, changes.

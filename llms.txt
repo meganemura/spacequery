@@ -45,9 +45,9 @@ spacequery watch claude-sessions --until status=idle
 spacequery watch runs-in-dir --root <repo> --until status=exited
 ```
 
-`agent_status` on `in-dir`, `working`, and `agents` is `working`, `idle`, `blocked`, or `unknown`. `working` only returns agents that are working, so wait with `--until empty`. `claude-sessions` has `status`. `runs-in-dir` has `status` from a [runtag](https://github.com/meganemura/runtag) job file: `running` or `exited`.
+`agent_status` on `in-dir`, `working`, and `agents` is `working`, `idle`, `blocked`, or `unknown`. `working` only returns agents that are working, so wait with `--until empty`. `claude-sessions` has `status`. `runs-in-dir` has `status` from a runtag job file: `running` or `exited`.
 
-Detach with `runtag exec --detach --cwd <repo> -- <cmd>...`, wait with `spacequery watch runs-in-dir --root <repo> --until status=exited`, then read `exit_code` with `runtag status <id>`. spacequery only reads `$XDG_DATA_HOME/runtag/jobs/<id>.json` (default `~/.local/share/runtag/jobs/`). A job that still says `running` after its supervisor pid died stays `running` with `orphan` 1 and `exit_code` null, and does not satisfy `status=exited`. A missing jobs directory is an empty answer (`runtag` `ok` 1). Doctor reports the same: unreadable jobs directory or an unparsable job file is `ok` 0.
+[runtag](https://github.com/meganemura/runtag) ([npm](https://www.npmjs.com/package/runtag)) records the job. [spacequery](https://github.com/meganemura/spacequery) ([npm](https://www.npmjs.com/package/spacequery)) reads the file and watches. Install runtag with `npm i -g runtag`. Record with `runtag exec --detach --cwd <repo> -- <cmd>...`, wait with `spacequery watch runs-in-dir --root <repo> --until status=exited`, then read `exit_code` with `runtag status <id>`. spacequery reads `$XDG_DATA_HOME/runtag/jobs/<id>.json` (default `~/.local/share/runtag/jobs/`). A job that still says `running` after its supervisor pid died stays `running` with `orphan` 1 and `exit_code` null, and does not satisfy `status=exited`. A missing jobs directory is an empty answer (`runtag` `ok` 1). Doctor reports the same: unreadable jobs directory or an unparsable job file is `ok` 0.
 
 `--interval` defaults to 2000 milliseconds. `--timeout` defaults to 300 seconds. `--timeout 0` waits until the predicate or a signal.
 
