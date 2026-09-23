@@ -9,7 +9,7 @@ import { dirname, join } from "node:path";
 // These inventories are useful when the tool is installed and unused noise
 // when it is not. Author-owned tools are in this set so a fresh machine does
 // not advertise them. Every other built-in provider stays on.
-export const providersOffByDefault = ["beads", "brew", "headsign", "runtag"] as const;
+export const providersOffByDefault = ["beads", "beads_ready", "brew", "headsign", "runtag"] as const;
 
 const offByDefault = new Set<string>(providersOffByDefault);
 
@@ -25,6 +25,7 @@ export const providerSummaries: Readonly<Record<string, string>> = {
   repository_versions: "Static version and lock files. On by default.",
   repository_config_files: "Recognized dependency and tool config files. On by default.",
   beads: "Open beads issues. Off until you enable it.",
+  beads_ready: "Claimable beads issues. Follows beads unless you set this name.",
   docker: "Containers and published ports. On by default.",
   sessions: "Live Claude Code and Codex sessions. On by default.",
   cursor: "Recent Cursor agent conversations and their models. On by default.",
@@ -57,6 +58,9 @@ export function emptyConfig(env: Readonly<Record<string, string | undefined>> = 
 
 export function isProviderEnabled(name: string, config: LoadedConfig): boolean {
   if (Object.hasOwn(config.overrides, name)) return config.overrides[name] === true;
+  // Ready issues are the same optional inventory as open issues. Enabling
+  // beads enables this loader unless the file names beads_ready itself.
+  if (name === "beads_ready") return isProviderEnabled("beads", config);
   return !offByDefault.has(name);
 }
 

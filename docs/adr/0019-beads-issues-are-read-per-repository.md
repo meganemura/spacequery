@@ -19,3 +19,4 @@ The loader reads open issues only and runs the calls concurrently.
 
 The provider costs about 0.6 seconds per repository in scope, with concurrent calls.
 A closed issue is absent because history needs a search tool.
+Claimable issues are a separate read (ADR 0045).

@@ -152,6 +152,7 @@ test("tablesRead finds every catalog query's declared tables", () => {
       "project-skills-with-agents": ["agents", "skills"],
       issues: ["issues"],
       "issues-in-scope": ["issues"],
+      "issues-ready": ["ready_issues"],
       "issues-with-agents": ["agents", "issues"],
       "issues-unattended": ["agents", "issues"],
       "runs-in-dir": ["runtag_jobs"],

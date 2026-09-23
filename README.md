@@ -15,6 +15,7 @@ It does not change them.
 
 ```sh
 spacequery here
+spacequery work
 spacequery in-dir --tsv
 spacequery agents-with-sessions
 spacequery watch in-dir --until empty

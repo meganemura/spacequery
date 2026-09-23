@@ -1,10 +1,31 @@
-// Provider: beads. It describes open issue rows from repository-local state.
-// Boundary: this table, its loading command, and single-provider queries.
+// Provider: beads. It describes open issue rows and claimable issue rows
+// from repository-local state. Claimable rows come from a separate command,
+// so a query that wants one does not wait for the other (ADR 0045).
+// Boundary: these tables, their loading commands, and single-provider queries.
 import { commands, queries, table } from "solarsql";
 import { generated } from "./solarsql.generated.ts";
 
 export const issues = table(`
   create table issues (
+    id text primary key not null,
+    root text not null,
+    issue_id text not null,
+    title text not null,
+    status text not null,
+    priority integer,
+    issue_type text,
+    assignee text,
+    labels text,
+    created_at integer,
+    updated_at integer,
+    dependency_count integer not null default 0,
+    dependent_count integer not null default 0,
+    comment_count integer not null default 0
+  ) strict
+`);
+
+export const readyIssues = table(`
+  create table ready_issues (
     id text primary key not null,
     root text not null,
     issue_id text not null,
@@ -29,10 +50,16 @@ export const beadsQueries = queries(generated, {
   // caller's scope; agent presence is not a filter on the rows.
   all: `select id, root, issue_id, title, status, priority, issue_type, assignee, labels, created_at, updated_at, dependency_count, dependent_count, comment_count
     from issues order by root, priority`,
+  // Claimable work is the queue. Priority within a root is the order beads uses.
+  ready: `select id, root, issue_id, title, status, priority, issue_type, assignee, labels, created_at, updated_at, dependency_count, dependent_count, comment_count
+    from ready_issues order by root, priority`,
 });
 
 export const beadsCommands = commands(generated, {
   loadIssues: { plan: [`insert or ignore into issues (id, root, issue_id, title, status, priority, issue_type, assignee, labels, created_at, updated_at, dependency_count, dependent_count, comment_count)
+    select value ->> 'id', value ->> 'root', value ->> 'issue_id', value ->> 'title', value ->> 'status', value ->> 'priority', value ->> 'issue_type', value ->> 'assignee', value ->> 'labels', value ->> 'created_at', value ->> 'updated_at', value ->> 'dependency_count', value ->> 'dependent_count', value ->> 'comment_count'
+    from json_each(:rows)`] },
+  loadReadyIssues: { plan: [`insert or ignore into ready_issues (id, root, issue_id, title, status, priority, issue_type, assignee, labels, created_at, updated_at, dependency_count, dependent_count, comment_count)
     select value ->> 'id', value ->> 'root', value ->> 'issue_id', value ->> 'title', value ->> 'status', value ->> 'priority', value ->> 'issue_type', value ->> 'assignee', value ->> 'labels', value ->> 'created_at', value ->> 'updated_at', value ->> 'dependency_count', value ->> 'dependent_count', value ->> 'comment_count'
     from json_each(:rows)`] },
 });

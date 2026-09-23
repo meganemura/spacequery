@@ -71,7 +71,22 @@ test("saving a provider keeps other keys and drops a value that matches the ship
     assert.deepEqual(saved.providers, { beads: true });
     const config = loadConfig(env);
     assert.equal(isProviderEnabled("beads", config), true);
+    assert.equal(isProviderEnabled("beads_ready", config), true);
     assert.equal(isProviderEnabled("git", config), true);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("an explicit beads_ready flag wins over the beads switch", () => {
+  const root = mkdtempSync(join(tmpdir(), "spacequery-config-"));
+  const directory = join(root, "config", "spacequery");
+  mkdirSync(directory, { recursive: true });
+  writeFileSync(join(directory, "config.json"), JSON.stringify({ providers: { beads: true, beads_ready: false } }));
+  try {
+    const config = loadConfig(envFor(root));
+    assert.equal(isProviderEnabled("beads", config), true);
+    assert.equal(isProviderEnabled("beads_ready", config), false);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

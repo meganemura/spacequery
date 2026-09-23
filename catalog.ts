@@ -3,6 +3,7 @@
 // curated short list. The statements live in the modules.
 // Boundary: the mapping only.
 import type { Entry, Query } from "solarsql";
+import type { Scope } from "./core/loader.ts";
 import { searchPathQueries } from "./providers/search-path/public.ts";
 import { herdrQueries } from "./providers/herdr/public.ts";
 import { gitQueries } from "./providers/git/public.ts";
@@ -30,6 +31,8 @@ export type Named = {
   group: string;
   purpose: string;
   default: boolean;
+  // When the caller omits --scope. A root parameter still defaults to root.
+  defaultScope?: Scope;
 };
 export type Report = {
   description: string;
@@ -38,6 +41,7 @@ export type Report = {
   default: boolean;
   sections: readonly (readonly [string, keyof typeof catalog])[];
   gateSection: string;
+  defaultScope?: Scope;
 };
 
 function named(
@@ -47,8 +51,9 @@ function named(
   group: string,
   purpose: string,
   curated = false,
+  defaultScope?: Scope,
 ): Named {
-  return { query, description, params, group, purpose, default: curated };
+  return { query, description, params, group, purpose, default: curated, ...(defaultScope === undefined ? {} : { defaultScope }) };
 }
 
 export const catalog: Readonly<Record<string, Named>> = {
@@ -99,7 +104,8 @@ export const catalog: Readonly<Record<string, Named>> = {
   "skills-in-dir": named(skillsQueries.inDir, "The skills an agent can use in one repository.", ["root"], "Skills", "When you need the skills an agent can use in one repository.", true),
   "plugins": named(skillsQueries.plugins, "Every installed plugin, with its version.", [], "Skills", "When you need installed plugins and their versions."),
   "issues": named(beadsQueries.open, "Open beads issues of one repository.", ["root"], "Issues", "When you pick up a repository and need its open beads issues.", true),
-  "issues-in-scope": named(beadsQueries.all, "Open beads issues across repositories in scope, one row per issue.", [], "Issues", "When you want a work list of open beads issues across projects. Use --scope all so every in-scope root with .beads is included; --scope agents is an optional narrowing to roots that have an agent."),
+  "issues-in-scope": named(beadsQueries.all, "Open beads issues across repositories in scope, one row per issue.", [], "Issues", "When you want open beads issues across projects. Omitting --scope reads every ghq root with .beads. --scope agents narrows to roots that have an agent.", true, "all"),
+  "issues-ready": named(beadsQueries.ready, "Claimable beads issues across repositories in scope, one row per issue.", [], "Issues", "When you want claimable beads issues across projects. Omitting --scope reads every ghq root with .beads. --scope agents narrows to roots that have an agent.", true, "all"),
   "issues-with-agents": named(reportQueries.issuesWithAgents, "Repositories with an agent and their open beads issues.", [], "Issues", "When you want open beads issues in repositories that have an agent."),
   "issues-unattended": named(reportQueries.issuesUnattended, "Repositories with open beads issues and no agent.", [], "Issues", "When open beads issues have no agent in the repository.", true),
   "workflow": named(headsignQueries.inDir, "The headsign run of one repository.", ["root"], "Workflows", "When you pick up a repository and need its headsign run.", true),
@@ -159,6 +165,20 @@ export const reports = {
     default: false,
     sections: [["shared", "shared-dependencies"], ["coverage", "dependency-coverage"], ["sources", "repository-version-sources"]],
     gateSection: "shared",
+  },
+  work: {
+    description: "Claimable beads issues, open beads issues, herdr agents with their session models, and recent local Cursor agents.",
+    purpose: "When you want claimable beads issues, the open work list, and the models of herdr and Cursor agents.",
+    group: "Reports",
+    default: true,
+    defaultScope: "all",
+    sections: [
+      ["ready", "issues-ready"],
+      ["issues", "issues-in-scope"],
+      ["agents", "agents-with-sessions"],
+      ["cursor", "cursor-agents"],
+    ],
+    gateSection: "agents",
   },
 } as const satisfies Readonly<Record<string, Report>>;
 

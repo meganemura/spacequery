@@ -22,13 +22,13 @@ test("help prints the short list and --all prints every enabled query", async ()
   try {
     const { stdout } = await execFileAsync(process.execPath, ["cli.ts", "--help"], { cwd: process.cwd(), encoding: "utf8", env });
     const names = stdout.split("\n").filter((line) => line.startsWith("  ") && !line.startsWith("  spacequery")).map((line) => line.trim().split(/\s+/)[0]!);
-    const queries = names.filter((name) => name !== "here");
+    const queries = names.filter((name) => name !== "here" && name !== "work" && name !== "dependency-report");
     assert.ok(queries.length <= 25, queries.join(","));
     assert.ok(queries.includes("in-dir"));
     assert.equal(queries.includes("issues"), false);
     assert.equal(queries.includes("runs-in-dir"), false);
     assert.match(stdout, /--help --all/);
-    assert.match(stdout, /beads, brew, headsign, runtag/);
+    assert.match(stdout, /beads, beads_ready, brew, headsign, runtag/);
     assert.equal(names.includes("here"), true);
     assert.equal(names.includes("dependency-report"), false);
     const full = await execFileAsync(process.execPath, ["cli.ts", "--help", "--all"], { cwd: process.cwd(), encoding: "utf8", env });
@@ -59,7 +59,7 @@ test("JSON help is short by default and --all carries the catalog fields", async
       reports: { name: string; sections?: [string, string][]; requires: string[]; enabled: boolean; source: string }[];
     };
     assert.equal(document.mode, "short");
-    assert.deepEqual(document.disabled_providers, ["beads", "brew", "headsign", "runtag"]);
+    assert.deepEqual(document.disabled_providers, ["beads", "beads_ready", "brew", "headsign", "runtag"]);
     assert.equal(document.queries.some((query) => query.name === "issues"), false);
     const agents = document.queries.find((query) => query.name === "agents");
     assert.equal(agents?.source, "built-in");
@@ -70,7 +70,7 @@ test("JSON help is short by default and --all carries the catalog fields", async
     assert.equal(agents?.default, true);
     assert.equal(agents?.enabled, true);
     assert.deepEqual(agents?.requires, ["herdr"]);
-    assert.equal(document.reports[0]?.name, "here");
+    assert.deepEqual(document.reports.map((report) => report.name), ["here", "work"]);
     assert.equal(document.reports[0]?.enabled, true);
     assert.ok(document.reports[0]?.requires.includes("herdr"));
     const full = JSON.parse((await execFileAsync(process.execPath, ["cli.ts", "--help", "--json", "--all"], { cwd: process.cwd(), encoding: "utf8", env })).stdout) as { mode: string; queries: { name: string }[] };
@@ -461,6 +461,75 @@ test("query documentation names every catalog query", async () => {
   assert.deepEqual(names, new Set(Object.keys(catalog)));
 });
 
+
+test("work-list commands default to every ghq beads root", async () => {
+  const home = mkdtempSync(join(tmpdir(), "spacequery-cli-work-"));
+  const alpha = join(home, "alpha");
+  const gamma = join(home, "gamma");
+  const bin = join(home, "bin");
+  mkdirSync(join(alpha, ".beads"), { recursive: true });
+  mkdirSync(join(gamma, ".beads"), { recursive: true });
+  mkdirSync(join(alpha, ".git"), { recursive: true });
+  mkdirSync(join(gamma, ".git"), { recursive: true });
+  mkdirSync(join(home, ".claude", "sessions"), { recursive: true });
+  mkdirSync(bin);
+  const open = {
+    [alpha]: [{ id: "alpha-1", title: "Alpha open", status: "open", priority: 1 }],
+    [gamma]: [{ id: "gamma-1", title: "Gamma open", status: "open", priority: 2 }],
+  };
+  const ready = { [alpha]: [], [gamma]: [{ id: "gamma-1", title: "Gamma open", status: "open", priority: 2 }] };
+  const snapshot = { result: { snapshot: { agents: [{ pane_id: "pane-alpha", agent: "claude", agent_status: "working", cwd: alpha, name: "Alpha" }] } } };
+  writeFileSync(join(bin, "ghq"), `#!/usr/bin/env node\nprocess.stdout.write(${JSON.stringify(`${alpha}\n${gamma}\n`)});\n`);
+  writeFileSync(join(bin, "herdr"), `#!/usr/bin/env node\nprocess.stdout.write(${JSON.stringify(JSON.stringify(snapshot))});\n`);
+  writeFileSync(join(bin, "lsof"), "#!/bin/sh\nexit 0\n");
+  writeFileSync(join(bin, "bd"), `#!/usr/bin/env node
+const args = process.argv.slice(2);
+const root = args[args.indexOf("-C") + 1];
+const ready = args.includes("ready");
+if (ready && args[args.indexOf("--limit") + 1] !== "0") process.exit(2);
+const rows = (ready ? ${JSON.stringify(ready)} : ${JSON.stringify(open)})[root];
+if (!rows) process.exit(1);
+process.stdout.write(JSON.stringify(rows));
+`);
+  for (const name of ["ghq", "herdr", "lsof", "bd"]) chmodSync(join(bin, name), 0o755);
+  const env: NodeJS.ProcessEnv = {
+    ...process.env,
+    HOME: home,
+    PATH: `${bin}:${process.env.PATH ?? ""}`,
+    XDG_CONFIG_HOME: join(home, "config"),
+    XDG_STATE_HOME: join(home, "state"),
+  };
+  delete env.HERDR_PANE_ID;
+  delete env.CLAUDE_CODE_SESSION_ID;
+  const run = (args: string[]) => execFileAsync(process.execPath, ["cli.ts", ...args], { cwd: process.cwd(), encoding: "utf8", env });
+  try {
+    const wide = JSON.parse((await run(["issues-in-scope"])).stdout);
+    assert.equal(wide.scope, "all");
+    assert.deepEqual(wide.rows.map((row: { issue_id: string }) => row.issue_id), ["alpha-1", "gamma-1"]);
+    assert.deepEqual(wide.providers.map((provider: { name: string }) => provider.name), ["beads", "herdr", "repos"]);
+    const narrow = JSON.parse((await run(["issues-in-scope", "--scope", "agents"])).stdout);
+    assert.equal(narrow.scope, "agents");
+    assert.deepEqual(narrow.rows.map((row: { issue_id: string }) => row.issue_id), ["alpha-1"]);
+    assert.deepEqual(narrow.providers.map((provider: { name: string }) => provider.name), ["beads", "herdr"]);
+    const claimable = JSON.parse((await run(["issues-ready"])).stdout);
+    assert.equal(claimable.scope, "all");
+    assert.deepEqual(claimable.rows.map((row: { root: string; issue_id: string }) => [row.root, row.issue_id]), [[gamma, "gamma-1"]]);
+    assert.deepEqual(claimable.providers.map((provider: { name: string }) => provider.name), ["beads_ready", "herdr", "repos"]);
+    const board = JSON.parse((await run(["work"])).stdout);
+    assert.equal(board.scope, "all");
+    assert.deepEqual(Object.keys(board.sections), ["ready", "issues", "agents", "cursor"]);
+    assert.deepEqual(board.sections.ready.map((row: { issue_id: string }) => row.issue_id), ["gamma-1"]);
+    assert.deepEqual(board.sections.issues.map((row: { issue_id: string }) => row.issue_id), ["alpha-1", "gamma-1"]);
+    assert.equal(board.sections.agents[0].pane_id, "pane-alpha");
+    assert.equal(board.sections.agents[0].model, null);
+    assert.deepEqual(board.sections.cursor, []);
+    assert.deepEqual(board.providers.map((provider: { name: string; ok: number }) => [provider.name, provider.ok]), [
+      ["beads", 1], ["beads_ready", 1], ["cursor", 1], ["herdr", 1], ["repos", 1], ["sessions", 1],
+    ]);
+  } finally {
+    rmSync(home, { recursive: true, force: true });
+  }
+});
 
 test("JSON row_count counts returned rows after filtering and limits", async () => {
   const { stdout } = await execFileAsync(process.execPath, ["cli.ts", "--sql", "select 1 as x union all select 2 union all select 3 limit 2"], { encoding: "utf8" });

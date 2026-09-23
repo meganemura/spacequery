@@ -39,9 +39,10 @@ test("the ship default short list is the visible curated queries", () => {
     assert.equal(names.includes("cursor-agents"), false);
     assert.equal(names.includes("issues"), false);
     assert.equal(names.includes("issues-in-scope"), false);
+    assert.equal(names.includes("issues-ready"), false);
     assert.equal(names.includes("runs-in-dir"), false);
     assert.equal(names.includes("brew-packages"), false);
-    assert.deepEqual(document.reports.map((report) => report.name), ["here"]);
+    assert.deepEqual(document.reports.map((report) => report.name), ["here", "work"]);
     for (const query of document.queries) {
       assert.equal(query.enabled, true, query.name);
       assert.ok(query.group, query.name);
@@ -52,6 +53,7 @@ test("the ship default short list is the visible curated queries", () => {
     assert.ok(full.queries.length > names.length);
     assert.equal(full.queries.some((query) => query.name === "issues"), false);
     assert.equal(full.queries.some((query) => query.name === "issues-in-scope"), false);
+    assert.equal(full.queries.some((query) => query.name === "issues-ready"), false);
     assert.equal(full.queries.some((query) => query.name === "repos"), true);
     const cursorAgents = full.queries.find((query) => query.name === "cursor-agents");
     assert.equal(cursorAgents?.group, "Cursor");
@@ -59,9 +61,11 @@ test("the ship default short list is the visible curated queries", () => {
     assert.equal(cursorAgents?.enabled, true);
     assert.deepEqual(cursorAgents?.requires, ["cursor"]);
     const curated = Object.entries(catalog).filter(([, query]) => query.default).map(([name]) => name);
-    assert.equal(curated.length, 25);
+    assert.equal(curated.length, 27);
     assert.ok(curated.includes("issues"));
     assert.equal(reports.here.default, true);
+    assert.equal(reports.work.default, true);
+    assert.equal(reports.work.defaultScope, "all");
     assert.equal(reports["dependency-report"].default, false);
   } finally {
     rmSync(root, { recursive: true, force: true });
@@ -80,11 +84,13 @@ test("enabling an optional provider returns its curated queries, and calls fill 
     const document = helpDocument({ userQueries: [], env, mode: "short", loaders, config: loadConfig(env) });
     assert.deepEqual(document.disabled_providers, []);
     assert.equal(document.queries.some((query) => query.name === "issues"), true);
-    assert.equal(document.queries.some((query) => query.name === "issues-in-scope"), false);
+    assert.equal(document.queries.some((query) => query.name === "issues-in-scope"), true);
+    assert.equal(document.queries.some((query) => query.name === "issues-ready"), true);
     assert.equal(document.queries.some((query) => query.name === "runs-in-dir"), true);
     assert.equal(document.queries.some((query) => query.name === "workflow"), true);
     assert.equal(document.queries.some((query) => query.name === "repos"), false);
-    assert.equal(document.queries.length, shortHelpLimit);
+    assert.equal(document.queries.length, Object.values(catalog).filter((query) => query.default).length);
+    assert.ok(document.queries.length > shortHelpLimit);
     recordCall(env, "repos");
     recordCall(env, "repos");
     const fresh = helpDocument({ userQueries: [], env, mode: "short", loaders, config: loadConfig({ ...env, XDG_CONFIG_HOME: join(root, "absent") }) });
@@ -99,14 +105,20 @@ test("enabling an optional provider returns its curated queries, and calls fill 
     });
     assert.equal(hidden.queries.some((query) => query.name === "issues"), false);
     assert.equal(hidden.queries.some((query) => query.name === "issues-in-scope"), false);
+    assert.equal(hidden.queries.some((query) => query.name === "issues-ready"), false);
     const listed = helpDocument({ userQueries: [], env, mode: "all", loaders, config: loadConfig(env) });
     const workList = listed.queries.find((query) => query.name === "issues-in-scope");
     assert.equal(workList?.group, "Issues");
-    assert.equal(workList?.default, false);
+    assert.equal(workList?.default, true);
     assert.equal(workList?.enabled, true);
     assert.deepEqual(workList?.requires, ["beads"]);
-    assert.match(workList?.purpose ?? "", /--scope all/);
+    assert.match(workList?.purpose ?? "", /Omitting --scope/);
     assert.match(workList?.purpose ?? "", /--scope agents/);
+    const ready = listed.queries.find((query) => query.name === "issues-ready");
+    assert.equal(ready?.default, true);
+    assert.deepEqual(ready?.requires, ["beads_ready"]);
+    assert.equal(catalog["issues-in-scope"]?.defaultScope, "all");
+    assert.equal(catalog["issues-ready"]?.defaultScope, "all");
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
@@ -119,6 +131,7 @@ test("the skill table is the curated set, including here", async () => {
   const rows = [...table.matchAll(/^\| `([^`]+)` \|[^|]*\| ([^|]+) \|/gm)].map((match) => [match[1]!, match[2]!.trim()] as const);
   const curated = new Map<string, string>([
     ["here", reports.here.purpose],
+    ["work", reports.work.purpose],
     ...Object.entries(catalog).filter(([, query]) => query.default).map(([name, query]) => [name, query.purpose] as const),
   ]);
   assert.deepEqual(new Set(rows.map(([name]) => name)), new Set(curated.keys()));

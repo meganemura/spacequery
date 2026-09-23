@@ -14,7 +14,7 @@ import { realpathSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs, type ParseArgsOptionsConfig } from "node:util";
-import { catalog, reportParams, reports } from "./catalog.ts";
+import { catalog, reportParams, reports, type Report } from "./catalog.ts";
 import { callsPath, recordCall } from "./core/calls.ts";
 import { loadConfig, unknownProviderWarnings, type HelpMode } from "./core/config.ts";
 import { doctorGuidance, runDoctor, type DoctorGuidance } from "./core/doctor.ts";
@@ -66,6 +66,7 @@ function usage(userQueries: readonly UserQuery[], userProviders: readonly UserPr
     ...reportLines,
     "",
     "A root-bound query defaults to --scope root. --scope agents uses roots with an agent; --scope all also uses every ghq root.",
+    "issues-in-scope, issues-ready, and work default to --scope all. --scope agents narrows them to roots with an agent.",
     "--root defaults to the git toplevel of the current directory.",
     "--me excludes one pane; by default the caller's own pane, found from the environment.",
     "--trace lists every child process of the call, with its provider, start offset, and duration.",
@@ -298,6 +299,8 @@ async function main(argv: string[]): Promise<number> {
     console.error(`spacequery: ${requestedName} supports --scope agents or all`);
     return 2;
   }
+  const selectedReport: Report | undefined = report;
+  const effectiveScope = scope ?? selectedReport?.defaultScope ?? named?.defaultScope;
   // Keep the same parameter names intact when the CLI passes them to SQLite.
   const params: Record<string, unknown> = Object.create(null);
   if (me !== undefined) params["me"] = me === "" ? null : me;
@@ -315,7 +318,7 @@ async function main(argv: string[]): Promise<number> {
     // The two flags are the two parameters a statement can name. Any other
     // `:name` is an error from the core.
     if (/:root\b/.test(sql)) params["root"] = toplevel(root ?? process.cwd());
-    runOnce = () => runSql(sql, { loaders, userProviders, scope, params });
+    runOnce = () => runSql(sql, { loaders, userProviders, scope: effectiveScope, params });
   } else if (requestedName === undefined) {
     console.error(`spacequery: watch needs a query and --until\n\n${usage(userQueries, userProviders, process.env, "short")}`);
     return 2;
@@ -332,7 +335,7 @@ async function main(argv: string[]): Promise<number> {
     if (userQuery.params.includes("root")) params["root"] = toplevel(root ?? process.cwd());
     bindQueryParams(parameters, values, params, watching);
     const userSql = userQuery.sql;
-    runOnce = () => runSql(userSql, { loaders, userProviders, scope, params });
+    runOnce = () => runSql(userSql, { loaders, userProviders, scope: effectiveScope, params });
   } else if (named) {
     name = requestedName;
     if (named.params.includes("root")) params["root"] = rootOnlyRepositoryQueries.has(named)
@@ -340,7 +343,7 @@ async function main(argv: string[]): Promise<number> {
       : toplevel(root ?? process.cwd());
     bindQueryParams(parameters, values, params, watching);
     const query = named.query;
-    runOnce = () => runQuery(query, { loaders, userProviders, scope, params });
+    runOnce = () => runQuery(query, { loaders, userProviders, scope: effectiveScope, params });
   } else {
     throw new Error(`no query named ${requestedName}`);
   }
@@ -352,7 +355,7 @@ async function main(argv: string[]): Promise<number> {
   }
   if (!watching) {
     if (report) {
-      const reportResult = await runReport(report.sections.map(([section, query]) => [section, catalog[query]!.query] as const), { loaders, userProviders, scope, params });
+      const reportResult = await runReport(report.sections.map(([section, query]) => [section, catalog[query]!.query] as const), { loaders, userProviders, scope: effectiveScope, params });
       recordCall(process.env, name);
       if (values["tsv"] === true) {
         process.stdout.write(reportTsv(reportResult.sections));
@@ -396,7 +399,8 @@ function doctorUsage(): string {
     "",
     "Reports the package and whether each enabled built-in provider answered, for one root.",
     "Providers that are off in config are listed in disabled_providers and are not loaded.",
-    "beads, brew, headsign, and runtag are off until config.json enables them.",
+    "beads, beads_ready, brew, headsign, and runtag are off until config.json enables them.",
+    "Enabling beads also enables beads_ready unless the file sets beads_ready itself.",
     "JSON is the output. --json selects that same document.",
     "--root defaults to the git toplevel of the current directory.",
     "A missing user-provider directory is present 0. Doctor does not run user-provider commands and does not install tools.",

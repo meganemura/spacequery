@@ -14,6 +14,14 @@ Columns marked `?` can be null.
 (`containers-in-dir`), `container_ports` (`container-ports-in-dir`), `tools`
 (`tools-in-dir`), `issues`, and `workflow`.
 
+`work` runs `ready` (`issues-ready`), `issues` (`issues-in-scope`), `agents`
+(`agents-with-sessions`), and `cursor` (`cursor-agents`).
+It defaults to `--scope all`, so the issue sections include every ghq root with `.beads`.
+`--scope agents` narrows those sections and does not start ghq.
+Herdr, ghq, sessions, and the Cursor database load together; the two beads commands start after the roots are known.
+`--expect-empty` checks the `agents` section.
+`model` on `agents` is the Claude or Codex model for that pane. `model` on `cursor` is the local IDE model. Cloud Cursor agents are not in `cursor`.
+
 ## Agents (herdr)
 
 | Query | Parameters | Columns |
@@ -252,13 +260,14 @@ to keep it distinct from a Claude Code plugin with the same marketplace ID.
 | --- | --- | --- |
 | `issues` | `root` | `id`, `root`, `issue_id`, `title`, `status`, `priority?`, `issue_type?`, `assignee?`, `labels?`, `created_at?`, `updated_at?`, `dependency_count`, `dependent_count`, `comment_count` |
 | `issues-in-scope` | | the same columns, for every repository in scope, ordered by `root`, `priority` |
+| `issues-ready` | | the same columns, for claimable issues in every repository in scope, ordered by `root`, `priority` |
 | `issues-with-agents` | | `root`, `open_issues`, `top_priority?`, `agents` |
 | `issues-unattended` | | `root`, `open_issues`, `top_priority?` |
 
 `issues` reads open beads issues for one root. `issues-in-scope` is the same rows for every repository the call loaded, including a root with no agent.
-Use `--scope all` for a work list across projects: it includes every ghq root that has `.beads`. Herdr and ghq load together, then beads.
+`issues-in-scope` and `issues-ready` take no `--root`. Omitting `--scope` uses `all`: every ghq root that has `.beads`. Herdr and ghq load together, then beads.
 `--scope agents` narrows that load to roots that have an agent and does not start ghq.
-This query takes no `--root`, so a call that omits `--scope` uses `agents`.
+`issues-ready` reads `bd ready` for each of those roots. A claimable issue has no open blockers. The command asks for every row (`--limit 0`) and does not claim one.
 `labels` joins label values with commas.
 `agents` in the count queries excludes `me`.
 

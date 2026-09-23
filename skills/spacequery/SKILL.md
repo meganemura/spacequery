@@ -33,7 +33,7 @@ Exact provider JSON names and their state sources: [references/providers.md](ref
 
 Before you assume empty means none, run `spacequery doctor` when setup is unclear or a provider looks incomplete.
 Doctor loads every enabled built-in provider once on one root, the git toplevel or `--root`, and prints JSON.
-`beads`, `brew`, `headsign`, and `runtag` are off until `$XDG_CONFIG_HOME/spacequery/config.json` enables them. Doctor lists those names in `disabled_providers` and does not load them.
+`beads`, `beads_ready`, `brew`, `headsign`, and `runtag` are off until `$XDG_CONFIG_HOME/spacequery/config.json` enables them. Setting `beads` to true also enables `beads_ready` unless the file sets `beads_ready` itself. Doctor lists the names that stay off in `disabled_providers` and does not load them.
 Read the report's `ok`, then each provider's `ok` and `error`.
 A provider with `ok` 0 left its tables empty. The `error` says why, such as a missing binary.
 A missing runtag jobs directory is `ok` 1 and an empty table. An unreadable jobs directory, or a job file that does not parse, is `ok` 0.
@@ -85,6 +85,7 @@ The predicate, the fingerprint, and the exit codes: [references/output.md](refer
    Use `claude-usage` and `codex-usage` for quota percentages and reset information. Check record times; Codex reads bounded tails of recently modified local logs.
    Use `claude-sessions` and `codex-sessions` for effort and the rest of the local session record.
    `cursor-agents` lists recent Cursor conversations from the local IDE database, including each conversation's model. It does not list cloud agents.
+   `work` puts claimable beads issues, the open work list, herdr agents with their session models, and those Cursor agents in one call. It defaults to `--scope all`.
    Claude metadata describes a recent response in the transcript tail; `metadata_at` gives its time. Unavailable values stay null.
 3. **When you look for a place to work**: `idle-worktrees` (a worktree with nobody in it), `dirty-unattended` (changes nobody is tending).
 4. **When a tool is missing or the wrong version**: `which-in-dir`, `which`, `path-entries`, `shadowed-commands`, `tools-in-dir`, `repository-versions`, `missing-tools-with-agents`, `tool-versions-split`.
@@ -96,7 +97,8 @@ The predicate, the fingerprint, and the exit codes: [references/output.md](refer
 7. **Before you start a server, a watcher, or a build**: `ports-in-dir`, `processes-in-dir`, and `container-ports-in-dir`; use `servers-with-agents` for host listeners. `ports-in-dir` shows the current checkout for the listener's working directory. It does not identify the commit loaded when the server started.
 8. **When you wonder which skill applies here, or whether a name collides**: `skills-in-dir`, `duplicate-skill-names`.
 9. **When you pick up a repository**: `issues` and `workflow` for its root; use `running-workflows-unattended` and `issues-unattended` for work nobody holds.
-   For a work list across projects, `issues-in-scope --scope all` reads every ghq root that has `.beads`, whether or not an agent is in that repository. Herdr and ghq load together, then beads. `--scope agents` narrows the same list to roots that have an agent and does not start ghq. A call that omits `--scope` uses `agents`, because this query takes no `--root`.
+   For a work list across projects, `issues-in-scope` reads every ghq root that has `.beads`, whether or not an agent is in that repository. Omitting `--scope` uses `all`. Herdr and ghq load together, then beads. `--scope agents` narrows the same list to roots that have an agent and does not start ghq.
+   `issues-ready` is the claimable subset of that list: `bd ready` for each root, no open blockers. It uses the same scope default. `work` shows that queue, the open list, and agent models together.
 10. **When you wait for a detached runtag command**: [runtag](https://github.com/meganemura/runtag) ([npm](https://www.npmjs.com/package/runtag)) records with `runtag exec --detach --cwd <repo> -- <cmd>...` and writes a job file with `id`. Then `spacequery watch runs-in-dir --root <repo> --until status=exited`. When that exits 0, `runtag status <id>` reads `exit_code`. spacequery reads the files and watches. An orphan stays `running` and does not satisfy the wait.
 11. **Before you choose a dependency or tool parser**: `repository-config-files --root DIR`. It inventories recognized file names without interpreting their bodies.
 
@@ -109,11 +111,12 @@ The table is the curated set. It is not one machine's call history.
 `spacequery --help` prints these after it drops any query whose provider is off, then adds queries this machine calls often, up to about 25. The call log only ranks that list.
 `spacequery --help --json` is the same list as data, with `group`, `purpose`, `default`, `enabled`, and `requires`.
 `spacequery --help --all` and `spacequery --help --all --json` list every enabled query. The columns for the rest are in [references/queries.md](references/queries.md).
-`beads`, `brew`, `headsign`, and `runtag` are off until you set them to `true` under `providers` in `$XDG_CONFIG_HOME/spacequery/config.json` (`~/.config/spacequery/config.json` when the variable is unset). A named query and `--sql` still run when the provider is off in the list.
+`beads`, `beads_ready`, `brew`, `headsign`, and `runtag` are off until you set them to `true` under `providers` in `$XDG_CONFIG_HOME/spacequery/config.json` (`~/.config/spacequery/config.json` when the variable is unset). Setting `beads` to true also enables `beads_ready` unless the file sets `beads_ready` itself. A named query and `--sql` still run when the provider is off in the list.
 
 | Query | Parameter | When |
 | --- | --- | --- |
 | `here` | `--root` | When you start work in a repository and want the other agents, the checkout, and what is already running. |
+| `work` | | When you want claimable beads issues, the open work list, and the models of herdr and Cursor agents. |
 | `agents` | | When you need every hosted agent and the repository it sits in. |
 | `in-dir` | `--root` | When you are about to work in a repository and need to see who else is there. |
 | `working` | | When you need the agents that are working right now. |
@@ -135,6 +138,8 @@ The table is the curated set. It is not one machine's call history.
 | `containers-in-dir` | `--root` | When you need the containers associated with one repository. |
 | `skills-in-dir` | `--root` | When you need the skills an agent can use in one repository. |
 | `issues` | `--root` | When you pick up a repository and need its open beads issues. |
+| `issues-in-scope` | | When you want open beads issues across projects. Omitting --scope reads every ghq root with .beads. --scope agents narrows to roots that have an agent. |
+| `issues-ready` | | When you want claimable beads issues across projects. Omitting --scope reads every ghq root with .beads. --scope agents narrows to roots that have an agent. |
 | `issues-unattended` | | When open beads issues have no agent in the repository. |
 | `running-workflows-unattended` | | When a headsign workflow is running with no agent in the repository. |
 | `workflow` | `--root` | When you pick up a repository and need its headsign run. |

@@ -188,7 +188,7 @@ When `runtag` is enabled, a missing jobs directory is `ok` 1. An unreadable jobs
   ],
   "path": { "entries": 12, "missing": 3, "duplicates": 1 },
   "user_providers": { "directory": "/home/u/.config/spacequery/providers", "present": 0, "error": null },
-  "disabled_providers": ["beads", "brew", "headsign", "runtag"],
+  "disabled_providers": ["beads", "beads_ready", "brew", "headsign", "runtag"],
   "config": "/home/u/.config/spacequery/config.json"
 }
 ```
@@ -226,13 +226,13 @@ Both of those print this object and no stack:
 | `--root DIR` | The repository for a query or report that takes `root`. Default: the git toplevel of the current directory, or the directory itself outside a repository. A query that takes `--root` runs the loaders on that root alone by default (`--scope root`); `--scope agents` widens to every repository with an agent, `--scope all` to every ghq repository. |
 | `--scope root` | Repository-scoped loaders run on the root bound to the query. |
 | `--scope agents` | Repository-scoped loaders run on the repositories that have an agent. |
-| `--scope all` | git, mise, repository_versions, processes, beads, headsign, skills, and github also run on every ghq repository. Several seconds. |
+| `--scope all` | git, mise, repository_versions, processes, beads, beads_ready, headsign, skills, and github also run on every ghq repository. Several seconds. `issues-in-scope`, `issues-ready`, and `work` use this scope when `--scope` is omitted. |
 | `--me PANE` | The pane to exclude. Default: the caller's own pane, from `HERDR_PANE_ID`, then `CLAUDE_CODE_SESSION_ID` matched to a session, then the pane herdr has in focus. `--me ""` keeps every pane. |
 | `--tsv` | Rows only, tab separated. A report prints named sections. |
 | `--json` | The default. |
 | `--trace` | List every child process with its provider, command, executable path, full arguments, directory, start offset, duration, and result. JSON adds `trace`; TSV writes it to standard error. |
 | `--<name> VALUE` | A parameter of a built-in or user query, bound as text. |
-| `--expect-empty` | Exit 3 after output when the query or report gate section returned rows. `here` uses `agents`. `dependency-report` uses `shared`. On watch, this applies to the snapshot that satisfied `--until`. |
+| `--expect-empty` | Exit 3 after output when the query or report gate section returned rows. `here` and `work` use `agents`. `dependency-report` uses `shared`. On watch, this applies to the snapshot that satisfied `--until`. |
 | `--strict` | Exit 4 after output when a provider did not answer. On watch, the first incomplete observation exits 4 instead of waiting. |
 | `--until <predicate>` | Watch only. `empty`, `nonempty`, or `<column>=<value>[|<value>...]`. Required with `watch`. |
 | `--interval <ms>` | Watch only. Milliseconds between ticks. Default 2000. |
@@ -240,6 +240,7 @@ Both of those print this object and no stack:
 | `--help` | The short list: curated queries union the ones this machine calls most, after providers that are off are removed, capped at about 25. Curated queries stay when they exceed the cap. `--help --all` lists every enabled query. `--help --short` forces the short list when config asks for `all`. `--help --json` prints the same selection as a document with `mode`, `config`, `disabled_providers`, `queries`, and `reports`. Each entry has `group`, `purpose`, `default`, `enabled`, `requires`, `params`, and `source`. A report's `enabled` follows its gate section. Its `requires` lists every provider the sections read, so `here` can stay listed while beads is off. |
 
 A query that takes `--root` runs the loaders on that root alone by default (`--scope root`); `--scope agents` widens to every repository with an agent, `--scope all` to every ghq repository.
+`issues-in-scope`, `issues-ready`, and `work` take no `--root` and default to `--scope all`. `--scope agents` narrows them to roots with an agent.
 
 spacequery records call counts in `$XDG_STATE_HOME/spacequery/calls.jsonl`, or `~/.local/state/spacequery/calls.jsonl` when the variable is unset.
 

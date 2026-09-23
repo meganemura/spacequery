@@ -4,9 +4,11 @@ The format follows Keep a Changelog, and the versions follow SemVer. Before 1.0 
 
 ## Unreleased
 
+- Changed: `issues-in-scope` defaults to `--scope all`. A call that omits `--scope` lists open beads issues in every ghq root that has `.beads`, including a root with no agent. `--scope agents` narrows that list and does not start ghq.
+- Added: `issues-ready` lists claimable beads issues from `bd ready --json --limit 0` for each in-scope root with `.beads`. It defaults to `--scope all`. `--scope agents` narrows it. `beads_ready` follows the beads on/off switch unless config sets `beads_ready` itself.
+- Added: `work` reports claimable issues, the open work list, herdr agents with their session models, and recent local Cursor agents. It defaults to `--scope all` and loads only those providers. `--expect-empty` checks the `agents` section.
 - Changed: independent providers load concurrently. A named query still loads only the providers whose tables it reads. `--scope agents` does not start ghq for beads, git, and the other repository readers; `--scope all` starts herdr and ghq together, then those readers. The statement waits until the loaders it needs have finished.
 - Added: `cursor-agents` lists the newest 32 Cursor agent conversations from the local IDE database, including model, status, and repository when that database records them. Cloud agents are not in this table.
-- Added: `issues-in-scope` lists open beads issues across repositories in scope. `--scope all` includes every ghq root that has `.beads`, including roots with no agent. `--scope agents` narrows that list.
 - Fixed: `agents-with-sessions` `model` is the Claude transcript model or the Codex thread model for that pane.
 - Changed: `spacequery --help` and `spacequery --help --json` print a short list: the curated queries, plus the ones this machine calls most, after providers that are off are removed. The cap is 25. Curated queries stay when they pass it. `--help --all` lists every enabled query. Each entry has a group and a purpose.
 - Changed: `$XDG_CONFIG_HOME/spacequery/config.json` turns built-in providers on or off for lists and for doctor. A missing file leaves core providers on and leaves `beads`, `brew`, `headsign`, and `runtag` off. A named query and `--sql` still run.

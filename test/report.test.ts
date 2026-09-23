@@ -1,13 +1,16 @@
 // These tests prove reports load every required provider once, then run their
 // ordered sections against one fixture database. They do not render the CLI.
 import assert from "node:assert/strict";
+import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { test } from "node:test";
 import { catalog, reports } from "../catalog.ts";
 import type { Exec } from "../core/loader.ts";
 import { providerQueries } from "../core/providers/public.ts";
 import { runReport } from "../core/run.ts";
 import { loaders } from "../spacequery.config.ts";
-import { fakeExec, fixtureRepo, paneIds, paths } from "./fixture.ts";
+import { fakeExec, fixtureRepo, paneIds, paths, repoForRoots } from "./fixture.ts";
 
 const hereSections = reports.here.sections.map(([section, query]) => [section, catalog[query]!.query] as const);
 
@@ -174,6 +177,72 @@ test("a dependency failure stays in report providers for widened scope", async (
     { name: "herdr", ok: 1, error: null },
     { name: "repos", ok: 0, error: "spawn ghq ENOENT" },
   ]);
+});
+
+test("work shows claimable issues, the open list, and agent models from one load", async () => {
+  const home = mkdtempSync(join(tmpdir(), "spacequery-work-"));
+  const alpha = join(home, "alpha");
+  const gamma = join(home, "gamma");
+  mkdirSync(join(alpha, ".beads"), { recursive: true });
+  mkdirSync(join(gamma, ".beads"), { recursive: true });
+  mkdirSync(join(home, ".claude", "sessions"), { recursive: true });
+  const calls: string[] = [];
+  let inFlight = 0;
+  let maxBeads = 0;
+  const issue = (id: string, priority: number) => ({ id, title: id, status: "open", priority, issue_type: "task", labels: [], created_at: "2026-09-10T00:00:00.000Z", updated_at: "2026-09-10T01:00:00.000Z" });
+  const exec: Exec = async (command, args) => {
+    calls.push([command, ...args].join(" "));
+    if (command === "bd") {
+      inFlight += 1;
+      maxBeads = Math.max(maxBeads, inFlight);
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      inFlight -= 1;
+      const root = args[1];
+      if (args[2] === "list" && args[3] === "--json") {
+        if (root === alpha) return JSON.stringify([issue("alpha-open", 1), issue("alpha-ready", 2)]);
+        if (root === gamma) return JSON.stringify([issue("gamma-open", 1)]);
+      }
+      if (args[2] === "ready" && args[3] === "--json" && args[4] === "--limit" && args[5] === "0") {
+        if (root === alpha) return JSON.stringify([issue("alpha-ready", 2)]);
+        if (root === gamma) return "[]";
+      }
+      throw new Error(`unexpected bd ${args.join(" ")}`);
+    }
+    if (command === "ghq" && args.join(" ") === "list -p") return `${alpha}\n${gamma}\n`;
+    if (command === "herdr" && args.join(" ") === "api snapshot") {
+      return JSON.stringify({ result: { snapshot: { agents: [{ pane_id: "pane-alpha", agent: "claude", agent_status: "working", cwd: alpha, name: "Alpha" }] } } });
+    }
+    if (command === "lsof") return "";
+    throw new Error(`unexpected ${command} ${args.join(" ")}`);
+  };
+  try {
+    const sections = reports.work.sections.map(([section, query]) => [section, catalog[query]!.query] as const);
+    const result = await runReport(sections, {
+      loaders, exec, repo: repoForRoots(new Set([alpha, gamma])), env: { HOME: home }, scope: "all", params: {},
+    });
+    assert.equal(result.scope, "all");
+    assert.deepEqual(Object.keys(result.sections), ["ready", "issues", "agents", "cursor"]);
+    const ready = result.sections.ready!;
+    const issues = result.sections.issues!;
+    const agents = result.sections.agents!;
+    assert.deepEqual(ready.map((row) => [row.root, row.issue_id, row.priority]), [[alpha, "alpha-ready", 2]]);
+    assert.deepEqual(issues.map((row) => [row.root, row.issue_id]), [[alpha, "alpha-open"], [alpha, "alpha-ready"], [gamma, "gamma-open"]]);
+    assert.equal(agents[0]?.pane_id, "pane-alpha");
+    assert.equal(agents[0]?.model, null);
+    assert.deepEqual(result.sections.cursor, []);
+    assert.deepEqual(result.providers.map((provider) => provider.name), ["beads", "beads_ready", "cursor", "herdr", "repos", "sessions"]);
+    assert.equal(result.providers.every((provider) => provider.ok === 1), true);
+    assert.deepEqual(result.sectionStatus.ready!.providers, ["beads_ready"]);
+    assert.deepEqual(result.sectionStatus.issues!.providers, ["beads"]);
+    assert.deepEqual(result.sectionStatus.agents!.providers, ["herdr", "sessions"]);
+    assert.deepEqual(result.sectionStatus.cursor!.providers, ["cursor"]);
+    assert.ok(maxBeads >= 2);
+    assert.equal(calls.some((call) => call.includes(" list --json")), true);
+    assert.equal(calls.some((call) => call.endsWith("ready --json --limit 0")), true);
+    assert.equal(calls.some((call) => call.startsWith("git ")), false);
+  } finally {
+    rmSync(home, { recursive: true, force: true });
+  }
 });
 
 test("report section status accepts arbitrary section names", async () => {

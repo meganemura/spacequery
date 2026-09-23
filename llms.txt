@@ -18,7 +18,7 @@ Installed package: `node_modules/spacequery/skills/spacequery/SKILL.md` (this fi
 - `spacequery ui` — terminal browser for tables and queries
 - Common flags: `--root`, `--scope root|agents|all`, `--me`, `--json` / `--tsv`, `--trace`, `--expect-empty`, `--strict`
 
-Named queries include `here`-style occupancy via catalog entries such as `in-dir`, `dirty`, `sessions`, `agents-with-sessions`, `worktrees` (see `--help`). Incomplete observation is explicit in the result. Before you assume empty means none, run `spacequery doctor` if providers look incomplete. Prefer narrowing scope over guessing from a partial view.
+Named queries include `here`-style occupancy via catalog entries such as `in-dir`, `dirty`, `sessions`, `agents-with-sessions`, `worktrees` (see `--help`). `issues-in-scope` and `issues-ready` list open and claimable beads issues and default to `--scope all`. `work` shows that list with herdr and local Cursor agent models. Incomplete observation is explicit in the result. Before you assume empty means none, run `spacequery doctor` if providers look incomplete. Prefer narrowing scope over guessing from a partial view.
 
 ## Doctor
 

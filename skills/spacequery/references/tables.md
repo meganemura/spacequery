@@ -231,6 +231,13 @@ running Cursor's UI.
 The table contains open issues from roots in scope that have `.beads`.
 `labels` joins labels with commas. Timestamps are milliseconds since the epoch.
 
+## `ready_issues` (beads_ready)
+
+The same columns as `issues`.
+The table contains claimable issues from `bd ready` for roots in scope that have `.beads`.
+A claimable issue has no open blockers. In-progress, blocked, and deferred issues stay out.
+The reader passes `--limit 0` so the default cap does not hide the rest of the queue, and it does not pass `--claim`.
+
 ## `runtag_jobs` (runtag)
 
 `id` (key), `status`, `exit_code?`, `orphan`, `repo_root?`, `cwd?`, `supervisor_pid?`.

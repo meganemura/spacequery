@@ -50,3 +50,4 @@ Each ADR describes one decision and its consequences.
 | [0042](adr/0042-short-help-and-provider-lists.md) | Help is a short list, and config can hide a provider from lists. |
 | [0043](adr/0043-cursor-agents-are-read-from-the-local-database.md) | Cursor agents are read from the local database. |
 | [0044](adr/0044-independent-loaders-run-together.md) | Independent loaders run together. |
+| [0045](adr/0045-ready-beads-issues-are-a-separate-read.md) | Ready beads issues are a separate read, and work lists default to every beads root. |

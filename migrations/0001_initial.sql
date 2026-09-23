@@ -208,6 +208,22 @@ CREATE TABLE pull_requests (
     updated_at integer not null,
     url text not null
   ) strict;
+CREATE TABLE ready_issues (
+    id text primary key not null,
+    root text not null,
+    issue_id text not null,
+    title text not null,
+    status text not null,
+    priority integer,
+    issue_type text,
+    assignee text,
+    labels text,
+    created_at integer,
+    updated_at integer,
+    dependency_count integer not null default 0,
+    dependent_count integer not null default 0,
+    comment_count integer not null default 0
+  ) strict;
 CREATE TABLE repos (
     path text primary key not null,
     host text not null,

@@ -10,7 +10,7 @@ import * as gs from "@hegeldev/hegel/generators";
 import { catalog } from "../catalog.ts";
 import type { Exec, Loader } from "../core/loader.ts";
 import { runQuery, runSql } from "../core/run.ts";
-import { beadsLoader, issuesFrom } from "../providers/beads/loader.ts";
+import { beadsLoader, beadsReadyLoader, issuesFrom } from "../providers/beads/loader.ts";
 import { herdrLoader } from "../providers/herdr/loader.ts";
 import { repoLoader } from "../providers/repos/loader.ts";
 import { repoForRoots } from "./fixture.ts";
@@ -80,6 +80,33 @@ test("issues-in-scope lists every loaded beads root, including one with no agent
   const narrowed = await runQuery(catalog["issues-in-scope"]!.query, { ...options, scope: "agents" });
   assert.deepEqual(narrowed.rows.map((row) => [row.root, row.issue_id]), [[alpha, "alpha-1"]]);
   assert.deepEqual(narrowed.providers.map((provider) => provider.name), ["beads", "herdr"]);
+});
+
+test("issues-ready lists claimable issues and does not run bd list", async () => {
+  const listed = [alpha, beta, gamma].join("\n");
+  const commands: string[][] = [];
+  const exec: Exec = async (command, args) => {
+    commands.push([command, ...args]);
+    if (command === "ghq" && args.join(" ") === "list -p") return listed;
+    if (command === "herdr" && args.join(" ") === "api snapshot") return snapshot([alpha]);
+    if (command === "bd" && args[0] === "-C" && args[2] === "ready" && args[3] === "--json" && args[4] === "--limit" && args[5] === "0" && args[1] !== undefined) {
+      if (args[1] === alpha) return JSON.stringify([issue("alpha-ready"), issue("alpha-open")]);
+      if (args[1] === gamma) return JSON.stringify([issue("gamma-ready")]);
+      throw new Error(`bd failed for ${args[1]}`);
+    }
+    throw new Error(`unexpected fake command: ${command} ${args.join(" ")}`);
+  };
+  const options = { loaders: [repoLoader, herdrLoader, beadsLoader, beadsReadyLoader], exec, repo: repoForRoots(new Set([alpha, beta, gamma])), env: {}, params: {} };
+  const wide = await runQuery(catalog["issues-ready"]!.query, { ...options, scope: "all" });
+  assert.deepEqual(wide.rows.map((row) => row.root), [alpha, alpha, gamma]);
+  assert.deepEqual(wide.rows.map((row) => row.issue_id).sort(), ["alpha-open", "alpha-ready", "gamma-ready"]);
+  assert.equal(wide.rows.every((row) => row.status === "open" && row.priority === 2 && String(row.title).startsWith("Example ")), true);
+  assert.deepEqual(wide.providers.map((provider) => provider.name), ["beads_ready", "herdr", "repos"]);
+  assert.equal(commands.some((command) => command[0] === "bd" && command[3] === "list"), false);
+  const narrowed = await runQuery(catalog["issues-ready"]!.query, { ...options, scope: "agents" });
+  assert.deepEqual(narrowed.rows.map((row) => row.issue_id).sort(), ["alpha-open", "alpha-ready"]);
+  assert.deepEqual(narrowed.providers.map((provider) => provider.name), ["beads_ready", "herdr"]);
+  assert.equal(narrowed.providers.some((provider) => provider.name === "repos"), false);
 });
 
 test("beads converts RFC 3339 dates to milliseconds", () => hegel.test((tc) => {

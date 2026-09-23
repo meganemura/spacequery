@@ -16,6 +16,7 @@ provider の状態は変えない。
 
 ```sh
 spacequery here
+spacequery work
 spacequery in-dir --tsv
 spacequery agents-with-sessions
 spacequery watch in-dir --until empty

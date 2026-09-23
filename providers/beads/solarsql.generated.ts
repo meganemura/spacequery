@@ -5,10 +5,16 @@ import type { Id, Meta } from "solarsql";
 
 // The id of a row of issues.
 export type IssuesId = Id<"issues">;
+// The id of a row of ready_issues.
+export type ReadyIssuesId = Id<"ready_issues">;
 
 export type Generated = {
   "insert or ignore into issues (id, root, issue_id, title, status, priority, issue_type, assignee, labels, created_at, updated_at, dependency_count, dependent_count, comment_count)\n    select value ->> 'id', value ->> 'root', value ->> 'issue_id', value ->> 'title', value ->> 'status', value ->> 'priority', value ->> 'issue_type', value ->> 'assignee', value ->> 'labels', value ->> 'created_at', value ->> 'updated_at', value ->> 'dependency_count', value ->> 'dependent_count', value ->> 'comment_count'\n    from json_each(:rows)": {
     params: { rows: readonly { "id": IssuesId; "root": string; "issue_id": string; "title": string; "status": string; "priority": number | null; "issue_type": string | null; "assignee": string | null; "labels": string | null; "created_at": number | null; "updated_at": number | null; "dependency_count": number; "dependent_count": number; "comment_count": number }[] };
+    row: {};
+  };
+  "insert or ignore into ready_issues (id, root, issue_id, title, status, priority, issue_type, assignee, labels, created_at, updated_at, dependency_count, dependent_count, comment_count)\n    select value ->> 'id', value ->> 'root', value ->> 'issue_id', value ->> 'title', value ->> 'status', value ->> 'priority', value ->> 'issue_type', value ->> 'assignee', value ->> 'labels', value ->> 'created_at', value ->> 'updated_at', value ->> 'dependency_count', value ->> 'dependent_count', value ->> 'comment_count'\n    from json_each(:rows)": {
+    params: { rows: readonly { "id": ReadyIssuesId; "root": string; "issue_id": string; "title": string; "status": string; "priority": number | null; "issue_type": string | null; "assignee": string | null; "labels": string | null; "created_at": number | null; "updated_at": number | null; "dependency_count": number; "dependent_count": number; "comment_count": number }[] };
     row: {};
   };
   "select id, root, issue_id, title, status, priority, issue_type, assignee, labels, created_at, updated_at, dependency_count, dependent_count, comment_count\n    from issues where root = :root order by priority, updated_at desc": {
@@ -19,10 +25,16 @@ export type Generated = {
     params: {};
     row: { id: IssuesId; root: string; issue_id: string; title: string; status: string; priority: number | null; issue_type: string | null; assignee: string | null; labels: string | null; created_at: number | null; updated_at: number | null; dependency_count: number; dependent_count: number; comment_count: number };
   };
+  "select id, root, issue_id, title, status, priority, issue_type, assignee, labels, created_at, updated_at, dependency_count, dependent_count, comment_count\n    from ready_issues order by root, priority": {
+    params: {};
+    row: { id: ReadyIssuesId; root: string; issue_id: string; title: string; status: string; priority: number | null; issue_type: string | null; assignee: string | null; labels: string | null; created_at: number | null; updated_at: number | null; dependency_count: number; dependent_count: number; comment_count: number };
+  };
 };
 
 export const generated: Meta<Generated> = {
   "insert or ignore into issues (id, root, issue_id, title, status, priority, issue_type, assignee, labels, created_at, updated_at, dependency_count, dependent_count, comment_count)\n    select value ->> 'id', value ->> 'root', value ->> 'issue_id', value ->> 'title', value ->> 'status', value ->> 'priority', value ->> 'issue_type', value ->> 'assignee', value ->> 'labels', value ->> 'created_at', value ->> 'updated_at', value ->> 'dependency_count', value ->> 'dependent_count', value ->> 'comment_count'\n    from json_each(:rows)": { params: ["rows"], encode: ["rows"], json: [], reads: [] },
+  "insert or ignore into ready_issues (id, root, issue_id, title, status, priority, issue_type, assignee, labels, created_at, updated_at, dependency_count, dependent_count, comment_count)\n    select value ->> 'id', value ->> 'root', value ->> 'issue_id', value ->> 'title', value ->> 'status', value ->> 'priority', value ->> 'issue_type', value ->> 'assignee', value ->> 'labels', value ->> 'created_at', value ->> 'updated_at', value ->> 'dependency_count', value ->> 'dependent_count', value ->> 'comment_count'\n    from json_each(:rows)": { params: ["rows"], encode: ["rows"], json: [], reads: [] },
   "select id, root, issue_id, title, status, priority, issue_type, assignee, labels, created_at, updated_at, dependency_count, dependent_count, comment_count\n    from issues where root = :root order by priority, updated_at desc": { params: ["root"], encode: [], json: [], reads: ["issues"] },
   "select id, root, issue_id, title, status, priority, issue_type, assignee, labels, created_at, updated_at, dependency_count, dependent_count, comment_count\n    from issues order by root, priority": { params: [], encode: [], json: [], reads: ["issues"] },
+  "select id, root, issue_id, title, status, priority, issue_type, assignee, labels, created_at, updated_at, dependency_count, dependent_count, comment_count\n    from ready_issues order by root, priority": { params: [], encode: [], json: [], reads: ["ready_issues"] },
 };
