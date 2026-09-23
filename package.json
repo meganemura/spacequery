@@ -1,6 +1,6 @@
 {
   "name": "spacequery",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Named queries over the state of one developer's machine: which coding agents run where, which repositories are dirty, which worktrees and sessions sit idle.",
   "keywords": [
     "coding-agents",
