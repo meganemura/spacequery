@@ -1,7 +1,6 @@
-// The work dashboard definition agents read and edit.
-// JSON, TSV, help, and the terminal browser render this list. They do not keep a second one.
-// Boundary: the section list, the scope default, and the refresh rule.
-// catalog.ts registers the report. This file does not run a query.
+// The fixed work dashboard. Agents refresh it with `spacequery watch work`.
+// JSON, TSV, and the terminal browser render this list. They do not keep a second one.
+// Boundary: the section list and the scope default. catalog.ts registers the report.
 import type { Scope } from "./core/loader.ts";
 
 export const workDashboard = {
@@ -11,8 +10,8 @@ export const workDashboard = {
   default: true,
   defaultScope: "all" as Scope,
   gateSection: "agents",
-  // Each call is a new observation (ADR 0002). Editing this list is how the dashboard changes.
-  refresh: "Each call builds a new database. Re-run `spacequery work` to refresh the rows. Updated is each provider's observed_at on that call; the dashboard keeps no previous copy. To change the sections, their order, or the scope default, edit dashboard.ts. The next `spacequery work --json`, the TSV headings, help JSON, and `spacequery ui` render that list. The cursor section stays local IDE conversations.",
+  // Periodic refresh is `spacequery watch work`, the same observation as one `spacequery work`.
+  refresh: "Refresh with `spacequery watch work`. `--interval` defaults to 2000 milliseconds. `--timeout` defaults to 300 seconds; 0 keeps refreshing until a signal. Each tick builds a new database. A snapshot is printed when the sections or provider status change. `--until` is optional and reads the agents section. The printed snapshot is the whole report. The cursor section is local IDE conversations.",
   sections: [
     ["ready", "issues-ready"],
     ["issues", "issues-in-scope"],

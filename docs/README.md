@@ -51,4 +51,5 @@ Each ADR describes one decision and its consequences.
 | [0043](adr/0043-cursor-agents-are-read-from-the-local-database.md) | Cursor agents are read from the local database. |
 | [0044](adr/0044-independent-loaders-run-together.md) | Independent loaders run together. |
 | [0045](adr/0045-ready-beads-issues-are-a-separate-read.md) | Ready beads issues are a separate read, and work lists default to every beads root. |
-| [0046](adr/0046-the-work-dashboard-is-one-section-list.md) | The work dashboard is one section list agents edit. |
+| [0046](adr/0046-the-work-dashboard-is-one-section-list.md) | The work dashboard is one section list. |
+| [0047](adr/0047-the-work-dashboard-refreshes-on-the-watch-interval.md) | The work dashboard refreshes on the watch interval. |

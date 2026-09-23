@@ -424,6 +424,45 @@ test("watch usage rejects a missing predicate, a report, and a one-shot --until"
   );
 });
 
+test("watch work reprints the report until the deadline", async () => {
+  const home = mkdtempSync(join(tmpdir(), "spacequery-watch-work-"));
+  const bin = join(home, "bin");
+  mkdirSync(bin);
+  writeFileSync(join(bin, "ghq"), "#!/usr/bin/env node\n");
+  writeFileSync(join(bin, "herdr"), `#!/usr/bin/env node\nprocess.stdout.write(${JSON.stringify(JSON.stringify({ result: { snapshot: { agents: [] } } }))});\n`);
+  writeFileSync(join(bin, "bd"), "#!/usr/bin/env node\nprocess.stdout.write('[]');\n");
+  writeFileSync(join(bin, "lsof"), "#!/bin/sh\nexit 0\n");
+  for (const name of ["ghq", "herdr", "bd", "lsof"]) chmodSync(join(bin, name), 0o755);
+  const env: NodeJS.ProcessEnv = {
+    ...process.env,
+    HOME: home,
+    PATH: `${bin}:${process.env.PATH ?? ""}`,
+    XDG_CONFIG_HOME: join(home, "config"),
+    XDG_STATE_HOME: join(home, "state"),
+  };
+  delete env.HERDR_PANE_ID;
+  delete env.CLAUDE_CODE_SESSION_ID;
+  try {
+    await assert.rejects(
+      execFileAsync(process.execPath, ["cli.ts", "watch", "work", "--interval", "5000", "--timeout", "1"], {
+        cwd: process.cwd(), encoding: "utf8", env, timeout: 20_000,
+      }),
+      (error: NodeJS.ErrnoException & { code?: number; stdout?: string; stderr?: string }) => {
+        assert.equal(error.code, 5);
+        assert.match(error.stderr ?? "", /timed out/);
+        const board = JSON.parse((error.stdout ?? "").trim().split("\n")[0] ?? "");
+        assert.equal(board.report, "work");
+        assert.deepEqual(Object.keys(board.sections), ["ready", "issues", "agents", "cursor"]);
+        assert.equal(board.definition.default_scope, "all");
+        assert.match(board.definition.refresh, /watch work/);
+        return true;
+      },
+    );
+  } finally {
+    rmSync(home, { recursive: true, force: true });
+  }
+});
+
 test("watchExitCode keeps timeout distinct from the gates", () => {
   const rows = { rows: [{ status: "working" }], providers: [{ name: "herdr", source: "built-in" as const, ok: 1, observed_at: 0, ms: 0, error: null }] };
   const failed = { rows: [], providers: [{ name: "herdr", source: "built-in" as const, ok: 0, observed_at: 0, ms: 0, error: "missing" }] };

@@ -69,7 +69,8 @@ test("the ship default short list is the visible curated queries", () => {
     const board = document.reports.find((report) => report.name === "work");
     assert.deepEqual(board?.sections, reports.work.sections);
     assert.equal(board?.default_scope, "all");
-    assert.match(board?.refresh ?? "", /dashboard\.ts/);
+    assert.match(board?.refresh ?? "", /watch work/);
+    assert.match(board?.refresh ?? "", /--interval/);
     assert.equal(document.reports.find((report) => report.name === "here")?.refresh, undefined);
     assert.equal(reports["dependency-report"].default, false);
   } finally {
@@ -144,9 +145,9 @@ test("the work dashboard section list is the report and the query reference", as
     at = found;
   }
   const skill = await readFile("skills/spacequery/SKILL.md", "utf8");
-  assert.match(skill, /dashboard\.ts/);
-  assert.match(skill, /definition\.sections/);
-  assert.match(skill, /observed_at/);
+  assert.match(skill, /watch work/);
+  assert.match(skill, /--interval/);
+  assert.match(skill, /--timeout 0/);
 });
 
 test("the skill table is the curated set, including here", async () => {

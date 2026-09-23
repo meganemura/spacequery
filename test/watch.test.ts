@@ -59,6 +59,31 @@ test("row fingerprints ignore key order and follow seq columns", () => {
   );
 });
 
+test("a report fingerprint follows every section", () => {
+  const gate = snapshot([]);
+  const ready = { ...gate, sections: { ready: [{ issue_id: "a" }], agents: [] } };
+  const moved = { ...gate, sections: { ready: [{ issue_id: "b" }], agents: [] } };
+  assert.notEqual(observationFingerprint(ready), observationFingerprint(moved));
+  assert.equal(observationFingerprint(ready), observationFingerprint({ ...ready, sections: { agents: [], ready: [{ issue_id: "a" }] } }));
+});
+
+test("a refresh loop without --until stops on the deadline", async () => {
+  let ticks = 0;
+  let prints = 0;
+  const outcome = await watchUntil({
+    intervalMs: 10,
+    timeoutMs: 15,
+    stopWhenIncomplete: false,
+    now: () => ticks * 10,
+    sleep: async () => { ticks += 1; },
+    observe: async () => snapshot([{ issue_id: "a" }]),
+    onSnapshot: () => { prints += 1; },
+  });
+  assert.equal(outcome, "timeout");
+  assert.equal(prints, 1);
+  assert.ok(ticks >= 1);
+});
+
 test("observation fingerprints ignore freshness and keep provider failure", () => {
   const rows = [{ agent_status: "idle" }];
   const complete = observationFingerprint(snapshot(rows));

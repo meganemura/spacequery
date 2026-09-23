@@ -78,8 +78,8 @@ A section status does not show whether providers that enumerate roots answered.
 A report that is a dashboard also carries `definition`.
 `definition.sections` is the ordered `[section, query]` list, the same list the rows use.
 `definition.default_scope` is the scope used when `--scope` is omitted, or null.
-`definition.refresh` says how to reload the rows and how to change the list.
-`work` is that report. Its list is `dashboard.ts`.
+`definition.refresh` says how to run that report again on an interval.
+`work` is that report. `spacequery watch work` prints the same envelope, one line per changed snapshot.
 `spacequery --help --json` puts the same `sections`, `default_scope`, and `refresh` on the `work` report entry.
 
 `--tsv` prints a header line and the rows, tab separated, null as an empty cell.
@@ -104,7 +104,8 @@ derives from `updated_at`.
 
 `spacequery watch <query> --until <predicate>` re-runs one query until the current rows match.
 `spacequery watch --sql <text> --until <predicate>` does the same for ad hoc SQL.
-`--until` is required. A report such as `here` is not a watch target.
+`--until` is required for a query. A report other than `work`, such as `here`, is not a watch target.
+`spacequery watch work` re-runs the work report on `--interval`. `--until` is optional. When set, it reads the `agents` section, and each printed snapshot is still the whole report. The fingerprint includes every section.
 `watch` is the command word, not a query name.
 
 Each tick opens a fresh database and discards it. Watch stores no rows.
@@ -146,6 +147,7 @@ The job files and `runtag status <id>` belong to [runtag](https://github.com/meg
 
 The first snapshot prints immediately.
 A later snapshot prints only when a fingerprint of the rows, plus each provider's `name`, `ok`, and `error`, changes.
+For `work`, the fingerprint also includes every section.
 `observed_at` and durations are left out of the fingerprint because they change on every tick.
 Columns that change as time passes, such as `idle_minutes`, are part of the row, so they count as a change.
 A sequence column such as `state_change_seq` or `revision` counts when the query returns it. Watch does not keep a sequence of its own.
@@ -156,10 +158,11 @@ One-shot JSON stays indented. `--tsv` reprints the table on each change and puts
 
 `--interval` is the wait between ticks, in milliseconds. The default is 2000.
 `--timeout` is the deadline, in seconds, measured from the start of the watch. The default is 300.
-`--timeout 0` waits until the predicate matches or a signal arrives.
+`--timeout 0` waits until the predicate matches or a signal arrives. For `work` without `--until`, it waits until a signal.
 SIGINT or SIGTERM stops the loop after the current tick. The exit code is 130.
 
 On timeout, spacequery writes `spacequery: timed out before --until matched` to standard error.
+`watch work` without `--until` writes `spacequery: timed out`.
 The last snapshot is the last line already printed. Timeout does not print that snapshot again.
 
 ## Terminal browser

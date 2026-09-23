@@ -17,6 +17,8 @@ export type Until =
 export type WatchSnapshot = {
   rows: readonly Record<string, unknown>[];
   providers: readonly Pick<ProviderRow, "name" | "ok" | "error">[];
+  // A report watch fingerprints every section, not only the rows `--until` reads.
+  sections?: Readonly<Record<string, readonly Record<string, unknown>[]>>;
 };
 
 export type WatchStop = "matched" | "timeout" | "aborted" | "incomplete";
@@ -61,7 +63,11 @@ export function rowFingerprint(rows: readonly Record<string, unknown>[]): string
 export function observationFingerprint(snapshot: WatchSnapshot): string {
   const providers = snapshot.providers.map((provider) => ({ name: provider.name, ok: provider.ok, error: provider.error }));
   providers.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
-  return JSON.stringify(stable({ rows: snapshot.rows, providers }));
+  return JSON.stringify(stable({
+    rows: snapshot.rows,
+    providers,
+    ...(snapshot.sections === undefined ? {} : { sections: snapshot.sections }),
+  }));
 }
 
 export function observationIncomplete(snapshot: WatchSnapshot): boolean {
@@ -78,7 +84,8 @@ export function parseWatchTiming(intervalText: string | undefined, timeoutText: 
 }
 
 export type WatchControl = {
-  until: Until;
+  // Omitted for a refresh loop that stops on the deadline or a signal.
+  until?: Until;
   intervalMs: number;
   timeoutMs: number | null;
   // `--strict`: stop on the first incomplete observation instead of waiting.
@@ -108,7 +115,7 @@ export async function watchUntil(control: WatchControl): Promise<WatchStop> {
     const incomplete = observationIncomplete(snapshot);
     // Incomplete rows are not "none" and not a status match. The predicate
     // runs only on a complete observation.
-    const matched = !incomplete && untilMatches(snapshot.rows, control.until);
+    const matched = control.until !== undefined && !incomplete && untilMatches(snapshot.rows, control.until);
     const incompleteStop = incomplete && control.stopWhenIncomplete;
     if (changed || matched || incompleteStop) control.onSnapshot(snapshot);
     if (incompleteStop) return "incomplete";

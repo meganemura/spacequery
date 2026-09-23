@@ -2,7 +2,7 @@
 
 Date: 2026-09-23
 
-Status: accepted
+Status: accepted. Refreshing the board is ADR 0047. Editing this list is not the refresh path.
 
 ## Context
 
@@ -19,13 +19,12 @@ The work dashboard is the ordered section list in `dashboard.ts`.
 `spacequery --help --json` returns the same sections on the `work` report, with `default_scope` and `refresh`.
 `spacequery work --tsv` prints those section names in that order.
 `spacequery ui` shows the same list under Reports and, on Run, the rows of those sections.
-Changing the dashboard means editing `dashboard.ts`. The next call uses the new list. There is no cache of the previous rows.
+There is no cache of the previous rows. Refreshing that list on an interval is ADR 0047.
 The sections are `issues-ready`, `issues-in-scope`, `agents-with-sessions`, and `cursor-agents`.
 `cursor-agents` stays the local IDE database. Cloud agents are not a section.
 A user still cannot define a report outside the repository.
 
 ## Consequences
 
-The agent-facing JSON is the definition the human views render.
-An agent extends the dashboard by editing the section list, then running `spacequery work`.
+The agent-facing JSON is the snapshot the human views render.
 Help and the terminal browser cannot grow a second section order.

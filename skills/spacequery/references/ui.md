@@ -6,7 +6,7 @@ It needs a terminal with at least 60 columns and 16 rows.
 
 Tables shows built-in and user provider tables with their column types, nullable columns, and keys.
 Queries shows built-in and user queries with a purpose, a group, SQL, parameters, and result columns.
-Reports shows each catalog report. Definition lists that report's sections in order, the scope it uses when `--scope` is omitted, and the refresh rule. Those are the same sections as `spacequery <report> --json`. The `work` entry is the dashboard definition in `dashboard.ts`. Results prints `# <section>` and that section's rows. An empty section stays visible. Enter on a section opens its query.
+Reports shows each catalog report. Definition lists that report's sections in order, the scope it uses when `--scope` is omitted, and how to refresh it. Those are the same sections as `spacequery <report> --json`. The `work` entry is the dashboard. Results prints `# <section>` and that section's rows from the latest run. An empty section stays visible. Enter on a section opens its query. A live refresh of `work` is `spacequery watch work`, which prints the same sections.
 A query whose provider is off stays in the list and is dimmed.
 Providers lists each built-in provider. Enter toggles it and writes `$XDG_CONFIG_HOME/spacequery/config.json`.
 Definition opens when an entry is selected or the catalog is switched.
@@ -113,4 +113,5 @@ Press `s` or Esc to return to the rows.
 
 The browser supports manual execution and query inspection.
 A report runs through the same CLI path as `spacequery <report> --json`.
-SQL editing and automatic refresh are outside this version. Re-run to refresh. Edit `dashboard.ts` to change the `work` sections.
+Run loads one fresh snapshot. `spacequery watch work` repeats that snapshot on an interval.
+SQL editing and a timer inside the browser are outside this version.

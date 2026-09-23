@@ -74,7 +74,7 @@ A [runtag](https://github.com/meganemura/runtag) ([npm](https://www.npmjs.com/pa
 An incomplete observation does not match `--until`. Empty rows beside a provider with `ok` 0 stay unknown.
 The first snapshot prints immediately. Later snapshots print only when the observation changes.
 JSON from watch is one envelope per line. One-shot JSON stays indented.
-`--interval` defaults to 2000 milliseconds. `--timeout` defaults to 300 seconds. `--timeout 0` waits until the predicate or a signal.
+`--interval` defaults to 2000 milliseconds. `--timeout` defaults to 300 seconds. `--timeout 0` waits until the predicate or a signal. `watch work` may omit `--until`; then `--timeout 0` waits until a signal.
 Exit 0 when `--until` matches, 5 on timeout, 130 on SIGINT or SIGTERM.
 The predicate, the fingerprint, and the exit codes: [references/output.md](references/output.md#watch).
 
@@ -86,7 +86,7 @@ The predicate, the fingerprint, and the exit codes: [references/output.md](refer
    Use `claude-usage` and `codex-usage` for quota percentages and reset information. Check record times; Codex reads bounded tails of recently modified local logs.
    Use `claude-sessions` and `codex-sessions` for effort and the rest of the local session record.
    `cursor-agents` lists recent Cursor conversations from the local IDE database, including each conversation's model. It does not list cloud agents.
-   `work` puts claimable beads issues, the open work list, herdr agents with their session models, and those Cursor agents in one call. It defaults to `--scope all`. The section list is the dashboard definition; see [Work dashboard](#work-dashboard).
+   `work` puts claimable beads issues, the open work list, herdr agents with their session models, and those Cursor agents in one call. It defaults to `--scope all`. Refresh that same snapshot with `spacequery watch work`. See [Work dashboard](#work-dashboard).
    Claude metadata describes a recent response in the transcript tail; `metadata_at` gives its time. Unavailable values stay null.
 3. **When you look for a place to work**: `idle-worktrees` (a worktree with nobody in it), `dirty-unattended` (changes nobody is tending).
 4. **When a tool is missing or the wrong version**: `which-in-dir`, `which`, `path-entries`, `shadowed-commands`, `tools-in-dir`, `repository-versions`, `missing-tools-with-agents`, `tool-versions-split`.
@@ -105,16 +105,22 @@ The predicate, the fingerprint, and the exit codes: [references/output.md](refer
 
 ## Work dashboard
 
-`work` is the dashboard. Its definition is the ordered section list in `dashboard.ts`: `ready` (`issues-ready`), `issues` (`issues-in-scope`), `agents` (`agents-with-sessions`), and `cursor` (`cursor-agents`).
-`cursor-agents` is the local IDE database. Do not add cloud `bc-` agents to this list.
-`spacequery work --json` returns that list as `definition.sections`, the omitted-scope default as `definition.default_scope`, and the refresh rule as `definition.refresh`. The `sections` object is the rows for those names, in that order.
-`spacequery --help --json` lists the same sections on the `work` report, without running providers.
-`spacequery work --tsv` prints a `# <section>` heading for each name in that order.
-`spacequery ui` shows the same list under Reports. Run loads those sections. It does not keep a separate board.
+`work` is the dashboard. One report, four sections, in this order: `ready` (`issues-ready`), `issues` (`issues-in-scope`), `agents` (`agents-with-sessions`), and `cursor` (`cursor-agents`).
+`spacequery work`, `spacequery work --tsv`, and `spacequery ui` render that list. `cursor` is the local IDE database. Cloud `bc-` agents are not in it.
+`spacequery work --json` returns the rows in `sections` and names the queries in `definition.sections`. It defaults to `--scope all`.
 
-Refresh the rows by running `spacequery work` again. Each call builds a new database. Updated means each provider's `observed_at` on that call. The dashboard keeps no previous copy.
+Refresh it on an interval. This is the same report, run again. There is no second scheduler.
 
-Extend the dashboard by editing `sections` in `dashboard.ts`. Each entry is a section name and a catalog query, in display order. Change `defaultScope` there to change the omitted `--scope`. The next `spacequery work`, the TSV headings, help JSON, and the terminal browser use the edited list.
+```sh
+spacequery watch work
+spacequery watch work --interval 5000 --timeout 0
+spacequery watch work --tsv --interval 2000
+```
+
+`--interval` defaults to 2000 milliseconds. `--timeout` defaults to 300 seconds. `--timeout 0` keeps refreshing until a signal.
+Each tick builds a new database. A snapshot is printed when the sections or provider status change. JSON is one envelope per line. TSV uses the same `# <section>` headings as `spacequery work --tsv`.
+`--until` is optional. When you pass it, it reads the `agents` section, and the printed snapshot is still the whole report. An incomplete tick does not match `--until`.
+Exit 0 when `--until` matches, 5 on timeout, 130 on SIGINT or SIGTERM.
 
 Every query, its parameters, and its columns: [references/queries.md](references/queries.md).
 `spacequery --help` prints the short list. `spacequery --help --all` prints every enabled query.

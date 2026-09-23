@@ -74,11 +74,12 @@ function usage(userQueries: readonly UserQuery[], userProviders: readonly UserPr
     "--strict exits 4 after it prints rows when a provider did not answer.",
     "Each query line is its name, the group it belongs to, and when to use it.",
     "",
-    "watch re-runs one query until --until matches. --until is required. Each tick is a new observation.",
+    "watch re-runs one query until --until matches. --until is required for a query. Each tick is a new observation.",
+    "watch work refreshes the work report on --interval. --until is optional there and reads the agents section.",
     "--until empty matches zero rows. --until nonempty matches one or more rows.",
     "--until <column>=<value>[|<value>...] matches when every row has that column set to one of the values. Zero rows do not match.",
     "An incomplete observation (a provider with ok 0) does not match. Empty rows beside a failed provider stay unknown.",
-    `--interval defaults to ${defaultWatchIntervalMs} milliseconds. --timeout defaults to ${defaultWatchTimeoutSec} seconds; 0 waits until the predicate or a signal.`,
+    `--interval defaults to ${defaultWatchIntervalMs} milliseconds. --timeout defaults to ${defaultWatchTimeoutSec} seconds; 0 waits until the predicate or a signal. For work without --until, 0 waits until a signal.`,
     "The first snapshot prints immediately. Later snapshots print only when the observation changes.",
     "JSON watch output is one envelope per line. One-shot JSON stays indented.",
     "in-dir, working, and agents use agent_status (working, idle, blocked, unknown). working lists only agents that are working, so wait with --until empty.",
@@ -89,6 +90,8 @@ function usage(userQueries: readonly UserQuery[], userProviders: readonly UserPr
     "  spacequery watch in-dir --until agent_status=idle|blocked",
     "  spacequery watch claude-sessions --until status=idle",
     "  spacequery watch runs-in-dir --until status=exited",
+    "  spacequery watch work",
+    "  spacequery watch work --interval 5000 --timeout 0",
     "Exit 0 when --until matches, 5 on timeout, 130 on SIGINT or SIGTERM.",
     "",
     "doctor reports whether each enabled built-in provider answered, for one root. It does not install tools or change a provider.",
@@ -377,28 +380,44 @@ async function main(argv: string[]): Promise<number> {
     printQuery(name, result, values["tsv"] === true, includeTrace, false);
     return exitCodeFor(result, flags);
   }
-  if (report) {
+  if (report && name !== "work") {
     console.error(`spacequery: watch runs a query, not the report ${requestedName}`);
     return 2;
   }
   const untilText = textOption(values, "until");
-  if (untilText === undefined) {
+  if (untilText === undefined && !report) {
     console.error("spacequery: watch requires --until");
     return 2;
   }
-  let until: ReturnType<typeof parseUntil>;
-  try {
-    until = parseUntil(untilText);
-  } catch (e) {
-    console.error(`spacequery: ${e instanceof Error ? e.message : String(e)}`);
-    return 2;
+  let until: ReturnType<typeof parseUntil> | undefined;
+  if (untilText !== undefined) {
+    try {
+      until = parseUntil(untilText);
+    } catch (e) {
+      console.error(`spacequery: ${e instanceof Error ? e.message : String(e)}`);
+      return 2;
+    }
   }
   const timing = parseWatchTiming(textOption(values, "interval"), textOption(values, "timeout"));
   if ("error" in timing) {
     console.error(`spacequery: ${timing.error}`);
     return 2;
   }
-  return watchQuery(name, runOnce, until, timing.intervalMs, timing.timeoutMs, values["tsv"] === true, includeTrace, flags);
+  if (report) {
+    const sections = report.sections.map(([section, query]) => [section, catalog[query]!.query] as const);
+    return watchReport(
+      name,
+      () => runReport(sections, { loaders, userProviders, scope: effectiveScope, params }),
+      report.gateSection,
+      until,
+      timing.intervalMs,
+      timing.timeoutMs,
+      values["tsv"] === true,
+      includeTrace,
+      flags,
+    );
+  }
+  return watchQuery(name, runOnce, until!, timing.intervalMs, timing.timeoutMs, values["tsv"] === true, includeTrace, flags);
 }
 
 function doctorUsage(): string {
@@ -550,6 +569,59 @@ async function watchQuery(
     if (outcome === "timeout") process.stderr.write("spacequery: timed out before --until matched\n");
     if (last === undefined) return outcome === "aborted" ? 130 : 1;
     return watchExitCode(outcome, last, flags);
+  } finally {
+    signals.stop();
+  }
+}
+
+// The work dashboard. Each tick is a new report. `--until` reads the gate
+// section; the printed snapshot is every section.
+async function watchReport(
+  name: string,
+  runOnce: () => Promise<ReportResult>,
+  gateSection: string,
+  until: ReturnType<typeof parseUntil> | undefined,
+  intervalMs: number,
+  timeoutMs: number | null,
+  asTsv: boolean,
+  includeTrace: boolean,
+  flags: ExitFlags,
+): Promise<number> {
+  const signals = abortOnSignal();
+  let recorded = false;
+  let printed = false;
+  let last: ReportResult | undefined;
+  try {
+    const outcome = await watchUntil({
+      ...(until === undefined ? {} : { until }),
+      intervalMs,
+      timeoutMs,
+      stopWhenIncomplete: flags.strict,
+      signal: signals.signal,
+      observe: async () => {
+        last = await runOnce();
+        if (!recorded) {
+          recordCall(process.env, name);
+          recorded = true;
+        }
+        return { rows: last.sections[gateSection] ?? [], providers: last.providers, sections: last.sections };
+      },
+      onSnapshot: () => {
+        if (last === undefined) return;
+        if (asTsv && printed) process.stdout.write("\n");
+        if (asTsv) {
+          process.stdout.write(reportTsv(last.sections));
+          if (includeTrace) process.stderr.write(traceTsv(last.trace));
+        } else process.stdout.write(`${JSON.stringify(reportJson(name, last, includeTrace))}\n`);
+        warn(last.providers);
+        printed = true;
+      },
+    });
+    if (outcome === "timeout") {
+      process.stderr.write(until === undefined ? "spacequery: timed out\n" : "spacequery: timed out before --until matched\n");
+    }
+    if (last === undefined) return outcome === "aborted" ? 130 : 1;
+    return watchExitCode(outcome, { rows: last.sections[gateSection] ?? [], providers: last.providers }, flags);
   } finally {
     signals.stop();
   }

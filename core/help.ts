@@ -27,7 +27,7 @@ export type HelpEntry = {
   sections?: readonly (readonly [string, string])[];
   // Set when the report declares a scope for an omitted --scope.
   default_scope?: "root" | "agents" | "all";
-  // Set when the report is a dashboard an agent can extend.
+  // Set when the report tells an agent how to refresh it.
   refresh?: string;
 };
 

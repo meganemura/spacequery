@@ -43,7 +43,7 @@ export type Report = {
   sections: readonly (readonly [string, keyof typeof catalog])[];
   gateSection: string;
   defaultScope?: Scope;
-  // Present when this report is a dashboard an agent edits. The CLI copies it into JSON.
+  // How to refresh this report on an interval. The CLI copies it into JSON.
   refresh?: string;
 };
 

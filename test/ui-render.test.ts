@@ -719,7 +719,7 @@ test("a report renders its definition and the same sections", async () => {
     kind: "report", name: "work", source: "built-in", description: "dashboard", sql: "", params: [],
     tables: [], columns: [], purpose: "When you want the work list.",
     sections: [["ready", "issues-ready"], ["agents", "agents-with-sessions"]],
-    defaultScope: "all", refresh: "Edit dashboard.ts. Re-run spacequery work.",
+    defaultScope: "all", refresh: "Refresh with spacequery watch work. --interval defaults to 2000 milliseconds.",
   };
   const ready: Item = { ...query, name: "issues-ready", purpose: "Claimable issues." };
   const ui = await screen([ready, report], async () => ({
@@ -735,7 +735,7 @@ test("a report renders its definition and the same sections", async () => {
     for (let i = 0; i < 16; i++) {
       const frame = ui.frame();
       if (frame.includes("issues-ready")) sawReady = true;
-      if (frame.includes("dashboard.ts")) sawRefresh = true;
+      if (frame.includes("watch work")) sawRefresh = true;
       await ui.key("j");
     }
     assert.equal(sawReady, true);
