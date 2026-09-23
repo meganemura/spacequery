@@ -18,6 +18,7 @@ spacequery here
 spacequery in-dir --tsv
 spacequery agents-with-sessions
 spacequery watch in-dir --until empty
+spacequery doctor
 spacequery --help
 ```
 
@@ -83,6 +84,8 @@ Every call starts from an empty database, so there is no stale cache.
 The JSON envelope includes `providers`, with `source`, `ok`, `observed_at`, `ms`, and `error` for each provider that ran.
 If a provider fails, its tables are empty and its provider row says so.
 Empty rows beside a failed provider mean "unknown", not "none".
+When a result looks incomplete, `spacequery doctor` checks which built-in providers answered.
+The skill explains how to read that report.
 
 Reports add section-level trust data.
 `here` returns `sections`, `section_status`, and report-level `providers`.

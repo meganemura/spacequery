@@ -8,6 +8,10 @@ The `providers` array contains only providers required by the query or report.
 A provider with `ok: 0` did not answer, so empty results that depend on it mean "unknown".
 A provider with `ok: 1` answered, so empty results mean it found no matching facts in the requested scope.
 
+`spacequery doctor` runs every built-in provider in this list once, on one root, and prints the same `ok` and `error` fields.
+Read [output.md](output.md#doctor) for the rest of that report.
+Before you assume empty means none, run doctor when a provider looks incomplete.
+
 Reports also return `section_status`.
 Each section lists the direct providers it reads and whether they answered.
 The report-level `providers` list can include dependencies, such as providers that enumerate roots for a widened scope.

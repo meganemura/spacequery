@@ -155,6 +155,56 @@ The last snapshot is the last line already printed. Timeout does not print that 
 The browser displays definitions before it runs a query.
 Its keys and result semantics are in [ui.md](ui.md).
 
+## Doctor
+
+`spacequery doctor [--json] [--root DIR] [--trace]` loads every built-in provider once and prints one JSON document.
+`--json` selects that same document. JSON is already the default.
+`--root` defaults to the git toplevel of the current directory, or the directory itself outside a repository.
+Doctor does not take `--scope`. Repository-scoped providers run on that one root.
+Doctor does not run user-provider commands, install tools, or write the call log.
+
+```json
+{
+  "command": "doctor",
+  "ok": 0,
+  "version": "0.2.0",
+  "package": "/workspace/spacequery",
+  "root": "/workspace/example",
+  "scope": "root",
+  "ms": 420.5,
+  "providers": [
+    { "name": "git", "source": "built-in", "ok": 1, "observed_at": 1789038132395, "ms": 12.0, "error": null },
+    { "name": "herdr", "source": "built-in", "ok": 0, "observed_at": 1789038132400, "ms": 1.2, "error": "spawn herdr ENOENT" }
+  ],
+  "path": { "entries": 12, "missing": 3, "duplicates": 1 },
+  "user_providers": { "directory": "/home/u/.config/spacequery/providers", "present": 0, "error": null }
+}
+```
+
+| Field | Meaning |
+| --- | --- |
+| `command` | Always `doctor`. |
+| `ok` | 1 when every built-in provider answered and the user-provider directory had no error. 0 otherwise. A missing user-provider directory does not clear this bit. |
+| `version` | The spacequery package version. |
+| `package` | The directory that contains `package.json` for this command. |
+| `root` | The one repository doctor observed. |
+| `scope` | Always `root`. |
+| `ms` | The wall time of the observation. |
+| `providers` | One row per built-in provider, the same fields as a query envelope, ordered by name. |
+| `path` | PATH entry, missing-entry, and duplicate-entry counts when `search_path` answered. Null when it did not. These are the facts `path-entries` stores. |
+| `user_providers` | `directory` is `$XDG_CONFIG_HOME/spacequery/providers` (or `~/.config/spacequery/providers`). `present` is 1 when that path is a directory. `error` explains a path that is not a directory or cannot be listed. Absence is `present` 0 and `error` null. |
+| `trace` | With `--trace`, the same child-process rows as a query. |
+
+Exit 0 means the report was printed. Read `ok` before you trust it.
+Exit 2 is usage. Exit 1 means doctor itself failed before it could report providers.
+Both of those print this object and no stack:
+
+```json
+{ "error": "Unknown option '--scope'", "do": "spacequery doctor [--json] [--root DIR] [--trace]" }
+```
+
+`do` is the command to run next.
+
 ## Flags
 
 | Flag | Meaning |
@@ -183,9 +233,9 @@ spacequery records call counts in `$XDG_STATE_HOME/spacequery/calls.jsonl`, or `
 
 | Code | Meaning |
 | --- | --- |
-| 0 | The query ran, or `--until` matched on a complete observation. A failed provider does not change the code of a one-shot query; read `providers`. |
-| 1 | The statement did not run: a missing parameter, a statement that does not prepare. The message is one line on standard error. |
-| 2 | Usage: an unknown query name, a bad `--scope`, no query given, `watch` without `--until`, or a watch flag on a one-shot command. |
+| 0 | The query ran, doctor printed a report, or `--until` matched on a complete observation. A failed provider does not change the code of a one-shot query or of doctor; read `providers`, or doctor's `ok`. |
+| 1 | The statement did not run: a missing parameter, a statement that does not prepare. Doctor uses this when it fails before a report and prints `{error, do}`. A query message is one line on standard error. |
+| 2 | Usage: an unknown query name, a bad `--scope`, no query given, `watch` without `--until`, a watch flag on a one-shot command, or a flag doctor does not take. Doctor prints `{error, do}`. |
 | 3 | `--expect-empty` and the query returned rows. On watch, the matching snapshot returned rows. |
 | 4 | `--strict` and a provider did not answer. |
 | 5 | `watch` reached `--timeout` before `--until` matched. The last snapshot was printed. |

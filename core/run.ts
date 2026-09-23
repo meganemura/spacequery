@@ -275,6 +275,39 @@ async function prepare(tables: readonly string[] | ((raw: DatabaseSync) => reado
   return { raw, db, providers: await db.all(providerQueries.all), started, trace, scope, me, params: bound };
 }
 
+export type PathHealth = { entries: number; missing: number; duplicates: number };
+
+// Doctor asks every built-in loader to answer through this same path.
+// A second call would observe the machine again, so PATH counts come from
+// the database this call already filled.
+export async function observeProviders(options: RunOptions): Promise<{
+  providers: ProviderRow[];
+  ms: number;
+  trace: TraceRow[];
+  scope: Scope;
+  path: PathHealth | null;
+}> {
+  const tables = [...options.loaders, ...(options.userProviders ?? [])].flatMap((loader) => [...loader.tables]);
+  const state = await prepare(tables, [], options);
+  const { providers, ms, trace, scope } = resultMetadata(state, performance.now());
+  return { providers, ms, trace, scope, path: pathHealth(state) };
+}
+
+// Missing and duplicate entries are the facts `path-entries` already stores.
+// A search path that did not answer has no counts to report.
+function pathHealth(state: RunState): PathHealth | null {
+  const searchPath = state.providers.find((provider) => provider.name === "search_path");
+  if (searchPath?.ok !== 1) return null;
+  const row = state.raw.prepare(`
+    select count(*) as entries,
+      coalesce(sum(case when "exists" = 0 then 1 else 0 end), 0) as missing,
+      coalesce(sum(case when duplicate_of is not null then 1 else 0 end), 0) as duplicates
+    from path_entries
+  `).get() as { entries: number; missing: number; duplicates: number } | undefined;
+  if (row === undefined) return null;
+  return { entries: Number(row.entries), missing: Number(row.missing), duplicates: Number(row.duplicates) };
+}
+
 function resultMetadata(state: RunState, statementEnded: number): Omit<RunResult<never>, "rows"> {
   return {
     providers: state.providers,

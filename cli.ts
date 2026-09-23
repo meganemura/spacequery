@@ -2,6 +2,7 @@
 // The command line: spacequery <query|report> [--root DIR] [--scope root|agents|all] [--me PANE] [--json|--tsv] [--trace] [--expect-empty] [--strict]
 //                   spacequery --sql <text> [--root DIR] [--me PANE] [--scope root|agents|all] [--json|--tsv] [--trace] [--expect-empty] [--strict]
 //                   spacequery watch <query|--sql text> [query flags] --until <predicate> [--interval MS] [--timeout SEC]
+//                   spacequery doctor [--json] [--root DIR] [--trace]
 //                   spacequery --help
 // The JSON envelope carries the call time, rows, and provider status.
 // A requested trace lists child processes. TSV keeps stdout for result rows.
@@ -14,6 +15,7 @@ import { fileURLToPath } from "node:url";
 import { parseArgs, type ParseArgsOptionsConfig } from "node:util";
 import { catalog, reportParams, reports } from "./catalog.ts";
 import { callCounts, callsPath, recordCall } from "./core/calls.ts";
+import { doctorGuidance, runDoctor, type DoctorGuidance } from "./core/doctor.ts";
 import type { Scope } from "./core/loader.ts";
 import { runQuery, runReport, runSql, type ProviderRow, type ReportResult, type RunResult, type TraceRow } from "./core/run.ts";
 import { defaultWatchIntervalMs, defaultWatchTimeoutSec, parseUntil, parseWatchTiming, watchUntil, type WatchStop } from "./core/watch.ts";
@@ -64,6 +66,7 @@ function usage(userQueries: readonly UserQuery[], userProviders: readonly UserPr
     "       spacequery --sql <text> [--root DIR] [--me PANE] [--scope root|agents|all] [--json|--tsv] [--trace] [--expect-empty] [--strict]",
     "       spacequery watch <query> [--root DIR] [--scope root|agents|all] [--me PANE] [--json|--tsv] [--trace] [--expect-empty] [--strict] --until <predicate> [--interval MS] [--timeout SEC]",
     "       spacequery watch --sql <text> [--root DIR] [--me PANE] [--scope root|agents|all] [--json|--tsv] [--trace] [--expect-empty] [--strict] --until <predicate> [--interval MS] [--timeout SEC]",
+    "       spacequery doctor [--json] [--root DIR] [--trace]",
     "",
     "terminal browser: spacequery ui [--root DIR] [--scope root|agents|all] [--me PANE]",
     "",
@@ -97,6 +100,10 @@ function usage(userQueries: readonly UserQuery[], userProviders: readonly UserPr
     "  spacequery watch in-dir --until agent_status=idle|blocked",
     "  spacequery watch claude-sessions --until status=idle",
     "Exit 0 when --until matches, 5 on timeout, 130 on SIGINT or SIGTERM.",
+    "",
+    "doctor reports whether each built-in provider answered, for one root. It does not install tools or change a provider.",
+    "Before you treat empty rows as none, run doctor when a provider looks incomplete.",
+    "JSON is the doctor output. --json selects that same document. When doctor cannot run, the output is {error, do}.",
   ].join("\n");
 }
 
@@ -241,6 +248,7 @@ async function main(argv: string[]): Promise<number> {
     await startUi(argv.slice(1));
     return 0;
   }
+  if (argv[0] === "doctor") return doctorCommand(argv.slice(1));
   const userQueries = loadUserQueries(process.env);
   const userProviders = loadUserProviders(process.env, loaders);
   const { values, positionals } = parseArgs({
@@ -383,6 +391,74 @@ async function main(argv: string[]): Promise<number> {
     return 2;
   }
   return watchQuery(name, runOnce, until, timing.intervalMs, timing.timeoutMs, values["tsv"] === true, includeTrace, flags);
+}
+
+function doctorUsage(): string {
+  return [
+    "usage: spacequery doctor [--json] [--root DIR] [--trace]",
+    "",
+    "Reports the package and whether each built-in provider answered, for one root.",
+    "JSON is the output. --json selects that same document.",
+    "--root defaults to the git toplevel of the current directory.",
+    "A missing user-provider directory is present 0. Doctor does not run user-provider commands and does not install tools.",
+    "When doctor cannot run, the output is {error, do}.",
+  ].join("\n");
+}
+
+function printGuidance(guidance: DoctorGuidance): void {
+  console.log(JSON.stringify(guidance, null, 2));
+}
+
+// Doctor is parsed on its own so a query flag cannot widen it to every repository.
+async function doctorCommand(argv: string[]): Promise<number> {
+  let values: Record<string, string | boolean | undefined>;
+  let positionals: string[];
+  try {
+    const parsed = parseArgs({
+      args: argv,
+      options: {
+        root: { type: "string" },
+        json: { type: "boolean" },
+        trace: { type: "boolean" },
+        help: { type: "boolean", short: "h" },
+      },
+      strict: true,
+      allowPositionals: true,
+    });
+    values = parsed.values;
+    positionals = parsed.positionals;
+  } catch (error) {
+    printGuidance(doctorGuidance(error instanceof Error ? error.message : String(error)));
+    return 2;
+  }
+  if (values.help === true) {
+    console.log(doctorUsage());
+    return 0;
+  }
+  if (positionals.length > 0) {
+    printGuidance(doctorGuidance("doctor does not take a query"));
+    return 2;
+  }
+  const root = values.root;
+  if (root !== undefined && typeof root !== "string") {
+    printGuidance(doctorGuidance("--root needs a value"));
+    return 2;
+  }
+  try {
+    const report = await runDoctor({
+      loaders,
+      root: toplevel(root ?? process.cwd()),
+      env: process.env,
+      trace: values.trace === true,
+    });
+    console.log(JSON.stringify(report, null, 2));
+    warn(report.providers);
+    if (report.user_providers.error !== null) process.stderr.write(`spacequery: user providers: ${report.user_providers.error}\n`);
+    return 0;
+  } catch (error) {
+    printGuidance(doctorGuidance(error instanceof Error ? error.message : String(error)));
+    return 1;
+  }
 }
 
 // A watch flag on a one-shot call is a usage error unless that name is a

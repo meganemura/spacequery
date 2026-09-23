@@ -15,6 +15,7 @@ Call it from anywhere:
 ```sh
 spacequery <query> [--root DIR] [--scope root|agents|all] [--me PANE] [--tsv] [--trace]
 spacequery watch <query> --until <predicate> [--interval MS] [--timeout SEC]
+spacequery doctor [--json] [--root DIR]
 ```
 
 `spacequery` is on PATH after `npm link` in the checkout; `node /path/to/spacequery/cli.ts` is the same command without the link.
@@ -27,6 +28,20 @@ Its `ok` value only covers the providers whose tables that section reads.
 Read the report-level `providers` too when a widened scope matters.
 The rules of the envelope, the flags, and the exit codes: [references/output.md](references/output.md).
 Exact provider JSON names and their state sources: [references/providers.md](references/providers.md).
+
+## Doctor
+
+Before you assume empty means none, run `spacequery doctor` when setup is unclear or a provider looks incomplete.
+Doctor loads every built-in provider once on one root, the git toplevel or `--root`, and prints JSON.
+Read the report's `ok`, then each provider's `ok` and `error`.
+A provider with `ok` 0 left its tables empty. The `error` says why, such as a missing binary.
+`path` counts PATH entries, missing entries, and duplicates when the search path provider answered. Those are the same facts as `path-entries`.
+`user_providers.present` is 1 when `$XDG_CONFIG_HOME/spacequery/providers` exists.
+Doctor does not run user-provider commands, install tools, or change a provider.
+`spacequery doctor --json` prints the same JSON.
+Exit 0 means the report was printed, including when a provider did not answer.
+When doctor itself cannot run, stdout is an `error` and a `do` command, with no stack.
+The fields and exit codes: [references/output.md](references/output.md#doctor).
 
 ## Terminal browser
 
@@ -60,7 +75,7 @@ The predicate, the fingerprint, and the exit codes: [references/output.md](refer
 
 ## Workflow
 
-1. **Before you start work in a repository**: `here` (one call: who else is here with `in-dir`, the checkout with `git-status` and `worktrees`, its pull request with `branch-pull-requests`, ports with `ports-in-dir`, processes with `processes-in-dir`, Docker containers with `containers-in-dir` and `container-ports-in-dir`, tools with `tools-in-dir`, issues, and the workflow). The rows exclude your own pane. As a gate: `spacequery here --expect-empty --strict` exits 0 only when nobody else is here and every provider answered. To wait until that is true, `spacequery watch in-dir --until empty` exits 0 when no other agent is in the repository.
+1. **Before you start work in a repository**: `here` (one call: who else is here with `in-dir`, the checkout with `git-status` and `worktrees`, its pull request with `branch-pull-requests`, ports with `ports-in-dir`, processes with `processes-in-dir`, Docker containers with `containers-in-dir` and `container-ports-in-dir`, tools with `tools-in-dir`, issues, and the workflow). The rows exclude your own pane. As a gate: `spacequery here --expect-empty --strict` exits 0 only when nobody else is here and every provider answered. If a section looks empty and a provider did not answer, run `spacequery doctor` before you assume nobody is there. To wait until the directory is clear, `spacequery watch in-dir --until empty` exits 0 when no other agent is in the repository.
 2. **When the user asks what is going on**: `agents-with-sessions` (names, idle time), `session-processes`, `working`, `idle-sessions`, `workspaces`.
    Use `claude-usage` and `codex-usage` for quota percentages and reset information. Check record times; Codex reads bounded tails of recently modified local logs.
    Use `claude-sessions` and `codex-sessions` for locally recorded model, effort, and session names.

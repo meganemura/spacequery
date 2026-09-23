@@ -19,6 +19,7 @@ spacequery here
 spacequery in-dir --tsv
 spacequery agents-with-sessions
 spacequery watch in-dir --until empty
+spacequery doctor
 spacequery --help
 ```
 
@@ -77,6 +78,8 @@ ad hoc SQL と user query file も同じ provider 解決を使う。
 JSON envelope は、実行した provider ごとに `source`、`ok`、`observed_at`、`ms`、`error` を持つ `providers` を含む。
 provider が失敗した場合、その table は空になり、provider row が失敗を示す。
 失敗した provider の隣にある空の rows は「ない」ではなく「分からない」と読む。
+結果が不完全に見えるときは、`spacequery doctor` が組み込み provider の答えを点検する。
+report の読み方は skill にある。
 
 report は section ごとの信頼情報も返す。
 `here` は `sections`、`section_status`、report level の `providers` を返す。
