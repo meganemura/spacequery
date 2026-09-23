@@ -1,6 +1,8 @@
 # The queries
 
 Every built-in query, its parameters, and its columns.
+The headings below are the `group` values `--help` prints. Each query's `purpose` says when to use it.
+`spacequery --help` prints the curated short list. `spacequery --help --all` prints every enabled query.
 Columns marked `?` can be null.
 `root` is the git toplevel of a repository, the key every join uses.
 

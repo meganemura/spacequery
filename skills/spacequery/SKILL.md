@@ -32,7 +32,8 @@ Exact provider JSON names and their state sources: [references/providers.md](ref
 ## Doctor
 
 Before you assume empty means none, run `spacequery doctor` when setup is unclear or a provider looks incomplete.
-Doctor loads every built-in provider once on one root, the git toplevel or `--root`, and prints JSON.
+Doctor loads every enabled built-in provider once on one root, the git toplevel or `--root`, and prints JSON.
+`beads`, `brew`, `headsign`, and `runtag` are off until `$XDG_CONFIG_HOME/spacequery/config.json` enables them. Doctor lists those names in `disabled_providers` and does not load them.
 Read the report's `ok`, then each provider's `ok` and `error`.
 A provider with `ok` 0 left its tables empty. The `error` says why, such as a missing binary.
 A missing runtag jobs directory is `ok` 1 and an empty table. An unreadable jobs directory, or a job file that does not parse, is `ok` 0.
@@ -97,58 +98,44 @@ The predicate, the fingerprint, and the exit codes: [references/output.md](refer
 11. **Before you choose a dependency or tool parser**: `repository-config-files --root DIR`. It inventories recognized file names without interpreting their bodies.
 
 Every query, its parameters, and its columns: [references/queries.md](references/queries.md).
+`spacequery --help` prints the short list. `spacequery --help --all` prints every enabled query.
 
 ## Queries
 
-The table lists the queries the workflow names. Every query, with its parameters and columns, is in [references/queries.md](references/queries.md); `--help` lists them all, most used first. `--help --json` gives the list as data.
+The table is the curated set. It is not one machine's call history.
+`spacequery --help` prints these after it drops any query whose provider is off, then adds queries this machine calls often, up to about 25. The call log only ranks that list.
+`spacequery --help --json` is the same list as data, with `group`, `purpose`, `default`, `enabled`, and `requires`.
+`spacequery --help --all` and `spacequery --help --all --json` list every enabled query. The columns for the rest are in [references/queries.md](references/queries.md).
+`beads`, `brew`, `headsign`, and `runtag` are off until you set them to `true` under `providers` in `$XDG_CONFIG_HOME/spacequery/config.json` (`~/.config/spacequery/config.json` when the variable is unset). A named query and `--sql` still run when the provider is off in the list.
 
-| Query | Parameter | Answers |
+| Query | Parameter | When |
 | --- | --- | --- |
-| `here` | `--root` | Everything about one repository, in sections. |
-| `in-dir` | `--root` | The agents in one repository. |
-| `crowded-repos` | | Repositories with more than one agent, and their dirt. |
-| `dirty` | | Repositories with uncommitted changes, dirtiest first. |
-| `behind-upstream-with-agents` | | Repositories behind their upstream that have an agent in them. |
-| `agents-with-sessions` | | Agents with the name, start time, and last activity of their session. |
-| `session-processes` | | Processes that live sessions started through their child process chains. |
-| `claude-sessions` | | Live Claude sessions with name, recorded model, effort, and metadata time. |
-| `codex-sessions` | | Live Codex threads with name, title, model, and reasoning effort. |
-| `working` | | The agents that work right now. |
-| `idle-sessions` | | Sessions ordered by how long they have been idle. |
-| `workspaces` | | Which workspace holds agents of which repository. |
-| `idle-worktrees` | | Linked worktrees with no agent in them. |
-| `dirty-unattended` | | Repositories with uncommitted changes and no agent. |
-| `path-entries` | | The caller's PATH entries, including dead and duplicate entries. |
-| `which` | `--q` | Every executable match for one name, in PATH order. |
-| `shadowed-commands` | | Executable names that occur in more than one PATH directory. |
-| `which-in-dir` | `--root`, `--q` | Every executable match for one name on a repository's PATH. |
-| `tools-in-dir` | `--root` | The tools mise activates in one repository. |
-| `missing-tools-with-agents` | | Repositories with an agent where a requested tool is not installed. |
-| `tool-versions-split` | | Tools whose active version differs between repositories with an agent. |
-| `brew-packages` | | Installed Homebrew formula and cask versions. |
-| `installed-software` | | Installed versions from mise and Homebrew, kept under their source manager. |
-| `repository-versions` | `--root` | Static runtime and library declarations and lock evidence in one repository. |
-| `repository-version-sources` | | Inspected sources and unresolved or unsupported evidence in repositories in scope. |
-| `shared-dependencies` | | Direct npm dependencies declared by more than one repository in scope. |
-| `shared-dependency-details` | | Source evidence for each shared direct npm dependency. |
-| `dependency-coverage` | | Source and unresolved-evidence counts for dependency inspection. |
-| `prs-with-agents` | | Agents whose branch has an open pull request, with its checks. |
-| `failing-checks-with-agents` | | Open pull requests with failing checks in repositories where an agent works. |
-| `processes-in-dir` | `--root` | Processes whose working directory is inside one repository. |
-| `descendants` | `--q` | Processes in scope that descend from one pid. |
-| `busy-processes` | | Processes in scope that use the most CPU now. |
-| `ports-in-dir` | `--root` | Listening ports of processes inside one repository. |
-| `servers-with-agents` | | Listening processes in repositories where an agent works. |
-| `containers` | | Every Docker container, with image, state, health, and Compose identity. |
-| `containers-in-dir` | `--root` | Docker containers associated with one repository. |
-| `container-ports-in-dir` | `--root` | Docker container ports associated with one repository. |
-| `skills-in-dir` | `--root` | The skills an agent can use in one repository. |
-| `duplicate-skill-names` | | Skill names that come from more than one source. |
-| `issues` | `--root` | Open beads issues of one repository. |
-| `workflow` | `--root` | The headsign run of one repository. |
-| `runs-in-dir` | `--root` | runtag jobs whose repository root or working directory is that directory or inside it. |
-| `running-workflows-unattended` | | Running headsign workflows with no agent in the repository. |
-| `issues-unattended` | | Repositories with open beads issues and no agent. |
+| `here` | `--root` | When you start work in a repository and want the other agents, the checkout, and what is already running. |
+| `agents` | | When you need every hosted agent and the repository it sits in. |
+| `in-dir` | `--root` | When you are about to work in a repository and need to see who else is there. |
+| `working` | | When you need the agents that are working right now. |
+| `agents-with-sessions` | | When you want each agent together with its session name and idle time. |
+| `claude-sessions` | | When you need a live Claude session's recorded model, effort, or name. |
+| `codex-sessions` | | When you need a live Codex thread's model, effort, or source. |
+| `idle-sessions` | | When you want the sessions that have been quiet the longest. |
+| `dirty` | | When you want repositories with uncommitted changes, busiest first. |
+| `dirty-unattended` | | When uncommitted changes have no agent tending them. |
+| `idle-worktrees` | | When you need a linked worktree with nobody in it. |
+| `which` | `--q` | When you need every match for one command name and which one the caller runs. |
+| `which-in-dir` | `--root`, `--q` | When you need the executable a repository would run for one name. |
+| `tools-in-dir` | `--root` | When you need the tool versions mise activates in one repository. |
+| `repository-versions` | `--root` | When you need static version and lock evidence in one repository before you trust a runtime. |
+| `failing-checks-with-agents` | | When failing checks sit in a repository where an agent works. |
+| `prs-with-agents` | | When you need the open pull request for a branch an agent is on. |
+| `ports-in-dir` | `--root` | When you are about to bind a port and need the listeners already inside one repository. |
+| `processes-in-dir` | `--root` | When you need the processes whose working directory is inside one repository. |
+| `containers-in-dir` | `--root` | When you need the containers associated with one repository. |
+| `skills-in-dir` | `--root` | When you need the skills an agent can use in one repository. |
+| `issues` | `--root` | When you pick up a repository and need its open beads issues. |
+| `issues-unattended` | | When open beads issues have no agent in the repository. |
+| `running-workflows-unattended` | | When a headsign workflow is running with no agent in the repository. |
+| `workflow` | `--root` | When you pick up a repository and need its headsign run. |
+| `runs-in-dir` | `--root` | When you are waiting on a detached runtag job for one directory. |
 
 `--root` defaults to the git toplevel of the current directory.
 A query that takes `--root` looks at that repository only. `--scope all` runs each repository-scoped provider on every ghq repository instead of the repositories with an agent; it takes a few seconds.

@@ -63,7 +63,7 @@ test("help lists a user query and its description", async () => {
       env: { ...process.env, XDG_CONFIG_HOME: configHome },
     });
     assert.match(stdout, new RegExp(`user queries \\(${directory.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\):`));
-    assert.match(stdout, /branch\s+Repositories on one branch\./);
+    assert.match(stdout, /branch\s+User\s+Repositories on one branch\./);
   });
 });
 

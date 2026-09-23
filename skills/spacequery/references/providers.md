@@ -8,7 +8,8 @@ The `providers` array contains only providers required by the query or report.
 A provider with `ok: 0` did not answer, so empty results that depend on it mean "unknown".
 A provider with `ok: 1` answered, so empty results mean it found no matching facts in the requested scope.
 
-`spacequery doctor` runs every built-in provider in this list once, on one root, and prints the same `ok` and `error` fields.
+`spacequery doctor` runs every enabled built-in provider in this list once, on one root, and prints the same `ok` and `error` fields.
+A provider that is off is not a row in that list. Its name is in `disabled_providers`.
 Read [output.md](output.md#doctor) for the rest of that report.
 Before you assume empty means none, run doctor when a provider looks incomplete.
 
@@ -35,6 +36,29 @@ The report-level `providers` list can include dependencies, such as providers th
 | `skills` | Claude and Codex user, project, system, and plugin skills, plus installed plugin identity, source, version, path, and timestamps when those records exist. |
 | `headsign` | Readable `.headsign/state.json` files for repositories in scope, including workflow, status, phase, iteration counts, attempts, last failure, stop reason, driver agent, and phase entry time. |
 | `runtag` | Job files under `$XDG_DATA_HOME/runtag/jobs/` (default `~/.local/share/runtag/jobs/<id>.json`). Each row has `id`, `status` (`running` or `exited`), `exit_code`, `orphan`, `repo_root`, `cwd`, and `supervisor_pid`. The reader starts no process and does not write a job file. |
+
+## Turning a provider off
+
+Lists read `$XDG_CONFIG_HOME/spacequery/config.json`, or `~/.config/spacequery/config.json` when `XDG_CONFIG_HOME` is unset.
+A missing file leaves every built-in provider on except `beads`, `brew`, `headsign`, and `runtag`.
+Those four are optional inventories. `beads`, `headsign`, and `runtag` are author-owned tools, and Homebrew is a machine inventory you may not want in the short list.
+Set a name to `true` or `false` to override the ship default. Names match the table above, including `github` and `github_reviews` as two providers.
+
+```json
+{
+  "providers": {
+    "beads": true,
+    "git": false
+  },
+  "help": { "mode": "short" }
+}
+```
+
+`help.mode` is `short` or `all`. `--help --all` and `--help --short` override it.
+Help, JSON help, and the terminal browser omit a query when any provider it reads is off.
+`spacequery ui` has a Providers list. Enter toggles one and writes this file.
+A named query and `--sql` still load the providers their tables need.
+Doctor skips providers that are off and names them in `disabled_providers`, so a tool you have not enabled does not make doctor fail.
 
 ## Quota sources
 

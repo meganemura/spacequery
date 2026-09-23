@@ -29,6 +29,7 @@ A report exits 0 even when some providers did not answer. The report's own `ok` 
 ## Consequences
 
 An agent can see a missing binary, a permission error, or an absent user-provider directory before it treats empty rows as none.
+ADR 0042 keeps a provider that is off out of this report and names it in `disabled_providers`.
 Doctor costs one observation of every built-in provider on one root, including tools that contact a service.
 A missing optional tool is `ok` 0 in the report. Doctor does not install it.
 Doctor is not a daemon and not a fixer.

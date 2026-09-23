@@ -8,6 +8,7 @@ import { delimiter, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { test } from "node:test";
+import { isProviderEnabled, loadConfig, providersOffByDefault } from "../core/config.ts";
 import { doctorDo, runDoctor, userProviderDirectory } from "../core/doctor.ts";
 import type { Exec } from "../core/loader.ts";
 import type { Repo } from "../core/repo.ts";
@@ -60,8 +61,11 @@ test("doctor reports every built-in provider when the toolchain answers", async 
     const packageJson = fileURLToPath(new URL("../package.json", import.meta.url));
     assert.equal(report.version, JSON.parse(readFileSync(packageJson, "utf8")).version);
     assert.equal(report.package, dirname(packageJson));
-    assert.deepEqual(report.providers.map((provider) => provider.name), loaders.map((loader) => loader.name).sort());
-    assert.deepEqual(report.providers.map(({ source, ok, error }) => ({ source, ok, error })), loaders.map(() => ({ source: "built-in", ok: 1, error: null })));
+    const enabled = loaders.map((loader) => loader.name).filter((name) => isProviderEnabled(name, loadConfig(machine.env))).sort();
+    assert.deepEqual(report.providers.map((provider) => provider.name), enabled);
+    assert.deepEqual(report.providers.map(({ source, ok, error }) => ({ source, ok, error })), enabled.map(() => ({ source: "built-in", ok: 1, error: null })));
+    assert.deepEqual(report.disabled_providers, [...providersOffByDefault].sort());
+    assert.equal(report.config, loadConfig(machine.env).path);
     assert.deepEqual(report.path, { entries: 2, missing: 1, duplicates: 0 });
     assert.equal(report.user_providers.present, 0);
     assert.equal(report.user_providers.error, null);
@@ -127,6 +131,8 @@ test("a user-provider path that is not a directory clears doctor ok", async () =
 test("doctor treats a missing runtag jobs directory as answered and an unreadable one as failed", async () => {
   const machine = fixture();
   try {
+    mkdirSync(join(machine.env.XDG_CONFIG_HOME!, "spacequery"), { recursive: true });
+    writeFileSync(join(machine.env.XDG_CONFIG_HOME!, "spacequery", "config.json"), JSON.stringify({ providers: { runtag: true } }));
     const missing = await runDoctor({ loaders, root: machine.root, env: machine.env, exec: answeringExec(), repo });
     assert.equal(missing.providers.find((provider) => provider.name === "runtag")?.ok, 1);
     assert.equal(missing.ok, 1);

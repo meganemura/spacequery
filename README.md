@@ -102,6 +102,8 @@ spacequery requires Node 24.10 or later.
 The build and ad hoc SQL resolver use `setAuthorizer` from `node:sqlite`.
 
 Put the tools you want spacequery to observe on `PATH`: `herdr`, `git`, `ghq`, `mise`, `brew`, `gh` logged in, `docker`, `lsof`, and `bd`.
+`spacequery --help` prints a short list. `spacequery --help --all` prints every enabled query.
+`beads`, `brew`, `headsign`, and `runtag` stay out of that list until `~/.config/spacequery/config.json` enables them. A query you name still runs.
 Headsign rows come from files and need no command on `PATH`.
 Session rows come from records under `~/.claude` and `~/.codex`.
 Joining a pane to a session needs herdr's Claude Code and Codex integrations.
@@ -125,7 +127,7 @@ runtag status <id>
 A job whose file still says `running` after its supervisor pid has died stays `running`, with `orphan` 1 and `exit_code` null.
 That row does not satisfy `--until status=exited`.
 `runtag status <id>` is where the exit code is read after the watch exits 0.
-A missing jobs directory is an empty answer. `spacequery doctor` reports `runtag` as answered in that case, and as failed when the jobs directory cannot be read or a job file does not parse.
+A missing jobs directory is an empty answer. When `runtag` is enabled, `spacequery doctor` reports it as answered in that case, and as failed when the jobs directory cannot be read or a job file does not parse. While it is off, doctor names it in `disabled_providers` and does not load it.
 
 A missing provider does not make a false row.
 It gives an empty table and a `providers` row that reports the failure.

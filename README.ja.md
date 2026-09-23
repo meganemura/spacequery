@@ -122,7 +122,7 @@ runtag status <id>
 file が `running` のまま supervisor pid が死んでいる job は `running` のまま残る。`orphan` は 1、`exit_code` は null である。
 その row は `--until status=exited` を満たさない。
 watch が 0 で終わったあと、`exit_code` は `runtag status <id>` で読む。
-jobs directory が無いときは空の答えである。`spacequery doctor` はそのとき `runtag` を答えありと報告し、directory を読めないときや job file が parse できないときは失敗と報告する。
+jobs directory が無いときは空の答えである。`runtag` を有効にしたとき、`spacequery doctor` はその欠如を答えありと報告し、directory を読めないときや job file が parse できないときは失敗と報告する。無効のときは doctor は `runtag` を読み込まず `disabled_providers` に載せる。
 
 provider が無いとき、spacequery は偽の行を作らない。
 空の table と、失敗を示す `providers` row を返す。

@@ -5,7 +5,9 @@ It accepts `--root DIR`, `--scope root|agents|all`, `--me PANE`, and `--no-mouse
 It needs a terminal with at least 60 columns and 16 rows.
 
 Tables shows built-in and user provider tables with their column types, nullable columns, and keys.
-Queries shows built-in and user queries with descriptions, SQL, parameters, and result columns.
+Queries shows built-in and user queries with a purpose, a group, SQL, parameters, and result columns.
+A query whose provider is off stays in the list and is dimmed.
+Providers lists each built-in provider. Enter toggles it and writes `$XDG_CONFIG_HOME/spacequery/config.json`.
 Definition opens when an entry is selected or the catalog is switched.
 It shows SQL first, then Columns, then links to related tables or queries.
 Section headings, blank lines, and aligned column types separate these definitions.
@@ -22,7 +24,7 @@ A broken user query keeps its SQL and an error message in the catalog.
 | Key | Action |
 | --- | --- |
 | `m` | Toggle mouse input. |
-| `t` | Toggle between Tables and Queries. |
+| `t` | Cycle Tables, Queries, and Providers. |
 | `/` | Edit the catalog search; Enter applies it and Esc cancels it. |
 | Tab | Move focus between the catalog and the detail pane. |
 | Up/Down or `k`/`j` | Select an entry, row, or text line in the focused pane. |
@@ -32,7 +34,7 @@ A broken user query keeps its SQL and an error message in the catalog.
 | `c` | Edit root, scope, and caller context in sequence. |
 | `s` | Switch focus between result rows and the fixed Sources area. |
 | Left/Right | Scroll result columns or long text lines horizontally. |
-| Enter | Focus the selected entry, open a row, accept an input, or follow a related entry. |
+| Enter | Focus the selected entry, open a row, accept an input, follow a related entry, or toggle the selected provider. |
 | `r` | Prompt for missing parameters, then execute the selected entry. |
 | Esc | Close a row, cancel an edit, or return to the catalog with its selection and search intact. |
 | `q` | Cancel the current execution and quit. |
@@ -74,7 +76,7 @@ The header shows whether mouse input is on.
 Disable it when you want the terminal to handle text selection.
 Mouse input requires a terminal that forwards SGR mouse reports; a multiplexer must forward them too.
 
-Click Tables or Queries to switch catalogs, or click Definition or Results to switch views.
+Click Tables, Queries, or Providers to switch catalogs, or click Definition or Results to switch views.
 Click a catalog entry to select it, a related entry to open its definition, or a result row to open its details.
 Click `[r Run]` to execute; missing parameters still require input before execution.
 The wheel scrolls the area under the pointer: the catalog, definition, result rows, open row, or Sources.

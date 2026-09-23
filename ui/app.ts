@@ -7,7 +7,7 @@ import { stripVTControlCharacters } from "node:util";
 import { scrollbar, scrollbarTarget, type Scrollbar } from "./scrollbar.ts";
 import { horizontalLimit, horizontalText } from "./horizontal.ts";
 import { parseMouse, enableMouse, disableMouse, type MouseEvent } from "./mouse.ts";
-import type { Item } from "./catalog.ts";
+import type { Item, ProviderToggle } from "./catalog.ts";
 import { observe, type Inputs, type Observation } from "./execute.ts";
 
 type View = "Definition" | "Results";
@@ -15,7 +15,15 @@ const views: View[] = ["Definition", "Results"];
 export const safeText = (value: unknown): string => stripVTControlCharacters(value === null ? "NULL" : String(value ?? "")).replace(/[\x00-\x08\x0b-\x1f\x7f-\x9f]/g, "");
 const lineText = (value: unknown): string => safeText(value).replace(/[\n\r\t]/g, " ");
 
-export function Browser({ items, initial, execute = observe, mouse = true }: { items: Item[]; initial: Inputs; execute?: typeof observe; mouse?: boolean }) {
+export function Browser({ items, initial, execute = observe, mouse = true, providers, onToggleProvider, notice = "" }: {
+  items: Item[];
+  initial: Inputs;
+  execute?: typeof observe;
+  mouse?: boolean;
+  providers?: readonly ProviderToggle[];
+  onToggleProvider?: (name: string, enabled: boolean) => void;
+  notice?: string;
+}) {
   const { exit } = useApp();
   const { stdout } = useStdout();
   const [mouseEnabled, setMouseEnabled] = useState(mouse);
@@ -34,7 +42,9 @@ export function Browser({ items, initial, execute = observe, mouse = true }: { i
     stdout.on("resize", resize);
     return () => { stdout.off("resize", resize); };
   }, [stdout]);
-  const [kind, setKind] = useState<Item["kind"]>("query");
+  const [kind, setKind] = useState<Item["kind"] | "provider">("query");
+  const [providerRows, setProviderRows] = useState(() => providers ? [...providers] : []);
+  const [providerIndex, setProviderIndex] = useState(0);
   const [search, setSearch] = useState("");
   const [editing, setEditing] = useState<{ kind: "search" } | { kind: "field"; name: string; remaining: string[]; runAfter: boolean; changed: boolean } | null>(null);
   const [draft, setDraft] = useState("");
@@ -53,12 +63,22 @@ export function Browser({ items, initial, execute = observe, mouse = true }: { i
   const [detailOffset, setDetailOffset] = useState(0);
   const [inputs, setInputs] = useState<Inputs>(initial);
   const [result, setResult] = useState<{ item: Item; observation: Observation } | null>(null);
-  const [error, setError] = useState("");
+  const [error, setError] = useState(notice);
   const [busy, setBusy] = useState(false);
   const pending = useRef(false);
   const controller = useRef<AbortController | null>(null);
   useEffect(() => () => { controller.current?.abort(); }, []);
-  const filtered = items.filter((item) => item.kind === kind && `${item.name} ${item.description} ${item.source}`.toLowerCase().includes(search.toLowerCase()));
+  const listingProviders = kind === "provider";
+  // A query stays visible when its provider is off so the toggle has something to reveal.
+  // Dimmed text is the hint that help omits it.
+  function entryShown(entry: Item): boolean {
+    if (providerRows.length === 0) return entry.enabled !== false;
+    if (!entry.requires || entry.requires.length === 0) return entry.enabled !== false;
+    const on = new Set(providerRows.filter((row) => row.enabled).map((row) => row.name));
+    return entry.requires.every((name) => on.has(name));
+  }
+  const filtered = listingProviders ? [] : items.filter((item) => item.kind === kind && `${item.name} ${item.description} ${item.purpose ?? ""} ${item.group ?? ""} ${item.source}`.toLowerCase().includes(search.toLowerCase()));
+  const listCount = listingProviders ? providerRows.length : filtered.length;
   const item = filtered[Math.min(selected, Math.max(0, filtered.length - 1))];
   const observation = result !== null && result.item === item ? result.observation : undefined;
   const related = item ? items.filter((candidate) => candidate.kind !== item.kind && (item.kind === "table" ? candidate.tables.includes(item.name) : item.tables.includes(candidate.name))) : [];
@@ -100,7 +120,16 @@ export function Browser({ items, initial, execute = observe, mouse = true }: { i
     finally { pending.current = false; setBusy(false); }
   }
 
-  function switchCatalog(next: Item["kind"]) {
+  function toggleProvider(index: number) {
+    const row = providerRows[index];
+    if (!row) return;
+    const enabled = !row.enabled;
+    try { onToggleProvider?.(row.name, enabled); }
+    catch (caught) { setError(caught instanceof Error ? caught.message : String(caught)); return; }
+    setProviderRows((rows) => rows.map((item) => item.name === row.name ? { ...item, enabled } : item));
+    setError("");
+  }
+  function switchCatalog(next: Item["kind"] | "provider") {
     if (next === kind) return;
     setKind(next); setSearch(""); setListOffset(0); select(0); changeView("Definition"); setFocus("list");
   }
@@ -128,6 +157,7 @@ export function Browser({ items, initial, execute = observe, mouse = true }: { i
       if (hit("search", event)) { setEditing({ kind: "search" }); setDraft(search); return; }
       if (hit("tables", event)) { switchCatalog("table"); return; }
       if (hit("queries", event)) { switchCatalog("query"); return; }
+      if (hit("providers", event)) { switchCatalog("provider"); return; }
       for (const name of views) if (hit(name, event)) { changeView(name); setFocus("detail"); return; }
       if (hit("sourceLeft", event)) { setFocus("detail"); setSourcesFocused(true); scrollHorizontal(-1, true); return; }
       if (hit("sourceRight", event)) { setFocus("detail"); setSourcesFocused(true); scrollHorizontal(1, true); return; }
@@ -160,10 +190,11 @@ export function Browser({ items, initial, execute = observe, mouse = true }: { i
     const list = hit("list", event);
     if (list && list.x > 0 && list.x < list.width - 1 && list.y > 0 && list.y < list.height - 1) {
       setFocus("list");
-      if (event.kind === "scroll" && event.dy) setListOffset((previous) => Math.max(0, Math.min(previous + event.dy * 3, Math.max(0, filtered.length - listPageSize))));
+      if (event.kind === "scroll" && event.dy) setListOffset((previous) => Math.max(0, Math.min(previous + event.dy * 3, Math.max(0, listCount - listPageSize))));
       else if (event.kind === "click") {
         const index = listStart + list.y - 1;
-        if (index < filtered.length && list.y - 1 < listPageSize) select(index);
+        if (listingProviders) { if (index < providerRows.length && list.y - 1 < listPageSize) setProviderIndex(index); }
+        else if (index < filtered.length && list.y - 1 < listPageSize) select(index);
       }
       return;
     }
@@ -233,7 +264,9 @@ export function Browser({ items, initial, execute = observe, mouse = true }: { i
     if (input === "m") { setMouseEnabled(!mouseEnabled); return; }
     if (input === "/") { setEditing({ kind: "search" }); setDraft(search); return; }
     if (input === "t") {
-      switchCatalog(kind === "query" ? "table" : "query"); return;
+      const order: (Item["kind"] | "provider")[] = providers ? ["query", "table", "provider"] : ["query", "table"];
+      switchCatalog(order[(order.indexOf(kind) + 1) % order.length]!);
+      return;
     }
     if (key.tab) { setFocus(focus === "list" ? "detail" : "list"); return; }
     if (input === "r") { void run(); return; }
@@ -259,7 +292,10 @@ export function Browser({ items, initial, execute = observe, mouse = true }: { i
     const direction = key.downArrow || input === "j" ? 1 : key.upArrow || input === "k" ? -1 : key.pageDown ? scrollPage : key.pageUp ? -scrollPage : 0;
     if (direction) {
       if (focus === "list") {
-        if (key.pageDown || key.pageUp) setListOffset(Math.max(0, Math.min(listStart + direction, Math.max(0, filtered.length - listPageSize))));
+        if (listingProviders) {
+          if (key.pageDown || key.pageUp) setListOffset(Math.max(0, Math.min(listStart + direction, Math.max(0, providerRows.length - listPageSize))));
+          else setProviderIndex((index) => Math.max(0, Math.min(index + direction, providerRows.length - 1)));
+        } else if (key.pageDown || key.pageUp) setListOffset(Math.max(0, Math.min(listStart + direction, Math.max(0, filtered.length - listPageSize))));
         else select(selected + direction);
       }
       else if (sourcesFocused) setSourceOffset(() => Math.max(0, Math.min(sourceStart + direction, Math.max(0, sourceLines.length - (sourceHeight - 1)))));
@@ -274,6 +310,7 @@ export function Browser({ items, initial, execute = observe, mouse = true }: { i
       } else setOffset((n) => Math.max(0, Math.min(n + direction, Math.max(0, contentCount - 1))));
       return;
     }
+    if (key.return && kind === "provider") { toggleProvider(Math.min(providerIndex, Math.max(0, providerRows.length - 1))); return; }
     if (!key.return || !item) return;
     if (focus === "list") { setFocus("detail"); return; }
     if (sourcesFocused) return;
@@ -290,7 +327,22 @@ export function Browser({ items, initial, execute = observe, mouse = true }: { i
   const sourceLines = !observation ? [busy ? "Waiting for sources..." : "Run to inspect sources."] : (sourceEntries.length ? sourceEntries.map((entry) => entry.text) : ["This call ran no provider."]);
   const sourceStart = Math.min(sourceOffset, Math.max(0, sourceLines.length - (sourceHeight - 1)));
   const columnWidth = Math.max(0, ...(item?.columns.map((column) => column.name.length) ?? []));
-  const definitionRows: { text: string; heading?: boolean; target?: Item }[] = item ? [
+  const selectedProvider = providerRows[Math.min(providerIndex, Math.max(0, providerRows.length - 1))];
+  const hiddenProviders = item?.requires?.filter((name) => providerRows.find((row) => row.name === name)?.enabled === false) ?? [];
+  const definitionRows: { text: string; heading?: boolean; target?: Item }[] = listingProviders && selectedProvider ? [
+    { text: "Provider", heading: true }, { text: "" },
+    { text: `  ${selectedProvider.name} is ${selectedProvider.enabled ? "on" : "off"}.` },
+    { text: "" },
+    { text: `  ${selectedProvider.summary}` },
+    { text: "" }, { text: "Lists", heading: true }, { text: "" },
+    { text: "  Help omits a query while any provider it reads is off." },
+    { text: "  This list keeps that query and dims it." },
+    { text: "  Enter toggles the provider and writes config.json." },
+    { text: "  A named query still runs, and --sql still runs." },
+  ] : item ? [
+    ...(item.purpose ? [{ text: "Purpose", heading: true }, { text: "" }, { text: `  ${item.purpose}` }, { text: "" }] : []),
+    ...(item.group ? [{ text: `Group  ${item.group}` }, { text: "" }] : []),
+    ...(hiddenProviders.length ? [{ text: `Hidden from help while off: ${hiddenProviders.join(", ")}` }, { text: "" }] : []),
     { text: "SQL", heading: true }, { text: "" },
     ...lines(item.sql.trim()).map((text) => ({ text: `  ${text}` })),
     { text: "" }, { text: "Columns", heading: true }, { text: "" },
@@ -328,10 +380,10 @@ export function Browser({ items, initial, execute = observe, mouse = true }: { i
     color: active ? "black" : undefined, backgroundColor: active ? "cyan" : undefined,
     bold: active, dimColor: !active,
   });
-  const listStart = Math.min(listOffset, Math.max(0, filtered.length - listPageSize));
+  const listStart = Math.min(listOffset, Math.max(0, listCount - listPageSize));
   const resultStart = Math.min(resultOffset, Math.max(0, (observation?.rows.length ?? 0) - pageSize));
   const listVisible = listPageSize;
-  const listBar = scrollbar(filtered.length, listVisible, listStart, bodyHeight - 2, Math.max(0, filtered.length - listPageSize));
+  const listBar = scrollbar(listCount, listVisible, listStart, bodyHeight - 2, Math.max(0, listCount - listPageSize));
   const detailStart = expanded ? detailOffset : view === "Definition" ? offset : resultStart;
   const detailTotal = expanded ? contentLines.length : contentCount;
   const detailEnd = expanded ? Math.max(0, detailTotal - pageSize) : view === "Definition" ? Math.max(0, detailTotal - 1) : Math.max(0, detailTotal - pageSize);
@@ -341,7 +393,7 @@ export function Browser({ items, initial, execute = observe, mouse = true }: { i
     ...bar.glyphs.map((glyph) => text(glyph, { color: glyph === "│" ? "gray" : "cyan", bold: glyph !== "│" })));
   const failed = observation?.providers.filter((provider) => !provider.ok) ?? [];
   const detail: ReturnType<typeof h>[] = [];
-  if (!item) {
+  if (!listingProviders && !item) {
     detail.push(text("No matches", { bold: true }));
     if (detailHeight >= 3) detail.push(text(" "), text("Press / or click Search to change the filter.", { dimColor: true }));
   }
@@ -361,7 +413,7 @@ export function Browser({ items, initial, execute = observe, mouse = true }: { i
     detail.push(text(failed.length ? "Unknown: a source failed." : "0 rows in this scope.", { bold: true, color: failed.length ? "yellow" : undefined }));
     if (detailHeight >= 3) detail.push(text(" "), text(failed.length ? "Inspect Sources before interpreting this result." : "Press c to review the scope, or e to edit parameters.", { dimColor: true }));
   } else {
-    const keys = observation.rows.length ? Object.keys(observation.rows[0]!) : item.columns.map((c) => c.name);
+    const keys = observation.rows.length ? Object.keys(observation.rows[0]!) : (item?.columns ?? []).map((column) => column.name);
     const shown = keys.slice(columnStart, columnStart + shownColumnCount);
     const width = Math.max(1, Math.floor(rightWidth / Math.max(1, shown.length)));
     const gridRow = (values: unknown[], highlighted: boolean, heading = false) => h(Box, { flexDirection: "row" }, ...values.map((value) => h(Box, { width, paddingRight: 1, backgroundColor: highlighted && !heading && focus === "detail" && !sourcesFocused ? "blue" : undefined }, text(value, { color: heading ? "cyan" : highlighted && focus === "detail" && !sourcesFocused ? "whiteBright" : undefined, bold: highlighted || heading }))));
@@ -383,7 +435,11 @@ export function Browser({ items, initial, execute = observe, mouse = true }: { i
   const prompt = `${fieldLabel}: ${inputStart ? "…" : ""}${horizontalText(fieldValue, inputStart)}█`;
   const inputHint = editing?.kind === "search" ? "Enter Apply filter · Ctrl+U Clear · Esc Cancel"
     : `Enter ${editing?.kind === "field" && !editing.remaining.length ? editing.runAfter ? "Run query" : "Save" : "Next"} · Ctrl+U Clear · Esc Cancel${editing?.kind === "field" && editing.remaining.length ? ` · ${editing.remaining.length} remaining` : ""}`;
-  const focusHint = focus === "list" ? "Catalog · ↑↓ Select · Enter Inspect · q Quit"
+  const titleName = listingProviders ? selectedProvider?.name ?? "" : item?.name ?? "";
+  const titleMeta = listingProviders ? (selectedProvider?.enabled ? "on" : "off") : item?.source ?? "";
+  const titleDetail = listingProviders ? selectedProvider?.summary ?? "" : item?.purpose || item?.description || "";
+  const focusHint = listingProviders ? "Providers · ↑↓ Select · Enter Toggle · q Quit"
+    : focus === "list" ? "Catalog · ↑↓ Select · Enter Inspect · q Quit"
     : sourcesFocused ? "Sources · ↑↓ Lines · ←→ Scroll · s Rows · q Quit"
     : expanded ? "Row detail · ↑↓ Lines · ←→ Scroll · Esc Close · q Quit"
     : view === "Definition" ? "Definition · ↑↓ Lines · ←→ Scroll · Enter Follow · Esc List"
@@ -394,20 +450,30 @@ export function Browser({ items, initial, execute = observe, mouse = true }: { i
       h(Box, { flexShrink: 0 }, text("spacequery   ", { bold: true })),
       h(Box, { ref: region("tables"), flexShrink: 0 }, tab(kind === "table" ? "[Tables]" : "Tables", kind === "table")), text("  "),
       h(Box, { ref: region("queries"), flexShrink: 0 }, tab(kind === "query" ? "[Queries]" : "Queries", kind === "query")),
+      ...(providers ? [text("  "), h(Box, { ref: region("providers"), flexShrink: 0 }, tab(kind === "provider" ? "[Providers]" : "Providers", kind === "provider"))] : []),
       h(Box, { flexShrink: 0 }, text(`  t  m mouse:${mouseEnabled ? "on" : "off"}`, { dimColor: true })),
       text(`   scope: ${inputs.scope}${busy ? "   Loading..." : ""}`, { dimColor: !busy, color: busy ? "yellow" : undefined })),
     h(Box, { ref: region("context"), height: 1 }, text(`root: ${rootLabel}  |  me: ${inputs.me === undefined ? "auto" : inputs.me || "all"}  [c edit]`, { dimColor: true })),
-    h(Box, { ref: region("search"), height: 1 }, text(`Search: ${search || "(all)"}   |   ${filtered.length} entries`, { color: editing?.kind === "search" ? "cyan" : undefined, dimColor: editing?.kind !== "search" })),
+    h(Box, { ref: region("search"), height: 1 }, text(`Search: ${search || "(all)"}   |   ${listCount} entries`, { color: editing?.kind === "search" ? "cyan" : undefined, dimColor: editing?.kind !== "search" })),
     h(Box, { flexDirection: "row", height: bodyHeight },
       h(Box, { flexDirection: "column", ref: region("list"), width: leftWidth, flexShrink: 0, borderStyle: "round", borderColor: focus === "list" ? "cyan" : "gray", paddingX: 1 },
         h(Box, { flexDirection: "row", height: bodyHeight - 2 },
           h(Box, { flexDirection: "column", flexGrow: 1, minWidth: 0 },
-            ...filtered.slice(listStart, listStart + listVisible).map((entry, i) => h(Box, { backgroundColor: listStart + i === selected && focus === "list" ? "blue" : undefined }, text(`${listStart + i === selected ? ">" : " "} ${entry.name}`, { bold: listStart + i === selected, color: listStart + i === selected ? focus === "list" ? "whiteBright" : "cyan" : undefined })))),
+            ...(listingProviders ? providerRows.slice(listStart, listStart + listVisible).map((entry, i) => {
+              const index = listStart + i;
+              const active = index === Math.min(providerIndex, providerRows.length - 1);
+              return h(Box, { backgroundColor: active && focus === "list" ? "blue" : undefined }, text(`${active ? ">" : " "} ${entry.name}  ${entry.enabled ? "on" : "off"}`, { bold: active, dimColor: !entry.enabled && !active, color: active ? focus === "list" ? "whiteBright" : "cyan" : undefined }));
+            }) : filtered.slice(listStart, listStart + listVisible).map((entry, i) => {
+              const index = listStart + i;
+              const active = index === selected;
+              const hidden = !entryShown(entry);
+              return h(Box, { backgroundColor: active && focus === "list" ? "blue" : undefined }, text(`${active ? ">" : " "} ${entry.name}${hidden ? "  off" : ""}`, { bold: active, dimColor: hidden && !active, color: active ? focus === "list" ? "whiteBright" : "cyan" : undefined }));
+            }))),
           renderBar("listBar", listBar))),
       h(Box, { flexDirection: "column", width: size.width - leftWidth, height: bodyHeight, flexShrink: 0 },
       h(Box, { flexDirection: "column", width: size.width - leftWidth, height: bodyHeight, flexShrink: 0, borderStyle: "round", borderColor: focus === "detail" ? "cyan" : "gray", paddingX: 1 },
-        ...(compactResults ? [] : [h(Text, { wrap: "truncate-end" }, text(item?.name ?? "", { bold: true }), text(`  ${item?.source ?? ""}`, { dimColor: true })),
-          text(item?.description ?? "", { dimColor: true })]),
+        ...(compactResults ? [] : [h(Text, { wrap: "truncate-end" }, text(titleName, { bold: true }), text(`  ${titleMeta}`, { dimColor: true })),
+          text(titleDetail, { dimColor: true })]),
         h(Box, { flexDirection: "row", height: 1, flexShrink: 0 }, ...views.flatMap((name, i) => [
           ...(i ? [text(" ")] : []), h(Box, { ref: region(name), flexShrink: 0 }, tab(`${i + 1}:${name === view ? `[${name}]` : name}`, name === view)),
         ]), text("  "), h(Box, { ref: region("run"), flexShrink: 0 }, text(busy ? "[Wait]" : "[r Run]", { color: busy ? "cyan" : "green", bold: true, dimColor: busy })),

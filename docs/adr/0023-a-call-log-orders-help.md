@@ -4,6 +4,8 @@ Date: 2026-09-11
 
 Status: accepted
 
+ADR 0042 narrows the list `--help` prints. The call log still orders that list. It does not choose the curated queries.
+
 ## Context
 
 spacequery has 54 named queries.

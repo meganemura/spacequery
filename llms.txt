@@ -13,7 +13,8 @@ Installed package: `node_modules/spacequery/skills/spacequery/SKILL.md` (this fi
 - `spacequery <query|report>` — run a named catalog query or report
 - `spacequery --sql <text>` — ad hoc SQL over the in-memory DB
 - `spacequery watch <query> --until <predicate>` — re-run one named query until the current rows match
-- `spacequery doctor` — report whether each built-in provider answered (`spacequery doctor --json` is the same JSON)
+- `spacequery --help` — the short query list; `--help --all` lists every enabled query; `--help --json` is that list as data
+- `spacequery doctor` — report whether each enabled built-in provider answered (`spacequery doctor --json` is the same JSON)
 - `spacequery ui` — terminal browser for tables and queries
 - Common flags: `--root`, `--scope root|agents|all`, `--me`, `--json` / `--tsv`, `--trace`, `--expect-empty`, `--strict`
 
@@ -21,7 +22,7 @@ Named queries include `here`-style occupancy via catalog entries such as `in-dir
 
 ## Doctor
 
-`spacequery doctor` loads every built-in provider once on one root and prints JSON. `--json` selects that same document. `--root` defaults to the git toplevel of the current directory. Doctor does not take `--scope`, does not install tools, and does not run user-provider commands.
+`spacequery doctor` loads every enabled built-in provider once on one root and prints JSON. `--json` selects that same document. `--root` defaults to the git toplevel of the current directory. Doctor does not take `--scope`, does not install tools, and does not run user-provider commands. `beads`, `brew`, `headsign`, and `runtag` are off until config enables them. Doctor lists those names in `disabled_providers`.
 
 Read the report's `ok`, then each provider's `ok` and `error`. `path` counts PATH entries, missing entries, and duplicates when the search path provider answered. `user_providers.present` is 1 when the user-provider directory exists. Exit 0 means the report was printed. When doctor itself cannot run, stdout is an `error` and a `do` command, with no stack.
 

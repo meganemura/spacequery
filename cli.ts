@@ -3,10 +3,11 @@
 //                   spacequery --sql <text> [--root DIR] [--me PANE] [--scope root|agents|all] [--json|--tsv] [--trace] [--expect-empty] [--strict]
 //                   spacequery watch <query|--sql text> [query flags] --until <predicate> [--interval MS] [--timeout SEC]
 //                   spacequery doctor [--json] [--root DIR] [--trace]
-//                   spacequery --help
+//                   spacequery --help [--json] [--all|--short]
 // The JSON envelope carries the call time, rows, and provider status.
 // A requested trace lists child processes. TSV keeps stdout for result rows.
 // Watch prints one compact envelope per line and reuses the same query path.
+// Help lists the curated queries plus the ones this machine calls, unless --all.
 // Boundary: parsing arguments and printing. core/run.ts does the work.
 import { execFileSync } from "node:child_process";
 import { realpathSync } from "node:fs";
@@ -14,8 +15,10 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs, type ParseArgsOptionsConfig } from "node:util";
 import { catalog, reportParams, reports } from "./catalog.ts";
-import { callCounts, callsPath, recordCall } from "./core/calls.ts";
+import { callsPath, recordCall } from "./core/calls.ts";
+import { loadConfig, unknownProviderWarnings, type HelpMode } from "./core/config.ts";
 import { doctorGuidance, runDoctor, type DoctorGuidance } from "./core/doctor.ts";
+import { helpDocument, helpFooter, helpLines } from "./core/help.ts";
 import type { Scope } from "./core/loader.ts";
 import { runQuery, runReport, runSql, type ProviderRow, type ReportResult, type RunResult, type TraceRow } from "./core/run.ts";
 import { defaultWatchIntervalMs, defaultWatchTimeoutSec, parseUntil, parseWatchTiming, watchUntil, type WatchStop } from "./core/watch.ts";
@@ -24,40 +27,22 @@ import { loadUserProviders, type UserProvider } from "./core/user-providers.ts";
 import { loadUserQueries, type UserQuery } from "./core/user-queries.ts";
 import { loaders } from "./spacequery.config.ts";
 
-const commandOptions = new Set(["root", "scope", "me", "sql", "json", "tsv", "trace", "help", "expect-empty", "strict", "until", "interval", "timeout"]);
+const commandOptions = new Set(["root", "scope", "me", "sql", "json", "tsv", "trace", "help", "all", "short", "expect-empty", "strict", "until", "interval", "timeout"]);
 const watchOnlyOptions = new Set(["until", "interval", "timeout"]);
 
-type HelpQuery = { name: string; description: string; params: readonly string[]; source: "built-in" | "user" };
-type HelpReport = { name: string; description: string; params: readonly string[]; sections: readonly (readonly [string, string])[]; source: "report" };
-
-function queriesForHelp(userQueries: readonly UserQuery[], env: Readonly<Record<string, string | undefined>>): HelpQuery[] {
-  const counts = callCounts(env);
-  const byUse = <T extends { name: string }>(queries: readonly T[]): T[] => queries
-    .map((query, index) => ({ query, index }))
-    .sort((a, b) => (counts.get(b.query.name) ?? 0) - (counts.get(a.query.name) ?? 0) || a.index - b.index)
-    .map(({ query }) => query);
-  const builtIn = Object.entries(catalog).map(([name, query]) => ({ name, description: query.description, params: query.params, source: "built-in" as const }));
-  const user = userQueries.map((query) => ({ name: query.name, description: query.description, params: query.params, source: "user" as const }));
-  return [...byUse(builtIn), ...byUse(user)];
+function helpMode(all: boolean, short: boolean, configured: HelpMode): HelpMode | "conflict" {
+  if (all && short) return "conflict";
+  if (all) return "all";
+  if (short) return "short";
+  return configured;
 }
 
-function reportsForHelp(): HelpReport[] {
-  return Object.entries(reports).map(([name, report]) => ({
-    name,
-    description: report.description,
-    params: reportParams(report),
-    sections: report.sections,
-    source: "report",
-  }));
-}
-
-function usage(userQueries: readonly UserQuery[], userProviders: readonly UserProvider[], env: Readonly<Record<string, string | undefined>>): string {
-  const queries = queriesForHelp(userQueries, env);
-  const reportEntries = reportsForHelp();
-  const width = Math.max(...[...queries, ...reportEntries].map((query) => query.name.length));
-  const lines = queries.filter((query) => query.source === "built-in").map((query) => queryLine(query.name, query.description, query.params, width));
-  const userLines = queries.filter((query) => query.source === "user").map((query) => queryLine(query.name, query.description, query.params, width));
-  const reportLines = reportEntries.map((report) => queryLine(report.name, report.description, report.params, width));
+function usage(userQueries: readonly UserQuery[], userProviders: readonly UserProvider[], env: Readonly<Record<string, string | undefined>>, mode: HelpMode): string {
+  const config = loadConfig(env);
+  const document = helpDocument({ userQueries, env, mode, loaders, config });
+  const lines = helpLines(document.queries.filter((query) => query.source === "built-in"));
+  const userLines = helpLines(document.queries.filter((query) => query.source === "user"));
+  const reportLines = helpLines(document.reports);
   const providerNameWidth = Math.max(0, ...userProviders.map((provider) => provider.name.length));
   const providerTablesWidth = Math.max(0, ...userProviders.map((provider) => provider.tables.join(", ").length));
   const providerLines = userProviders.map((provider) => `  ${provider.name.padEnd(providerNameWidth)}  ${provider.tables.join(", ").padEnd(providerTablesWidth)}  ${provider.description}`);
@@ -67,11 +52,13 @@ function usage(userQueries: readonly UserQuery[], userProviders: readonly UserPr
     "       spacequery watch <query> [--root DIR] [--scope root|agents|all] [--me PANE] [--json|--tsv] [--trace] [--expect-empty] [--strict] --until <predicate> [--interval MS] [--timeout SEC]",
     "       spacequery watch --sql <text> [--root DIR] [--me PANE] [--scope root|agents|all] [--json|--tsv] [--trace] [--expect-empty] [--strict] --until <predicate> [--interval MS] [--timeout SEC]",
     "       spacequery doctor [--json] [--root DIR] [--trace]",
+    "       spacequery --help [--json] [--all|--short]",
     "",
     "terminal browser: spacequery ui [--root DIR] [--scope root|agents|all] [--me PANE]",
     "",
     "queries:",
     ...lines,
+    ...helpFooter(document, callsPath(env)),
     ...(userQueries.length === 0 ? [] : ["", `user queries (${dirname(userQueries[0]!.path)}):`, ...userLines]),
     ...(userProviders.length === 0 ? [] : ["", `user providers (${dirname(userProviders[0]!.path)}):`, ...providerLines]),
     "",
@@ -84,7 +71,7 @@ function usage(userQueries: readonly UserQuery[], userProviders: readonly UserPr
     "--trace lists every child process of the call, with its provider, start offset, and duration.",
     "--expect-empty exits 3 after it prints rows when the query returned rows.",
     "--strict exits 4 after it prints rows when a provider did not answer.",
-    `queries are listed by how often you called them (the count is in ${callsPath(env)})`,
+    "Each query line is its name, the group it belongs to, and when to use it.",
     "",
     "watch re-runs one query until --until matches. --until is required. Each tick is a new observation.",
     "--until empty matches zero rows. --until nonempty matches one or more rows.",
@@ -103,14 +90,10 @@ function usage(userQueries: readonly UserQuery[], userProviders: readonly UserPr
     "  spacequery watch runs-in-dir --until status=exited",
     "Exit 0 when --until matches, 5 on timeout, 130 on SIGINT or SIGTERM.",
     "",
-    "doctor reports whether each built-in provider answered, for one root. It does not install tools or change a provider.",
+    "doctor reports whether each enabled built-in provider answered, for one root. It does not install tools or change a provider.",
     "Before you treat empty rows as none, run doctor when a provider looks incomplete.",
     "JSON is the doctor output. --json selects that same document. When doctor cannot run, the output is {error, do}.",
   ].join("\n");
-}
-
-function queryLine(name: string, description: string, params: readonly string[], width: number): string {
-  return `  ${name.padEnd(width)}  ${description}${params.length ? `  (--${params.join(", --")})` : ""}`;
 }
 
 function optionsFor(userQueries: readonly UserQuery[]): ParseArgsOptionsConfig {
@@ -124,6 +107,8 @@ function optionsFor(userQueries: readonly UserQuery[]): ParseArgsOptionsConfig {
   options["tsv"] = { type: "boolean" };
   options["trace"] = { type: "boolean" };
   options["help"] = { type: "boolean", short: "h" };
+  options["all"] = { type: "boolean" };
+  options["short"] = { type: "boolean" };
   options["expect-empty"] = { type: "boolean" };
   options["strict"] = { type: "boolean" };
   options["until"] = { type: "string" };
@@ -263,6 +248,7 @@ async function main(argv: string[]): Promise<number> {
   const scope = textOption(values, "scope");
   const me = textOption(values, "me");
   const help = values["help"] === true;
+  const mode = helpMode(values["all"] === true, values["short"] === true, loadConfig(process.env).helpMode);
   const includeTrace = values["trace"] === true;
   const watching = positionals[0] === "watch";
   const requestedName = watching ? positionals[1] : positionals[0];
@@ -277,12 +263,21 @@ async function main(argv: string[]): Promise<number> {
     : undefined;
   validateQueryOptions(values, userQueries, report === undefined ? named?.params ?? userQuery?.params ?? [] : reportParams(report), requestedName ?? "sql");
   if (help || (!watching && positionals.length === 0 && sql === undefined)) {
-    if (help && values["json"] === true) console.log(JSON.stringify([...queriesForHelp(userQueries, process.env), ...reportsForHelp()]));
-    else console.log(usage(userQueries, userProviders, process.env));
+    if (mode === "conflict") {
+      console.error("spacequery: --all and --short choose different help lists");
+      return 2;
+    }
+    const preferences = loadConfig(process.env);
+    for (const warning of [...preferences.warnings, ...unknownProviderWarnings(loaders.map((loader) => loader.name), preferences)]) {
+      process.stderr.write(`spacequery: ${warning}\n`);
+    }
+    const document = helpDocument({ userQueries, env: process.env, mode, loaders, config: preferences });
+    if (help && values["json"] === true) console.log(JSON.stringify(document));
+    else console.log(usage(userQueries, userProviders, process.env, mode));
     return help ? 0 : 2;
   }
   if (watching && positionals.length > 2) {
-    console.error(`spacequery: watch takes one query\n\n${usage(userQueries, userProviders, process.env)}`);
+    console.error(`spacequery: watch takes one query\n\n${usage(userQueries, userProviders, process.env, "short")}`);
     return 2;
   }
   if (!isScope(scope)) {
@@ -322,10 +317,10 @@ async function main(argv: string[]): Promise<number> {
     if (/:root\b/.test(sql)) params["root"] = toplevel(root ?? process.cwd());
     runOnce = () => runSql(sql, { loaders, userProviders, scope, params });
   } else if (requestedName === undefined) {
-    console.error(`spacequery: watch needs a query and --until\n\n${usage(userQueries, userProviders, process.env)}`);
+    console.error(`spacequery: watch needs a query and --until\n\n${usage(userQueries, userProviders, process.env, "short")}`);
     return 2;
   } else if (!report && !named && !userQuery) {
-    console.error(`spacequery: no query named ${requestedName}\n\n${usage(userQueries, userProviders, process.env)}`);
+    console.error(`spacequery: no query named ${requestedName}\n\n${usage(userQueries, userProviders, process.env, "short")}`);
     return 2;
   } else if (report) {
     name = requestedName;
@@ -399,7 +394,9 @@ function doctorUsage(): string {
   return [
     "usage: spacequery doctor [--json] [--root DIR] [--trace]",
     "",
-    "Reports the package and whether each built-in provider answered, for one root.",
+    "Reports the package and whether each enabled built-in provider answered, for one root.",
+    "Providers that are off in config are listed in disabled_providers and are not loaded.",
+    "beads, brew, headsign, and runtag are off until config.json enables them.",
     "JSON is the output. --json selects that same document.",
     "--root defaults to the git toplevel of the current directory.",
     "A missing user-provider directory is present 0. Doctor does not run user-provider commands and does not install tools.",
@@ -453,6 +450,10 @@ async function doctorCommand(argv: string[]): Promise<number> {
       env: process.env,
       trace: values.trace === true,
     });
+    const preferences = loadConfig(process.env);
+    for (const warning of [...preferences.warnings, ...unknownProviderWarnings(loaders.map((loader) => loader.name), preferences)]) {
+      process.stderr.write(`spacequery: ${warning}\n`);
+    }
     console.log(JSON.stringify(report, null, 2));
     warn(report.providers);
     if (report.user_providers.error !== null) process.stderr.write(`spacequery: user providers: ${report.user_providers.error}\n`);

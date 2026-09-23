@@ -165,12 +165,13 @@ Its keys and result semantics are in [ui.md](ui.md).
 
 ## Doctor
 
-`spacequery doctor [--json] [--root DIR] [--trace]` loads every built-in provider once and prints one JSON document.
+`spacequery doctor [--json] [--root DIR] [--trace]` loads every enabled built-in provider once and prints one JSON document.
+Providers that are off in config are named in `disabled_providers` and are not loaded. A missing optional tool that you have not enabled does not clear `ok`.
 `--json` selects that same document. JSON is already the default.
 `--root` defaults to the git toplevel of the current directory, or the directory itself outside a repository.
 Doctor does not take `--scope`. Repository-scoped providers run on that one root.
 Doctor does not run user-provider commands, install tools, or write the call log.
-The runtag provider reads job files. A missing jobs directory is `ok` 1. An unreadable jobs directory, or a job file that does not parse, is `ok` 0 and clears the report's `ok`.
+When `runtag` is enabled, a missing jobs directory is `ok` 1. An unreadable jobs directory, or a job file that does not parse, is `ok` 0 and clears the report's `ok`. While `runtag` is off, doctor does not load it.
 
 ```json
 {
@@ -186,22 +187,26 @@ The runtag provider reads job files. A missing jobs directory is `ok` 1. An unre
     { "name": "herdr", "source": "built-in", "ok": 0, "observed_at": 1789038132400, "ms": 1.2, "error": "spawn herdr ENOENT" }
   ],
   "path": { "entries": 12, "missing": 3, "duplicates": 1 },
-  "user_providers": { "directory": "/home/u/.config/spacequery/providers", "present": 0, "error": null }
+  "user_providers": { "directory": "/home/u/.config/spacequery/providers", "present": 0, "error": null },
+  "disabled_providers": ["beads", "brew", "headsign", "runtag"],
+  "config": "/home/u/.config/spacequery/config.json"
 }
 ```
 
 | Field | Meaning |
 | --- | --- |
 | `command` | Always `doctor`. |
-| `ok` | 1 when every built-in provider answered and the user-provider directory had no error. 0 otherwise. A missing user-provider directory does not clear this bit. |
+| `ok` | 1 when every enabled built-in provider answered and the user-provider directory had no error. 0 otherwise. A missing user-provider directory does not clear this bit. A provider that is off does not clear it. |
 | `version` | The spacequery package version. |
 | `package` | The directory that contains `package.json` for this command. |
 | `root` | The one repository doctor observed. |
 | `scope` | Always `root`. |
 | `ms` | The wall time of the observation. |
-| `providers` | One row per built-in provider, the same fields as a query envelope, ordered by name. |
+| `providers` | One row per enabled built-in provider, the same fields as a query envelope, ordered by name. |
 | `path` | PATH entry, missing-entry, and duplicate-entry counts when `search_path` answered. Null when it did not. These are the facts `path-entries` stores. |
 | `user_providers` | `directory` is `$XDG_CONFIG_HOME/spacequery/providers` (or `~/.config/spacequery/providers`). `present` is 1 when that path is a directory. `error` explains a path that is not a directory or cannot be listed. Absence is `present` 0 and `error` null. |
+| `disabled_providers` | Built-in provider names that are off for lists and for doctor. Sorted. |
+| `config` | The path of `config.json`, whether or not the file exists. |
 | `trace` | With `--trace`, the same child-process rows as a query. |
 
 Exit 0 means the report was printed. Read `ok` before you trust it.
@@ -232,7 +237,7 @@ Both of those print this object and no stack:
 | `--until <predicate>` | Watch only. `empty`, `nonempty`, or `<column>=<value>[|<value>...]`. Required with `watch`. |
 | `--interval <ms>` | Watch only. Milliseconds between ticks. Default 2000. |
 | `--timeout <sec>` | Watch only. Seconds before exit 5. Default 300. `0` means no deadline. |
-| `--help` | The built-in and user queries, then reports, with descriptions. `--help --json` prints their names, descriptions, parameters, sources, and report sections as JSON. |
+| `--help` | The short list: curated queries union the ones this machine calls most, after providers that are off are removed, capped at about 25. Curated queries stay when they exceed the cap. `--help --all` lists every enabled query. `--help --short` forces the short list when config asks for `all`. `--help --json` prints the same selection as a document with `mode`, `config`, `disabled_providers`, `queries`, and `reports`. Each entry has `group`, `purpose`, `default`, `enabled`, `requires`, `params`, and `source`. A report's `enabled` follows its gate section. Its `requires` lists every provider the sections read, so `here` can stay listed while beads is off. |
 
 A query that takes `--root` runs the loaders on that root alone by default (`--scope root`); `--scope agents` widens to every repository with an agent, `--scope all` to every ghq repository.
 

@@ -4,6 +4,11 @@ The format follows Keep a Changelog, and the versions follow SemVer. Before 1.0 
 
 ## Unreleased
 
+- Changed: `spacequery --help` and `spacequery --help --json` print a short list: the curated queries, plus the ones this machine calls most, after providers that are off are removed. The cap is 25. Curated queries stay when they pass it. `--help --all` lists every enabled query. Each entry has a group and a purpose.
+- Changed: `$XDG_CONFIG_HOME/spacequery/config.json` turns built-in providers on or off for lists and for doctor. A missing file leaves core providers on and leaves `beads`, `brew`, `headsign`, and `runtag` off. A named query and `--sql` still run.
+- Changed: `spacequery ui` shows the group and purpose, dims a query whose provider is off, and toggles providers into that config file.
+- Changed: `spacequery doctor` skips providers that are off and lists them in `disabled_providers`.
+
 ## 0.3.0 (2026-09-23)
 
 - Added: the `runtag` provider reads job files and `runs-in-dir` lists the jobs for one directory. `spacequery watch runs-in-dir --until status=exited` waits until every returned job has exited. An orphan stays `running`.

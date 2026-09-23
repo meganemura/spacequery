@@ -22,8 +22,17 @@ test("the browser derives columns and relations from the schema and catalog", ()
     assert.equal(item.error, undefined, name);
     assert.equal(item.sql, query.query.sql);
     assert.deepEqual(item.tables, query.query.meta.reads);
+    assert.equal(item.group, query.group);
+    assert.equal(item.purpose, query.purpose);
+    assert.ok(item.requires && item.requires.length > 0, name);
     assert.ok(item.columns.length > 0, name);
   }
+  const agents = items.find((item) => item.kind === "query" && item.name === "agents")!;
+  assert.deepEqual(agents.requires, ["herdr"]);
+  assert.equal(agents.enabled, true);
+  const issues = items.find((item) => item.kind === "query" && item.name === "issues")!;
+  assert.equal(issues.enabled, false);
+  assert.deepEqual(issues.requires, ["beads"]);
 });
 
 test("an invalid user query stays inspectable without breaking the catalog", () => {

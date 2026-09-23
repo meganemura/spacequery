@@ -8,7 +8,7 @@ import { stripVTControlCharacters } from "node:util";
 import { createElement } from "react";
 import { render } from "ink";
 import { Browser } from "../ui/app.ts";
-import type { Item } from "../ui/catalog.ts";
+import type { Item, ProviderToggle } from "../ui/catalog.ts";
 import type { Inputs, Observation, observe } from "../ui/execute.ts";
 
 const query: Item = { kind: "query", name: "sample", source: "user", description: "Sample rows", sql: "select :search as value", params: ["search"], tables: ["sample_rows"], columns: [{ name: "value", type: "TEXT", nullable: false, key: false }] };
@@ -16,14 +16,14 @@ const table: Item = { ...query, kind: "table", name: "sample_rows", params: [] }
 const initial: Inputs = { root: "/workspace", scope: "auto", params: {} };
 const observation: Observation = { rows: [{ value: "a long value", nullable: null }], providers: [{ name: "sample", source: "user", ok: 0, observed_at: 1000, ms: 2, error: "Fixture failure" }], scope: "root", params: {}, me: null, trace: [], ms: 2, receivedAt: 1000 };
 
-async function screen(items: Item[], execute: typeof observe, height = 24, mouse = true, width = 100) {
+async function screen(items: Item[], execute: typeof observe, height = 24, mouse = true, width = 100, providers?: readonly ProviderToggle[], onToggleProvider?: (name: string, enabled: boolean) => void) {
   let frame = "";
   let rawOutput = "";
   const output = new Writable({ write(chunk, _encoding, done) { rawOutput += String(chunk); const text = stripVTControlCharacters(String(chunk)); if (text.includes("spacequery")) frame = text; done(); } });
   Object.assign(output, { columns: width, rows: height, isTTY: true });
   const input = new PassThrough();
   Object.assign(input, { isTTY: true, setRawMode() {}, ref() {}, unref() {} });
-  const app = render(createElement(Browser, { items, initial, execute, mouse }), { stdout: output as unknown as NodeJS.WriteStream, stdin: input as unknown as NodeJS.ReadStream, debug: true, patchConsole: false, exitOnCtrlC: false });
+  const app = render(createElement(Browser, { items, initial, execute, mouse, providers, onToggleProvider }), { stdout: output as unknown as NodeJS.WriteStream, stdin: input as unknown as NodeJS.ReadStream, debug: true, patchConsole: false, exitOnCtrlC: false });
   const exited = app.waitUntilExit();
   const flush = async () => { await delay(40); await app.waitUntilRenderFlush(); };
   await flush();
@@ -713,6 +713,26 @@ for (const height of [16, 24]) {
     } finally { await ui.close(); }
   });
 }
+
+test("Providers toggles a source and dims a query that needs it", async () => {
+  const toggles: { name: string; enabled: boolean }[] = [];
+  const providers: ProviderToggle[] = [{ name: "beads", enabled: false, summary: "Open beads issues. Off until you enable it." }];
+  const item: Item = { ...query, name: "issues", purpose: "When you pick up a repository and need its open beads issues.", group: "Issues", requires: ["beads"], enabled: false };
+  const ui = await screen([item], async () => observation, 24, true, 100, providers, (name, enabled) => { toggles.push({ name, enabled }); });
+  try {
+    assert.match(ui.frame(), /issues {2}off/);
+    await ui.key("t");
+    await ui.key("t");
+    assert.match(ui.frame(), /\[Providers\]/);
+    assert.match(ui.frame(), /beads {2}off/);
+    await ui.key("\r");
+    assert.deepEqual(toggles, [{ name: "beads", enabled: true }]);
+    assert.match(ui.frame(), /beads {2}on/);
+    await ui.key("t");
+    assert.match(ui.frame(), /\[Queries\]/);
+    assert.doesNotMatch(ui.frame(), /issues {2}off/);
+  } finally { await ui.close(); }
+});
 
 test("bottom scrollbar changes result columns and follows Sources focus", async () => {
   const rows = [{ first: "one", second: "two", third: "three", fourth: "four", fifth: "five", sixth: "six" }];

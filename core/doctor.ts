@@ -7,6 +7,7 @@ import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Exec, Loader } from "./loader.ts";
 import type { Repo } from "./repo.ts";
+import { disabledProviderNames, isProviderEnabled, loadConfig } from "./config.ts";
 import { observeProviders, type PathHealth, type ProviderRow, type TraceRow } from "./run.ts";
 import { userProvidersDirectory } from "./user-providers.ts";
 
@@ -23,6 +24,8 @@ export type DoctorReport = {
   providers: ProviderRow[];
   path: PathHealth | null;
   user_providers: UserProviderDirectory;
+  disabled_providers: string[];
+  config: string;
   trace?: TraceRow[];
 };
 
@@ -68,9 +71,12 @@ export function doctorGuidance(error: string): DoctorGuidance {
 export async function runDoctor(options: DoctorOptions): Promise<DoctorReport> {
   const identity = packageIdentity();
   const env = options.env ?? process.env;
+  const preferences = loadConfig(env);
   const user_providers = userProviderDirectory(env);
+  // A provider that is off is not a failed observation. Doctor names it and moves on.
+  const active = options.loaders.filter((loader) => isProviderEnabled(loader.name, preferences));
   const observed = await observeProviders({
-    loaders: options.loaders,
+    loaders: active,
     scope: "root",
     params: { root: options.root },
     env,
@@ -89,6 +95,8 @@ export async function runDoctor(options: DoctorOptions): Promise<DoctorReport> {
     providers: observed.providers,
     path: observed.path,
     user_providers,
+    disabled_providers: disabledProviderNames(options.loaders.map((loader) => loader.name), preferences),
+    config: preferences.path,
     ...(options.trace ? { trace: observed.trace } : {}),
   };
 }

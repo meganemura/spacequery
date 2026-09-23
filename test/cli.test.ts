@@ -16,33 +16,72 @@ import type { ReportResult } from "../core/run.ts";
 
 const execFileAsync = promisify(execFile);
 
-test("help lists every catalog query", async () => {
-  const { stdout } = await execFileAsync(process.execPath, ["cli.ts", "--help"], {
-    cwd: process.cwd(),
-    encoding: "utf8",
-  });
-  for (const name of Object.keys(catalog)) assert.match(stdout, new RegExp(`\\b${name}\\b`));
-  assert.match(stdout, /^reports:$/m);
-  for (const name of Object.keys(reports)) assert.match(stdout, new RegExp(`\\b${name}\\b`));
+test("help prints the short list and --all prints every enabled query", async () => {
+  const root = mkdtempSync(join(tmpdir(), "spacequery-cli-help-"));
+  const env = { ...process.env, HOME: root, XDG_CONFIG_HOME: join(root, "config"), XDG_STATE_HOME: join(root, "state") };
+  try {
+    const { stdout } = await execFileAsync(process.execPath, ["cli.ts", "--help"], { cwd: process.cwd(), encoding: "utf8", env });
+    const names = stdout.split("\n").filter((line) => line.startsWith("  ") && !line.startsWith("  spacequery")).map((line) => line.trim().split(/\s+/)[0]!);
+    const queries = names.filter((name) => name !== "here");
+    assert.ok(queries.length <= 25, queries.join(","));
+    assert.ok(queries.includes("in-dir"));
+    assert.equal(queries.includes("issues"), false);
+    assert.equal(queries.includes("runs-in-dir"), false);
+    assert.match(stdout, /--help --all/);
+    assert.match(stdout, /beads, brew, headsign, runtag/);
+    assert.equal(names.includes("here"), true);
+    assert.equal(names.includes("dependency-report"), false);
+    const full = await execFileAsync(process.execPath, ["cli.ts", "--help", "--all"], { cwd: process.cwd(), encoding: "utf8", env });
+    assert.match(full.stdout, /^ {2}repos /m);
+    assert.doesNotMatch(full.stdout, /^ {2}issues /m);
+    mkdirSync(join(root, "config", "spacequery"), { recursive: true });
+    writeFileSync(join(root, "config", "spacequery", "config.json"), JSON.stringify({
+      providers: { beads: true, brew: true, headsign: true, runtag: true },
+    }));
+    const enabled = await execFileAsync(process.execPath, ["cli.ts", "--help", "--all"], { cwd: process.cwd(), encoding: "utf8", env });
+    for (const name of Object.keys(catalog)) assert.match(enabled.stdout, new RegExp(`^ {2}${name} `, "m"));
+    for (const name of Object.keys(reports)) assert.match(enabled.stdout, new RegExp(`^ {2}${name} `, "m"));
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
 });
 
-test("JSON help lists every built-in query with its parameters", async () => {
-  const { stdout } = await execFileAsync(process.execPath, ["cli.ts", "--help", "--json"], {
-    cwd: process.cwd(),
-    encoding: "utf8",
-  });
-  const listed = JSON.parse(stdout) as { name: string; description: string; params: string[]; sections?: [string, string][]; source: string }[];
-  const byName = new Map(listed.map((query) => [query.name, query]));
-  for (const [name, query] of Object.entries(catalog)) {
-    assert.deepEqual(byName.get(name), { name, description: query.description, params: query.params, source: "built-in" });
+test("JSON help is short by default and --all carries the catalog fields", async () => {
+  const root = mkdtempSync(join(tmpdir(), "spacequery-cli-json-"));
+  const env = { ...process.env, HOME: root, XDG_CONFIG_HOME: join(root, "config"), XDG_STATE_HOME: join(root, "state") };
+  try {
+    const { stdout } = await execFileAsync(process.execPath, ["cli.ts", "--help", "--json"], { cwd: process.cwd(), encoding: "utf8", env });
+    const document = JSON.parse(stdout) as {
+      mode: string;
+      disabled_providers: string[];
+      queries: { name: string; description: string; purpose: string; group: string; default: boolean; enabled: boolean; requires: string[]; params: string[]; source: string }[];
+      reports: { name: string; sections?: [string, string][]; requires: string[]; enabled: boolean; source: string }[];
+    };
+    assert.equal(document.mode, "short");
+    assert.deepEqual(document.disabled_providers, ["beads", "brew", "headsign", "runtag"]);
+    assert.equal(document.queries.some((query) => query.name === "issues"), false);
+    const agents = document.queries.find((query) => query.name === "agents");
+    assert.equal(agents?.source, "built-in");
+    assert.equal(agents?.group, "Agents");
+    assert.equal(agents?.purpose, catalog.agents?.purpose);
+    assert.equal(agents?.description, catalog.agents?.description);
+    assert.deepEqual(agents?.params, []);
+    assert.equal(agents?.default, true);
+    assert.equal(agents?.enabled, true);
+    assert.deepEqual(agents?.requires, ["herdr"]);
+    assert.equal(document.reports[0]?.name, "here");
+    assert.equal(document.reports[0]?.enabled, true);
+    assert.ok(document.reports[0]?.requires.includes("herdr"));
+    const full = JSON.parse((await execFileAsync(process.execPath, ["cli.ts", "--help", "--json", "--all"], { cwd: process.cwd(), encoding: "utf8", env })).stdout) as { mode: string; queries: { name: string }[] };
+    assert.equal(full.mode, "all");
+    assert.ok(full.queries.length > document.queries.length);
+    await assert.rejects(
+      execFileAsync(process.execPath, ["cli.ts", "--help", "--all", "--short"], { cwd: process.cwd(), encoding: "utf8", env }),
+      (error: NodeJS.ErrnoException & { code?: number }) => error.code === 2,
+    );
+  } finally {
+    rmSync(root, { recursive: true, force: true });
   }
-  assert.deepEqual(byName.get("here"), {
-    name: "here",
-    description: reports.here.description,
-    params: ["root"],
-    sections: reports.here.sections,
-    source: "report",
-  });
 });
 
 test("report JSON exposes section_status in the CLI envelope", () => {
@@ -404,7 +443,10 @@ test("help orders queries by their call counts and does not record itself", asyn
     const { stdout } = await execFileAsync(process.execPath, ["cli.ts", "--help"], {
       cwd: process.cwd(), encoding: "utf8", env,
     });
-    assert.ok(stdout.indexOf("  dirty") < stdout.indexOf("  agents"));
+    const lines = stdout.split("\n");
+    const dirty = lines.findIndex((line) => line.startsWith("  dirty "));
+    const agents = lines.findIndex((line) => line.startsWith("  agents "));
+    assert.ok(dirty !== -1 && agents !== -1 && dirty < agents);
     assert.deepEqual(callCounts(env), before);
   } finally {
     rmSync(stateHome, { recursive: true, force: true });
