@@ -45,13 +45,13 @@ test("github stores open pull requests, and review requests in their own table",
     { repo: "example/alpha", root: paths.alpha, number: 7, checks: "pass" },
     { repo: "example/beta", root: paths.beta, number: 8, checks: "pending" },
   ]);
-  assert.deepEqual(result.providers.map((entry) => entry.name), ["github", "herdr", "repos"]);
+  assert.deepEqual(result.providers.map((entry) => entry.name), ["github", "herdr"]);
   const reviews = await runSql("select repo, root, number from review_requests order by repo, number", { loaders, exec: githubExec(), repo: fixtureRepo, env: {}, params: {} });
   assert.deepEqual(reviews.rows, [
     { repo: "example/alpha", root: paths.alpha, number: 7 },
     { repo: "example/review", root: null, number: 9 },
   ]);
-  assert.deepEqual(reviews.providers.map((entry) => entry.name), ["github_reviews", "herdr", "repos"]);
+  assert.deepEqual(reviews.providers.map((entry) => entry.name), ["github_reviews", "herdr"]);
 });
 
 test("github lists a shared repository once and skips a non-GitHub origin", async () => {

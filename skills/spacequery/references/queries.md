@@ -77,7 +77,7 @@ Effort stays on `claude-sessions` (`effort`) and `codex-sessions` (`reasoning_ef
 `kind` and `claude_status` are Claude Code values. `source` is a Codex value.
 `spacequery watch claude-sessions --until status=idle` waits until every returned row has `status` idle. A null `status` does not match.
 A session joins an agent through the session id herdr's integration reports.
-`agents-with-sessions` keeps an agent with no session and returns null session columns.
+`agents-with-sessions` keeps an agent with no session and returns null session columns. Herdr and the session files load together; the statement runs after both finish.
 A session without a pane appears in `sessions-without-pane`.
 In `session-processes`, Codex threads that run inside the Codex app share the app's pid, so their descendant rows are the same set for each thread.
 
@@ -256,8 +256,8 @@ to keep it distinct from a Claude Code plugin with the same marketplace ID.
 | `issues-unattended` | | `root`, `open_issues`, `top_priority?` |
 
 `issues` reads open beads issues for one root. `issues-in-scope` is the same rows for every repository the call loaded, including a root with no agent.
-Use `--scope all` for a work list across projects: it includes every ghq root that has `.beads`.
-`--scope agents` narrows that load to roots that have an agent.
+Use `--scope all` for a work list across projects: it includes every ghq root that has `.beads`. Herdr and ghq load together, then beads.
+`--scope agents` narrows that load to roots that have an agent and does not start ghq.
 This query takes no `--root`, so a call that omits `--scope` uses `agents`.
 `labels` joins label values with commas.
 `agents` in the count queries excludes `me`.

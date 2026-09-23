@@ -25,7 +25,6 @@ test("a failed herdr still lets dependent providers record their result", async 
   assert.deepEqual(providerFacts(result.providers), [
     { name: "git", ok: 1, error: null },
     { name: "herdr", ok: 0, error: "spawn herdr ENOENT" },
-    { name: "repos", ok: 1, error: null },
   ]);
 });
 

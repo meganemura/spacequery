@@ -4,7 +4,7 @@
 import { lstat } from "node:fs/promises";
 import { dirname, join, relative } from "node:path";
 import type { LoadContext, Loader } from "../../core/loader.ts";
-import { rootsInScope } from "../../core/scope.ts";
+import { discoveryLoaders, rootsInScope } from "../../core/scope.ts";
 import {
   defaultLimits, discoverWorkspaces, readRegularFile, repositorySourceDefinitions, workspacePatterns,
   type ReadBudget,
@@ -88,7 +88,7 @@ export async function scanRepositoryConfigFiles(root: string): Promise<{ rows: I
 
 export const repositoryConfigFilesLoader: Loader = {
   name: "repository_config_files", tables: ["repository_config_files"], after: [],
-  afterForScope(scope) { return scope === "root" ? [] : scope === "agents" ? ["herdr"] : ["herdr", "repos"]; },
+  afterForScope: discoveryLoaders,
   async load(ctx: LoadContext) {
     if (ctx.scope === "root" && ctx.roots.length !== 1) throw new Error("repository-config-files root scope requires one root");
     let failed = false;

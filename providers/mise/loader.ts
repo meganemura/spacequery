@@ -10,7 +10,7 @@ import { homedir } from "node:os";
 import { dirname, isAbsolute, join } from "node:path";
 import type { LoadContext, Loader } from "../../core/loader.ts";
 import { parseSearchPath, scanSearchPath, type ScannedSearchPath } from "../../core/search-path.ts";
-import { rootsInScope } from "../../core/scope.ts";
+import { discoveryLoaders, rootsInScope } from "../../core/scope.ts";
 import { miseCommands } from "./module.ts";
 import type { ToolUsesId, ToolsId } from "./solarsql.generated.ts";
 
@@ -109,7 +109,7 @@ function pathFrom(output: string): string {
 export const miseLoader: Loader = {
   name: "mise",
   tables: ["tools", "tool_uses", "root_path_entries", "root_path_commands"],
-  after: ["herdr", "repos"],
+  after: [], afterForScope: discoveryLoaders,
   async load(ctx) {
     const tools = toolsFrom(parseDocument(await ctx.exec("mise", ["ls", "--json"])));
     const loadedTools = await ctx.db.run(miseCommands.loadTools, { rows: tools });

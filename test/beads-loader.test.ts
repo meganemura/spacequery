@@ -76,8 +76,10 @@ test("issues-in-scope lists every loaded beads root, including one with no agent
   const options = { loaders, exec, repo: repoForRoots(new Set([alpha, beta, gamma])), env: {}, params: {} };
   const wide = await runQuery(catalog["issues-in-scope"]!.query, { ...options, scope: "all" });
   assert.deepEqual(wide.rows.map((row) => [row.root, row.issue_id]), [[alpha, "alpha-1"], [gamma, "gamma-1"]]);
+  assert.deepEqual(wide.providers.map((provider) => provider.name), ["beads", "herdr", "repos"]);
   const narrowed = await runQuery(catalog["issues-in-scope"]!.query, { ...options, scope: "agents" });
   assert.deepEqual(narrowed.rows.map((row) => [row.root, row.issue_id]), [[alpha, "alpha-1"]]);
+  assert.deepEqual(narrowed.providers.map((provider) => provider.name), ["beads", "herdr"]);
 });
 
 test("beads converts RFC 3339 dates to milliseconds", () => hegel.test((tc) => {

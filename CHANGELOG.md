@@ -4,6 +4,7 @@ The format follows Keep a Changelog, and the versions follow SemVer. Before 1.0 
 
 ## Unreleased
 
+- Changed: independent providers load concurrently. A named query still loads only the providers whose tables it reads. `--scope agents` does not start ghq for beads, git, and the other repository readers; `--scope all` starts herdr and ghq together, then those readers. The statement waits until the loaders it needs have finished.
 - Added: `cursor-agents` lists the newest 32 Cursor agent conversations from the local IDE database, including model, status, and repository when that database records them. Cloud agents are not in this table.
 - Added: `issues-in-scope` lists open beads issues across repositories in scope. `--scope all` includes every ghq root that has `.beads`, including roots with no agent. `--scope agents` narrows that list.
 - Fixed: `agents-with-sessions` `model` is the Claude transcript model or the Codex thread model for that pane.

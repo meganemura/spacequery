@@ -6,7 +6,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import type { LoadContext, Loader, Scope } from "./loader.ts";
-import { rootsInScope } from "./scope.ts";
+import { discoveryLoaders, rootsInScope } from "./scope.ts";
 
 type UserTable = { name: string; sql: string };
 type UserScope = "call" | "root";
@@ -132,8 +132,8 @@ function makeProvider(name: string, path: string, declaration: UserProviderDecla
     tableDeclarations: declaration.tables,
     after: [],
     afterForScope(scope: Scope) {
-      if (declaration.scope !== "root" || scope === "root") return [];
-      return scope === "all" ? ["repos", "herdr"] : ["herdr"];
+      if (declaration.scope !== "root") return [];
+      return discoveryLoaders(scope);
     },
     async load(ctx: LoadContext) {
       const columns = new Map(declaration.tables.map((table) => [table.name, tableColumns(ctx.raw, table.name)]));

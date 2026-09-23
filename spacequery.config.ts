@@ -1,9 +1,9 @@
 // The one list of providers: a provider is in `modules` for its tables and
 // in `loaders` for its code. The build can import this file because solarsql
 // writes the generated stubs before it imports anything.
-// Independent loaders run in the order of `loaders`. Loaders that start ghq,
-// gh, mise, brew, bd, or docker run before git and lsof bursts because 18 such launches
-// delay the next large binary by about two seconds (ADR 0008).
+// Independent loaders in this list run together. A loader waits only for the
+// loaders whose tables it reads while loading (ADR 0044). The list order is
+// the order eligible loaders start.
 // Boundary: the list only. A provider's tables and code live in its module.
 import { config } from "solarsql";
 import type { Loader } from "./core/loader.ts";

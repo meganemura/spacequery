@@ -4,7 +4,7 @@
 import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { LoadContext, Loader } from "../../core/loader.ts";
-import { rootsInScope } from "../../core/scope.ts";
+import { discoveryLoaders, rootsInScope } from "../../core/scope.ts";
 import { skillsCommands } from "./module.ts";
 import type { PluginsId, SkillsId } from "./solarsql.generated.ts";
 
@@ -127,7 +127,7 @@ async function codexPlugins(home: string): Promise<{ plugins: Plugin[]; skills: 
 }
 
 export const skillsLoader: Loader = {
-  name: "skills", tables: ["skills", "plugins"], after: ["herdr", "repos"],
+  name: "skills", tables: ["skills", "plugins"], after: [], afterForScope: discoveryLoaders,
   async load(ctx) {
     const home = ctx.env["HOME"];
     if (!home) throw new Error("skills: HOME is not set");

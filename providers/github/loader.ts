@@ -5,7 +5,7 @@
 // Origins identify a GitHub repository even when worktrees use different paths.
 // Boundary: this provider's table only.
 import type { LoadContext, Loader } from "../../core/loader.ts";
-import { rootsInScope } from "../../core/scope.ts";
+import { discoveryLoaders, rootsInScope } from "../../core/scope.ts";
 import { githubCommands } from "./module.ts";
 import type { PullRequestsId, ReviewRequestsId } from "./solarsql.generated.ts";
 
@@ -96,7 +96,7 @@ async function repoRootsOf(ctx: LoadContext): Promise<Map<string, string>> {
 export const githubLoader: Loader = {
   name: "github",
   tables: ["pull_requests"],
-  after: ["herdr", "repos"],
+  after: [], afterForScope: discoveryLoaders,
   async load(ctx) {
     const repoRoots = await repoRootsOf(ctx);
     let rows: PullRequest[];
@@ -127,7 +127,7 @@ export const githubLoader: Loader = {
 export const githubReviewsLoader: Loader = {
   name: "github_reviews",
   tables: ["review_requests"],
-  after: ["herdr", "repos"],
+  after: [], afterForScope: discoveryLoaders,
   async load(ctx) {
     const repoRoots = await repoRootsOf(ctx);
     let rows: ReviewRequest[];

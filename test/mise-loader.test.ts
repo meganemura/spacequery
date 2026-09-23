@@ -142,8 +142,6 @@ test("mise reports the search path for one root", async () => {
       { root, position: 4, dir: ".", exists: 1, duplicate_of: null },
     ]);
     assert.deepEqual(calls, [
-      "ghq list -p",
-      "herdr api snapshot",
       "mise ls --json",
       `mise ls --json --current -C ${root}`,
       `mise env -C ${root} --json`,

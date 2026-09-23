@@ -31,10 +31,9 @@ export function directLoadersFor(loaders: readonly Loader[], tables: readonly st
 
 // The loaders whose tables the statement reads, plus the loaders those run
 // after, in an order every `after` is satisfied by. Independent loaders
-// keep the order of the configuration: a `ghq list` that follows git calls
-// in many repositories takes ten times longer, so repos sits before herdr
-// there (ADR 0008). A table no loader declares (the core's own, or
-// sqlite's) needs no loader.
+// keep the order of the configuration. run.ts starts that order concurrently
+// once each loader's dependencies have finished (ADR 0044). A table no
+// loader declares (the core's own, or sqlite's) needs no loader.
 export function loadersFor(loaders: readonly Loader[], tables: readonly string[], scope: Scope = "agents"): Loader[] {
   const byName = new Map(loaders.map((l) => [l.name, l]));
   const owner = new Map<string, Loader>();

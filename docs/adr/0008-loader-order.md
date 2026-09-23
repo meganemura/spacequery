@@ -2,7 +2,7 @@
 
 Date: 2026-09-10
 
-Status: accepted
+Status: accepted; serial execution of independent loaders is superseded by [0044](0044-independent-loaders-run-together.md)
 
 ## Context
 

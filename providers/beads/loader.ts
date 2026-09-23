@@ -4,7 +4,7 @@
 import { stat } from "node:fs/promises";
 import { join } from "node:path";
 import type { LoadContext, Loader } from "../../core/loader.ts";
-import { rootsInScope } from "../../core/scope.ts";
+import { discoveryLoaders, rootsInScope } from "../../core/scope.ts";
 import { beadsCommands } from "./module.ts";
 import type { IssuesId } from "./solarsql.generated.ts";
 
@@ -44,7 +44,7 @@ async function hasBeads(root: string): Promise<boolean> {
 }
 
 export const beadsLoader: Loader = {
-  name: "beads", tables: ["issues"], after: ["herdr", "repos"],
+  name: "beads", tables: ["issues"], after: [], afterForScope: discoveryLoaders,
   async load(ctx) {
     const roots = await rootsInScope(ctx);
     const rows = await Promise.all(roots.map(async (root) => {

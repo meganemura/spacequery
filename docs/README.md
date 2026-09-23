@@ -14,7 +14,7 @@ Each ADR describes one decision and its consequences.
 | [0005](adr/0005-read-only-tool.md) | spacequery reads provider state. |
 | [0006](adr/0006-codegraph-outside-v0.md) | CodeGraph is not a provider. |
 | [0007](adr/0007-resolve-loaders-with-authorizer.md) | The core resolves named queries from metadata and ad hoc SQL with an authorizer probe. |
-| [0008](adr/0008-loader-order.md) | Loaders run in dependency order, then configuration order. |
+| [0008](adr/0008-loader-order.md) | Loaders run after the loaders they read. Independent loaders run together (0044). |
 | [0009](adr/0009-provider-freshness-envelope.md) | The envelope carries provider freshness. |
 | [0010](adr/0010-ad-hoc-sql-for-people.md) | Ad hoc SQL is for a person at a shell. |
 | [0011](adr/0011-single-regenerated-migration.md) | The schema uses one regenerated migration. |
@@ -49,3 +49,4 @@ Each ADR describes one decision and its consequences.
 | [0041](adr/0041-runtag-jobs-are-read-from-the-files.md) | Runtag jobs are read from the files. |
 | [0042](adr/0042-short-help-and-provider-lists.md) | Help is a short list, and config can hide a provider from lists. |
 | [0043](adr/0043-cursor-agents-are-read-from-the-local-database.md) | Cursor agents are read from the local database. |
+| [0044](adr/0044-independent-loaders-run-together.md) | Independent loaders run together. |

@@ -7,7 +7,7 @@ import { open, opendir, lstat } from "node:fs/promises";
 import { basename, dirname, join, relative } from "node:path";
 import type { LoadContext, Loader } from "../../core/loader.ts";
 import { repositoryIdentity } from "../../core/repo.ts";
-import { rootsInScope } from "../../core/scope.ts";
+import { discoveryLoaders, rootsInScope } from "../../core/scope.ts";
 import { repositoryVersionCommands } from "./module.ts";
 import type { RepositoryVersionsId } from "./solarsql.generated.ts";
 
@@ -393,7 +393,7 @@ export async function scanRepositoryVersions(root: string, limits: ScanLimits = 
 
 export const repositoryVersionsLoader: Loader = {
   name: "repository_versions", tables: ["repository_versions"], after: [],
-  afterForScope(scope) { return scope === "root" ? [] : scope === "agents" ? ["herdr"] : ["herdr", "repos"]; },
+  afterForScope: discoveryLoaders,
   async load(ctx: LoadContext) {
     if (ctx.scope === "root" && ctx.roots.length !== 1) throw new Error("repository-versions root scope requires one root");
     const roots = await rootsInScope(ctx);

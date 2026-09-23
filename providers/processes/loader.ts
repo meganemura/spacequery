@@ -3,7 +3,7 @@
 // Boundary: this provider's tables only.
 import { basename } from "node:path";
 import type { LoadContext, Loader } from "../../core/loader.ts";
-import { rootsInScope } from "../../core/scope.ts";
+import { discoveryLoaders, rootsInScope } from "../../core/scope.ts";
 import { processCommands } from "./module.ts";
 import type { ListenersId } from "./solarsql.generated.ts";
 
@@ -60,7 +60,7 @@ function parseListeners(output: string, cwdByPid: ReadonlyMap<number, string[]>,
 }
 
 export const processesLoader: Loader = {
-  name: "processes", tables: ["processes", "listeners"], after: ["herdr", "repos"],
+  name: "processes", tables: ["processes", "listeners"], after: [], afterForScope: discoveryLoaders,
   async load(ctx) {
     const uid = process.getuid?.();
     if (uid === undefined) throw new Error("processes: uid is unavailable");

@@ -4,7 +4,7 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { LoadContext, Loader } from "../../core/loader.ts";
-import { rootsInScope } from "../../core/scope.ts";
+import { discoveryLoaders, rootsInScope } from "../../core/scope.ts";
 import { headsignCommands } from "./module.ts";
 import type { WorkflowRunsId } from "./solarsql.generated.ts";
 
@@ -36,7 +36,7 @@ export function runFrom(root: string, text: string): Run {
 }
 
 export const headsignLoader: Loader = {
-  name: "headsign", tables: ["workflow_runs"], after: ["herdr", "repos"],
+  name: "headsign", tables: ["workflow_runs"], after: [], afterForScope: discoveryLoaders,
   async load(ctx) {
     const invalid: string[] = [];
     const rows = await Promise.all((await rootsInScope(ctx)).map(async (root) => {

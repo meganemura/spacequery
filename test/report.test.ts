@@ -91,7 +91,7 @@ test("here runs its ordered sections after one union of providers", async () => 
     issues: { providers: ["beads"], ok: 1, errors: [] },
     workflow: { providers: ["headsign"], ok: 1, errors: [] },
   });
-  assert.deepEqual(result.providers.map((provider) => provider.name), ["beads", "docker", "git", "github", "headsign", "herdr", "mise", "processes", "repos"]);
+  assert.deepEqual(result.providers.map((provider) => provider.name), ["beads", "docker", "git", "github", "headsign", "herdr", "mise", "processes"]);
   assert.equal(new Set(result.providers.map((provider) => provider.name)).size, result.providers.length);
   assert.equal(typeof result.ms, "number");
   assert.ok(result.trace.length > 0);

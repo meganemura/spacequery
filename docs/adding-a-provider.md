@@ -29,7 +29,7 @@ spacequery starts child processes. The rules below make every process a fixed, r
 
 9. **Tests inject `exec`.** Unit tests use an injected `exec` and assert each command, argument list, and process directory; one user provider integration test starts a controlled temporary script. This is also where rule 1 and rule 2 are checked mechanically: the fake `exec` sees the literal command name and the literal arguments.
 
-10. **Order and bursts.** Big non-Apple binaries (gh, ghq, mise, bd, docker, node) start before loaders that start many git or lsof processes; a burst of file-opening processes delays the next such binary by up to three seconds (ADR 0022). Put the new loader in `spacequery.config.ts` with that in mind, and declare `after` for the tables it reads.
+10. **Order and bursts.** Declare `after` for tables this loader reads while it loads. A loader that only calls `rootsInScope` uses `discoveryLoaders` as `afterForScope`, so a root-bound call does not start herdr or ghq and `--scope agents` does not start ghq. Independent loaders run together (ADR 0044). The core starts each command by absolute path (ADR 0032).
 
 The core applies the command, argument, shell, directory, failure, and trace rules to user providers.
 The user reviews whether each declared command only reads external state.

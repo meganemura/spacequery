@@ -3,6 +3,7 @@
 // Each call discards its database after the result returns (ADR 0002).
 // Boundary: scheduling and call metadata. Provider behavior and query meaning
 // stay in their modules.
+import { AsyncLocalStorage } from "node:async_hooks";
 import { execFile } from "node:child_process";
 import { DatabaseSync } from "node:sqlite";
 import { promisify } from "node:util";
@@ -10,13 +11,16 @@ import type { Database, Entry, Query } from "solarsql";
 import { migrate, node } from "solarsql/node";
 import { migrations } from "../migrations/index.ts";
 import { providerCommands, providerQueries, type ProvidersId } from "./providers/public.ts";
-import type { Exec, Loader, Scope } from "./loader.ts";
+import type { Exec, LoadContext, Loader, Scope } from "./loader.ts";
 import { fsRepo, type Repo } from "./repo.ts";
 import { directLoadersFor, loadersFor, tablesRead } from "./resolve.ts";
 import { givenCommandPath, resolveCommandName } from "./search-path.ts";
 import type { UserProvider } from "./user-providers.ts";
 
 const execFileAsync = promisify(execFile);
+// One loader's child processes stay attributed to that loader when several
+// loaders are in flight. The store follows the loader's awaits.
+const activeProvider = new AsyncLocalStorage<string>();
 
 function childExecWithEnv(env?: NodeJS.ProcessEnv): Exec {
   return async (command, args, cwd) => {
@@ -184,14 +188,14 @@ async function prepare(tables: readonly string[] | ((raw: DatabaseSync) => reado
   const root = options.params?.["root"];
   const scope = options.scope ?? (typeof root === "string" && paramNames.includes("root") ? "root" : "agents");
   const trace: TraceRow[] = [];
-  let currentProvider: string | null = null;
   const env = options.env ?? process.env;
   const searchPath = env.PATH ?? process.env.PATH;
   const commandPaths = new Map<string, string | null>();
   const startsChildProcesses = options.exec === undefined || options.exec === exec;
   const execute = startsChildProcesses ? childExecForPath(searchPath) : options.exec!;
   const tracedExec: Exec = async (command, args, cwd, execOptions) => {
-    if (currentProvider === null) throw new Error("a child process started outside a loader");
+    const provider = activeProvider.getStore();
+    if (provider === undefined) throw new Error("a child process started outside a loader");
     const hasSlash = command.includes("/");
     let executablePath = hasSlash ? givenCommandPath(command, cwd) : commandPaths.get(command);
     if (executablePath === undefined) {
@@ -200,7 +204,7 @@ async function prepare(tables: readonly string[] | ((raw: DatabaseSync) => reado
     }
     const processStarted = performance.now();
     const row: TraceRow = {
-      provider: currentProvider,
+      provider,
       command,
       path: executablePath ?? null,
       args: [...args],
@@ -229,23 +233,11 @@ async function prepare(tables: readonly string[] | ((raw: DatabaseSync) => reado
     repo: options.repo ?? fsRepo,
   };
   const needed = loadersFor([...options.loaders, ...userProviders], typeof tables === "function" ? tables(raw) : tables, scope);
-  const providers: ProviderRow[] = [];
-  // Loaders run in dependency order, one at a time. A failed loader leaves
-  // its tables empty; a loader that runs after it sees the empty tables and
-  // is not itself a failure.
-  for (const loader of needed) {
-    currentProvider = loader.name;
-    const started = performance.now();
-    const observed_at = Date.now();
-    try {
-      await loader.load(ctx);
-      providers.push({ name: loader.name, source: userProviderSet.has(loader) ? "user" : "built-in", ok: 1, observed_at, ms: round(performance.now() - started), error: null });
-    } catch (e) {
-      providers.push({ name: loader.name, source: userProviderSet.has(loader) ? "user" : "built-in", ok: 0, observed_at, ms: round(performance.now() - started), error: e instanceof Error ? e.message : String(e) });
-    } finally {
-      currentProvider = null;
-    }
-  }
+  // Independent loaders overlap. A loader still waits for the loaders whose
+  // tables it reads, including one that failed and left those tables empty.
+  // Writes share this connection: each solarsql command is one synchronous
+  // transaction, so two loaders do not interleave inside a statement.
+  const providers = await loadTogether(needed, scope, ctx, userProviderSet);
   const recorded = await db.run(providerCommands.record, { rows: providers.map((p) => ({ ...p, name: p.name as ProvidersId })) });
   if (!recorded.ok) throw new Error(`providers: ${recorded.kind}`);
   const params = { ...(options.params ?? {}) };
@@ -254,12 +246,7 @@ async function prepare(tables: readonly string[] | ((raw: DatabaseSync) => reado
     if (params["me"] === undefined) {
       for (const loader of needed) {
         if (!loader.self) continue;
-        currentProvider = loader.name;
-        try {
-          me = await loader.self(ctx);
-        } finally {
-          currentProvider = null;
-        }
+        me = await activeProvider.run(loader.name, () => loader.self!(ctx));
         if (me !== null) break;
       }
       params["me"] = me;
@@ -321,4 +308,47 @@ function resultMetadata(state: RunState, statementEnded: number): Omit<RunResult
 
 function round(ms: number): number {
   return Math.round(ms * 10) / 10;
+}
+
+function loaderDependencies(loader: Loader, scope: Scope): readonly string[] {
+  return [...loader.after, ...(loader.afterForScope?.(scope) ?? [])];
+}
+
+// Start every loader whose dependencies have already finished. The promise is
+// registered before those dependencies start, so a diamond shares one run.
+function loadTogether(needed: readonly Loader[], scope: Scope, ctx: LoadContext, userProviders: ReadonlySet<Loader>): Promise<ProviderRow[]> {
+  const byName = new Map(needed.map((loader) => [loader.name, loader]));
+  const pending = new Map<string, Promise<ProviderRow>>();
+  const start = (loader: Loader): Promise<ProviderRow> => {
+    const existing = pending.get(loader.name);
+    if (existing !== undefined) return existing;
+    let resolveRow!: (row: ProviderRow) => void;
+    let rejectRow!: (error: unknown) => void;
+    const row = new Promise<ProviderRow>((resolve, reject) => {
+      resolveRow = resolve;
+      rejectRow = reject;
+    });
+    pending.set(loader.name, row);
+    void (async () => {
+      try {
+        await Promise.all(loaderDependencies(loader, scope).map((name) => {
+          const dependency = byName.get(name);
+          if (dependency === undefined) throw new Error(`loader ${loader.name} runs after ${name}, which is not configured`);
+          return start(dependency);
+        }));
+        const started = performance.now();
+        const observed_at = Date.now();
+        try {
+          await activeProvider.run(loader.name, () => loader.load(ctx));
+          resolveRow({ name: loader.name, source: userProviders.has(loader) ? "user" : "built-in", ok: 1, observed_at, ms: round(performance.now() - started), error: null });
+        } catch (error) {
+          resolveRow({ name: loader.name, source: userProviders.has(loader) ? "user" : "built-in", ok: 0, observed_at, ms: round(performance.now() - started), error: error instanceof Error ? error.message : String(error) });
+        }
+      } catch (error) {
+        rejectRow(error);
+      }
+    })();
+    return row;
+  };
+  return Promise.all(needed.map((loader) => start(loader)));
 }
