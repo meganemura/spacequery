@@ -4,6 +4,7 @@ The format follows Keep a Changelog, and the versions follow SemVer. Before 1.0 
 
 ## Unreleased
 
+- Added: `spacequery watch <query> --until <predicate>` re-runs one query until the current rows match. JSON watch output is one envelope per line. Exit 5 means `--timeout` elapsed first.
 - Changed: built with solarsql 0.5.0.
 
 ## 0.2.0 (2026-09-15)

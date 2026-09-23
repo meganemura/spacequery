@@ -1,7 +1,7 @@
 // These tests prove that the command line exposes the catalog and rejects bad names.
-// They do not run a query, so they cannot start a real provider tool.
+// Query tests use --sql or a static repository, so they do not start a real provider tool.
 import assert from "node:assert/strict";
-import { execFile } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
 import { chmodSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -10,7 +10,7 @@ import { test } from "node:test";
 import * as hegel from "@hegeldev/hegel";
 import * as gs from "@hegeldev/hegel/generators";
 import { catalog, reports } from "../catalog.ts";
-import { exitCodeFor, reportJson } from "../cli.ts";
+import { exitCodeFor, reportJson, watchExitCode } from "../cli.ts";
 import { callCounts, recordCall } from "../core/calls.ts";
 import type { ReportResult } from "../core/run.ts";
 
@@ -246,6 +246,146 @@ test("exitCodeFor follows the gate contract for generated results", () => hegel.
   else if (flags.expectEmpty && rows > 0) assert.equal(actual, 3);
   else assert.equal(actual, 0);
 }));
+
+test("help documents watch, --until, and the timeout exit", async () => {
+  const { stdout } = await execFileAsync(process.execPath, ["cli.ts", "--help"], { cwd: process.cwd(), encoding: "utf8" });
+  assert.match(stdout, /spacequery watch <query>/);
+  assert.match(stdout, /--until empty matches zero rows/);
+  assert.match(stdout, /agent_status=idle\|blocked/);
+  assert.match(stdout, /claude-sessions uses status/);
+  assert.match(stdout, /Exit 0 when --until matches, 5 on timeout, 130 on SIGINT or SIGTERM/);
+  assert.match(stdout, /--interval defaults to 2000 milliseconds/);
+  assert.match(stdout, /--timeout defaults to 300 seconds/);
+});
+
+test("watch prints one NDJSON line and exits 0 when --until matches", async () => {
+  const state = mkdtempSync(join(tmpdir(), "spacequery-watch-match-"));
+  try {
+    const { stdout } = await execFileAsync(process.execPath, ["cli.ts", "watch", "--sql", "select 'idle' as status", "--until", "status=idle", "--timeout", "5"], {
+      cwd: process.cwd(), encoding: "utf8", env: { ...process.env, XDG_STATE_HOME: state },
+    });
+    const lines = stdout.trim().split("\n");
+    assert.equal(lines.length, 1);
+    const { ms, ...result } = JSON.parse(lines[0]!);
+    assert.equal(typeof ms, "number");
+    assert.deepEqual(result, { query: "sql", scope: "agents", me: null, params: {}, row_count: 1, rows: [{ status: "idle" }], providers: [] });
+    const calls = readFileSync(join(state, "spacequery", "calls.jsonl"), "utf8").trim().split("\n");
+    assert.equal(calls.length, 1);
+    assert.equal(JSON.parse(calls[0]!).name, "sql");
+  } finally { rmSync(state, { recursive: true, force: true }); }
+});
+
+test("watch exits 5 on timeout without repeating the snapshot", async () => {
+  const state = mkdtempSync(join(tmpdir(), "spacequery-watch-timeout-"));
+  try {
+    await assert.rejects(
+      execFileAsync(process.execPath, ["cli.ts", "watch", "--sql", "select 'working' as agent_status", "--until", "agent_status=idle", "--interval", "200", "--timeout", "1"], {
+        cwd: process.cwd(), encoding: "utf8", env: { ...process.env, XDG_STATE_HOME: state },
+      }),
+      (error: NodeJS.ErrnoException & { code?: number; stdout?: string; stderr?: string }) => {
+        assert.equal(error.code, 5);
+        assert.match(error.stderr ?? "", /timed out before --until matched/);
+        const lines = (error.stdout ?? "").trim().split("\n");
+        assert.equal(lines.length, 1);
+        assert.deepEqual(JSON.parse(lines[0]!).rows, [{ agent_status: "working" }]);
+        return true;
+      },
+    );
+  } finally { rmSync(state, { recursive: true, force: true }); }
+});
+
+test("watch working does not treat a missing provider as empty", async () => {
+  const state = mkdtempSync(join(tmpdir(), "spacequery-watch-working-"));
+  const bin = join(state, "bin");
+  mkdirSync(bin);
+  const env = { ...process.env, PATH: bin, XDG_STATE_HOME: state };
+  try {
+    await assert.rejects(
+      execFileAsync(process.execPath, ["cli.ts", "watch", "working", "--until", "empty", "--strict", "--timeout", "5"], {
+        cwd: process.cwd(), encoding: "utf8", env,
+      }),
+      (error: NodeJS.ErrnoException & { code?: number; stdout?: string }) => {
+        assert.equal(error.code, 4);
+        const body = JSON.parse(error.stdout ?? "");
+        assert.equal(body.query, "working");
+        assert.equal(body.row_count, 0);
+        assert.equal(body.providers.find((provider: { name: string }) => provider.name === "herdr").ok, 0);
+        return true;
+      },
+    );
+    await assert.rejects(
+      execFileAsync(process.execPath, ["cli.ts", "watch", "working", "--until", "empty", "--interval", "200", "--timeout", "1"], {
+        cwd: process.cwd(), encoding: "utf8", env,
+      }),
+      (error: NodeJS.ErrnoException & { code?: number; stdout?: string }) => {
+        assert.equal(error.code, 5);
+        const lines = (error.stdout ?? "").trim().split("\n");
+        assert.equal(lines.length, 1);
+        const body = JSON.parse(lines[0]!);
+        assert.equal(body.query, "working");
+        assert.equal(body.row_count, 0);
+        assert.equal(body.providers.find((provider: { name: string }) => provider.name === "herdr").ok, 0);
+        return true;
+      },
+    );
+  } finally { rmSync(state, { recursive: true, force: true }); }
+});
+
+test("watch exits 130 on SIGINT", async () => {
+  const state = mkdtempSync(join(tmpdir(), "spacequery-watch-signal-"));
+  const child = spawn(process.execPath, ["cli.ts", "watch", "--sql", "select 1 as x", "--until", "empty", "--interval", "5000", "--timeout", "30"], {
+    cwd: process.cwd(), stdio: ["ignore", "pipe", "pipe"], env: { ...process.env, XDG_STATE_HOME: state },
+  });
+  let stdout = "";
+  try {
+    const code = await new Promise<number | null>((resolve, reject) => {
+      const timer = setTimeout(() => {
+        child.kill("SIGKILL");
+        reject(new Error(`watch did not print before SIGINT: ${stdout}`));
+      }, 10_000);
+      child.stdout!.setEncoding("utf8");
+      child.stdout!.on("data", (chunk: string) => {
+        stdout += chunk;
+        if (stdout.includes("\n")) child.kill("SIGINT");
+      });
+      child.on("exit", (status) => {
+        clearTimeout(timer);
+        resolve(status);
+      });
+    });
+    assert.equal(code, 130);
+    assert.equal(JSON.parse(stdout).rows[0].x, 1);
+  } finally { rmSync(state, { recursive: true, force: true }); }
+});
+
+test("watch usage rejects a missing predicate, a report, and a one-shot --until", async () => {
+  await assert.rejects(
+    execFileAsync(process.execPath, ["cli.ts", "watch", "--sql", "select 1 as x"], { cwd: process.cwd(), encoding: "utf8" }),
+    (error: NodeJS.ErrnoException & { code?: number; stderr?: string }) => error.code === 2 && /requires --until/.test(error.stderr ?? ""),
+  );
+  await assert.rejects(
+    execFileAsync(process.execPath, ["cli.ts", "watch", "here", "--until", "empty"], { cwd: process.cwd(), encoding: "utf8" }),
+    (error: NodeJS.ErrnoException & { code?: number; stderr?: string }) => error.code === 2 && /not the report here/.test(error.stderr ?? ""),
+  );
+  await assert.rejects(
+    execFileAsync(process.execPath, ["cli.ts", "--sql", "select 1 as x", "--until", "empty"], { cwd: process.cwd(), encoding: "utf8" }),
+    (error: NodeJS.ErrnoException & { code?: number; stderr?: string }) => error.code === 2 && /--until is a watch flag/.test(error.stderr ?? ""),
+  );
+  await assert.rejects(
+    execFileAsync(process.execPath, ["cli.ts", "watch", "--sql", "select 1 as status", "--until", "status"], { cwd: process.cwd(), encoding: "utf8" }),
+    (error: NodeJS.ErrnoException & { code?: number; stderr?: string }) => error.code === 2 && /--until is empty, nonempty/.test(error.stderr ?? ""),
+  );
+});
+
+test("watchExitCode keeps timeout distinct from the gates", () => {
+  const rows = { rows: [{ status: "working" }], providers: [{ name: "herdr", source: "built-in" as const, ok: 1, observed_at: 0, ms: 0, error: null }] };
+  const failed = { rows: [], providers: [{ name: "herdr", source: "built-in" as const, ok: 0, observed_at: 0, ms: 0, error: "missing" }] };
+  assert.equal(watchExitCode("matched", { rows: [], providers: rows.providers }, { expectEmpty: true, strict: false }), 0);
+  assert.equal(watchExitCode("matched", rows, { expectEmpty: true, strict: false }), 3);
+  assert.equal(watchExitCode("timeout", rows, { expectEmpty: true, strict: true }), 5);
+  assert.equal(watchExitCode("incomplete", failed, { expectEmpty: false, strict: true }), 4);
+  assert.equal(watchExitCode("aborted", rows, { expectEmpty: false, strict: false }), 130);
+});
 
 test("an unknown query exits with status 2", async () => {
   await assert.rejects(

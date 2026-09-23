@@ -1,9 +1,11 @@
 #!/usr/bin/env node
 // The command line: spacequery <query|report> [--root DIR] [--scope root|agents|all] [--me PANE] [--json|--tsv] [--trace] [--expect-empty] [--strict]
 //                   spacequery --sql <text> [--root DIR] [--me PANE] [--scope root|agents|all] [--json|--tsv] [--trace] [--expect-empty] [--strict]
+//                   spacequery watch <query|--sql text> [query flags] --until <predicate> [--interval MS] [--timeout SEC]
 //                   spacequery --help
 // The JSON envelope carries the call time, rows, and provider status.
 // A requested trace lists child processes. TSV keeps stdout for result rows.
+// Watch prints one compact envelope per line and reuses the same query path.
 // Boundary: parsing arguments and printing. core/run.ts does the work.
 import { execFileSync } from "node:child_process";
 import { realpathSync } from "node:fs";
@@ -14,12 +16,14 @@ import { catalog, reportParams, reports } from "./catalog.ts";
 import { callCounts, callsPath, recordCall } from "./core/calls.ts";
 import type { Scope } from "./core/loader.ts";
 import { runQuery, runReport, runSql, type ProviderRow, type ReportResult, type RunResult, type TraceRow } from "./core/run.ts";
+import { defaultWatchIntervalMs, defaultWatchTimeoutSec, parseUntil, parseWatchTiming, watchUntil, type WatchStop } from "./core/watch.ts";
 import { fsRepo } from "./core/repo.ts";
 import { loadUserProviders, type UserProvider } from "./core/user-providers.ts";
 import { loadUserQueries, type UserQuery } from "./core/user-queries.ts";
 import { loaders } from "./spacequery.config.ts";
 
-const commandOptions = new Set(["root", "scope", "me", "sql", "json", "tsv", "trace", "help", "expect-empty", "strict"]);
+const commandOptions = new Set(["root", "scope", "me", "sql", "json", "tsv", "trace", "help", "expect-empty", "strict", "until", "interval", "timeout"]);
+const watchOnlyOptions = new Set(["until", "interval", "timeout"]);
 
 type HelpQuery = { name: string; description: string; params: readonly string[]; source: "built-in" | "user" };
 type HelpReport = { name: string; description: string; params: readonly string[]; sections: readonly (readonly [string, string])[]; source: "report" };
@@ -58,6 +62,8 @@ function usage(userQueries: readonly UserQuery[], userProviders: readonly UserPr
   return [
     "usage: spacequery <query|report> [--root DIR] [--scope root|agents|all] [--me PANE] [--json|--tsv] [--trace] [--expect-empty] [--strict]",
     "       spacequery --sql <text> [--root DIR] [--me PANE] [--scope root|agents|all] [--json|--tsv] [--trace] [--expect-empty] [--strict]",
+    "       spacequery watch <query> [--root DIR] [--scope root|agents|all] [--me PANE] [--json|--tsv] [--trace] [--expect-empty] [--strict] --until <predicate> [--interval MS] [--timeout SEC]",
+    "       spacequery watch --sql <text> [--root DIR] [--me PANE] [--scope root|agents|all] [--json|--tsv] [--trace] [--expect-empty] [--strict] --until <predicate> [--interval MS] [--timeout SEC]",
     "",
     "terminal browser: spacequery ui [--root DIR] [--scope root|agents|all] [--me PANE]",
     "",
@@ -76,6 +82,21 @@ function usage(userQueries: readonly UserQuery[], userProviders: readonly UserPr
     "--expect-empty exits 3 after it prints rows when the query returned rows.",
     "--strict exits 4 after it prints rows when a provider did not answer.",
     `queries are listed by how often you called them (the count is in ${callsPath(env)})`,
+    "",
+    "watch re-runs one query until --until matches. --until is required. Each tick is a new observation.",
+    "--until empty matches zero rows. --until nonempty matches one or more rows.",
+    "--until <column>=<value>[|<value>...] matches when every row has that column set to one of the values. Zero rows do not match.",
+    "An incomplete observation (a provider with ok 0) does not match. Empty rows beside a failed provider stay unknown.",
+    `--interval defaults to ${defaultWatchIntervalMs} milliseconds. --timeout defaults to ${defaultWatchTimeoutSec} seconds; 0 waits until the predicate or a signal.`,
+    "The first snapshot prints immediately. Later snapshots print only when the observation changes.",
+    "JSON watch output is one envelope per line. One-shot JSON stays indented.",
+    "in-dir, working, and agents use agent_status (working, idle, blocked, unknown). working lists only agents that are working, so wait with --until empty.",
+    "claude-sessions uses status. workflow uses status.",
+    "  spacequery watch in-dir --until empty",
+    "  spacequery watch working --until empty",
+    "  spacequery watch in-dir --until agent_status=idle|blocked",
+    "  spacequery watch claude-sessions --until status=idle",
+    "Exit 0 when --until matches, 5 on timeout, 130 on SIGINT or SIGTERM.",
   ].join("\n");
 }
 
@@ -96,6 +117,9 @@ function optionsFor(userQueries: readonly UserQuery[]): ParseArgsOptionsConfig {
   options["help"] = { type: "boolean", short: "h" };
   options["expect-empty"] = { type: "boolean" };
   options["strict"] = { type: "boolean" };
+  options["until"] = { type: "string" };
+  options["interval"] = { type: "string" };
+  options["timeout"] = { type: "string" };
   for (const query of [...Object.values(catalog), ...Object.values(reports).map((report) => ({ params: reportParams(report) })), ...userQueries]) {
     for (const parameter of query.params) {
       if (!Object.hasOwn(options, parameter)) options[parameter] = { type: "string" };
@@ -166,6 +190,19 @@ function callJson(result: Pick<RunResult<unknown>, "ms" | "trace">, includeTrace
   return { ms: result.ms, ...(includeTrace ? { trace: result.trace } : {}) };
 }
 
+export function queryJson(name: string, result: RunResult<Record<string, unknown>>, includeTrace = false): Record<string, unknown> {
+  return {
+    query: name,
+    scope: result.scope,
+    me: result.me,
+    params: result.params,
+    ...callJson(result, includeTrace),
+    row_count: result.rows.length,
+    rows: result.rows,
+    providers: result.providers,
+  };
+}
+
 export function reportJson(name: string, result: ReportResult, includeTrace = false): Record<string, unknown> {
   return {
     report: name,
@@ -189,6 +226,15 @@ export function exitCodeFor(result: Pick<RunResult<unknown>, "rows" | "providers
   return 0;
 }
 
+// Timeout stays 5 so a caller can tell it from a gate. `--strict` uses the
+// incomplete outcome before the deadline, which is exit 4.
+export function watchExitCode(outcome: WatchStop, result: Pick<RunResult<unknown>, "rows" | "providers">, flags: ExitFlags): 0 | 3 | 4 | 5 | 130 {
+  if (outcome === "aborted") return 130;
+  if (outcome === "incomplete") return 4;
+  if (outcome === "timeout") return 5;
+  return exitCodeFor(result, flags);
+}
+
 async function main(argv: string[]): Promise<number> {
   if (argv[0] === "ui") {
     const { startUi } = await import("./ui/main.ts");
@@ -208,7 +254,8 @@ async function main(argv: string[]): Promise<number> {
   const me = textOption(values, "me");
   const help = values["help"] === true;
   const includeTrace = values["trace"] === true;
-  const requestedName = positionals[0];
+  const watching = positionals[0] === "watch";
+  const requestedName = watching ? positionals[1] : positionals[0];
   const report = sql === undefined && requestedName !== undefined && Object.hasOwn(reports, requestedName)
     ? reports[requestedName as keyof typeof reports]
     : undefined;
@@ -219,10 +266,14 @@ async function main(argv: string[]): Promise<number> {
     ? userQueries.find((query) => query.name === requestedName)
     : undefined;
   validateQueryOptions(values, userQueries, report === undefined ? named?.params ?? userQuery?.params ?? [] : reportParams(report), requestedName ?? "sql");
-  if (help || (positionals.length === 0 && sql === undefined)) {
+  if (help || (!watching && positionals.length === 0 && sql === undefined)) {
     if (help && values["json"] === true) console.log(JSON.stringify([...queriesForHelp(userQueries, process.env), ...reportsForHelp()]));
     else console.log(usage(userQueries, userProviders, process.env));
     return help ? 0 : 2;
+  }
+  if (watching && positionals.length > 2) {
+    console.error(`spacequery: watch takes one query\n\n${usage(userQueries, userProviders, process.env)}`);
+    return 2;
   }
   if (!isScope(scope)) {
     console.error(`spacequery: --scope is root, agents, or all, not ${scope}`);
@@ -245,80 +296,186 @@ async function main(argv: string[]): Promise<number> {
   // Keep the same parameter names intact when the CLI passes them to SQLite.
   const params: Record<string, unknown> = Object.create(null);
   if (me !== undefined) params["me"] = me === "" ? null : me;
+  const flags: ExitFlags = { expectEmpty: values["expect-empty"] === true, strict: values["strict"] === true };
+  const parameters = report !== undefined ? reportParams(report) : named?.params ?? userQuery?.params ?? [];
 
   let name: string;
-  let result: RunResult<Record<string, unknown>> | undefined;
-  let reportResult: ReportResult | undefined;
+  let runOnce: () => Promise<RunResult<Record<string, unknown>>>;
   if (sql !== undefined) {
+    if (watching && requestedName !== undefined) {
+      console.error("spacequery: watch takes a query or --sql, not both");
+      return 2;
+    }
     name = "sql";
     // The two flags are the two parameters a statement can name. Any other
     // `:name` is an error from the core.
     if (/:root\b/.test(sql)) params["root"] = toplevel(root ?? process.cwd());
-    result = await runSql(sql, { loaders, userProviders, scope, params });
+    runOnce = () => runSql(sql, { loaders, userProviders, scope, params });
+  } else if (requestedName === undefined) {
+    console.error(`spacequery: watch needs a query and --until\n\n${usage(userQueries, userProviders, process.env)}`);
+    return 2;
+  } else if (!report && !named && !userQuery) {
+    console.error(`spacequery: no query named ${requestedName}\n\n${usage(userQueries, userProviders, process.env)}`);
+    return 2;
+  } else if (report) {
+    name = requestedName;
+    if (parameters.includes("root")) params["root"] = toplevel(root ?? process.cwd());
+    bindQueryParams(parameters, values, params, watching);
+    runOnce = () => Promise.reject(new Error("a report is not watched"));
+  } else if (userQuery) {
+    name = requestedName;
+    if (userQuery.params.includes("root")) params["root"] = toplevel(root ?? process.cwd());
+    bindQueryParams(parameters, values, params, watching);
+    const userSql = userQuery.sql;
+    runOnce = () => runSql(userSql, { loaders, userProviders, scope, params });
+  } else if (named) {
+    name = requestedName;
+    if (named.params.includes("root")) params["root"] = rootOnlyRepositoryQueries.has(named)
+      ? await staticToplevel(root ?? process.cwd())
+      : toplevel(root ?? process.cwd());
+    bindQueryParams(parameters, values, params, watching);
+    const query = named.query;
+    runOnce = () => runQuery(query, { loaders, userProviders, scope, params });
   } else {
-    name = requestedName!;
-    if (!report && !named && !userQuery) {
-      console.error(`spacequery: no query named ${name}\n\n${usage(userQueries, userProviders, process.env)}`);
-      return 2;
-    }
+    throw new Error(`no query named ${requestedName}`);
+  }
+
+  const watchFlag = watchFlagMisuse(watching, sql !== undefined ? ["root", "me"] : parameters, values);
+  if (watchFlag !== undefined) {
+    console.error(`spacequery: ${watchFlag}`);
+    return 2;
+  }
+  if (!watching) {
     if (report) {
-      const parameters = reportParams(report);
-      if (parameters.includes("root")) params["root"] = toplevel(root ?? process.cwd());
-      for (const parameter of parameters) {
-        if (parameter === "root" || parameter === "me") continue;
-        const value = textOption(values, parameter);
-        if (value !== undefined) params[parameter] = value;
-      }
-      reportResult = await runReport(report.sections.map(([section, query]) => [section, catalog[query]!.query] as const), { loaders, userProviders, scope, params });
-    } else if (userQuery) {
-      if (userQuery.params.includes("root")) params["root"] = toplevel(root ?? process.cwd());
-      for (const parameter of userQuery.params) {
-        if (parameter === "root" || parameter === "me") continue;
-        const value = textOption(values, parameter);
-        if (value !== undefined) params[parameter] = value;
-      }
-      result = await runSql(userQuery.sql, { loaders, userProviders, scope, params });
-    } else if (named) {
-      if (named.params.includes("root")) params["root"] = rootOnlyRepositoryQueries.has(named)
-        ? await staticToplevel(root ?? process.cwd())
-        : toplevel(root ?? process.cwd());
-      for (const parameter of named.params) {
-        if (parameter === "root" || parameter === "me") continue;
-        const value = textOption(values, parameter);
-        if (value !== undefined) params[parameter] = value;
-      }
-      result = await runQuery(named.query, { loaders, userProviders, scope, params });
-    } else {
-      throw new Error(`no query named ${name}`);
+      const reportResult = await runReport(report.sections.map(([section, query]) => [section, catalog[query]!.query] as const), { loaders, userProviders, scope, params });
+      recordCall(process.env, name);
+      if (values["tsv"] === true) {
+        process.stdout.write(reportTsv(reportResult.sections));
+        if (includeTrace) process.stderr.write(traceTsv(reportResult.trace));
+      } else console.log(JSON.stringify(reportJson(name, reportResult, includeTrace), null, 2));
+      warn(reportResult.providers);
+      return exitCodeFor({ rows: reportResult.sections[report.gateSection] ?? [], providers: reportResult.providers }, flags);
     }
+    const result = await runOnce();
+    recordCall(process.env, name);
+    printQuery(name, result, values["tsv"] === true, includeTrace, false);
+    return exitCodeFor(result, flags);
   }
-  recordCall(process.env, name);
-  if (reportResult !== undefined) {
-    if (values["tsv"] === true) {
-      process.stdout.write(reportTsv(reportResult.sections));
-      if (includeTrace) process.stderr.write(traceTsv(reportResult.trace));
-    } else console.log(JSON.stringify(reportJson(name, reportResult, includeTrace), null, 2));
-    warn(reportResult.providers);
-    return exitCodeFor({ rows: reportResult.sections[report!.gateSection] ?? [], providers: reportResult.providers }, { expectEmpty: values["expect-empty"] === true, strict: values["strict"] === true });
+  if (report) {
+    console.error(`spacequery: watch runs a query, not the report ${requestedName}`);
+    return 2;
   }
-  if (result === undefined) throw new Error(`no result for ${name}`);
-  if (values["tsv"] === true) {
+  const untilText = textOption(values, "until");
+  if (untilText === undefined) {
+    console.error("spacequery: watch requires --until");
+    return 2;
+  }
+  let until: ReturnType<typeof parseUntil>;
+  try {
+    until = parseUntil(untilText);
+  } catch (e) {
+    console.error(`spacequery: ${e instanceof Error ? e.message : String(e)}`);
+    return 2;
+  }
+  const timing = parseWatchTiming(textOption(values, "interval"), textOption(values, "timeout"));
+  if ("error" in timing) {
+    console.error(`spacequery: ${timing.error}`);
+    return 2;
+  }
+  return watchQuery(name, runOnce, until, timing.intervalMs, timing.timeoutMs, values["tsv"] === true, includeTrace, flags);
+}
+
+// A watch flag on a one-shot call is a usage error unless that name is a
+// parameter of the query. Ad hoc SQL only binds root and me.
+function watchFlagMisuse(watching: boolean, parameters: readonly string[], values: Record<string, unknown>): string | undefined {
+  if (watching) return undefined;
+  const accepted = new Set(parameters);
+  for (const flag of watchOnlyOptions) {
+    if (values[flag] !== undefined && !accepted.has(flag)) return `--${flag} is a watch flag; use spacequery watch <query> --until <predicate>`;
+  }
+  return undefined;
+}
+
+function bindQueryParams(parameters: readonly string[], values: Record<string, unknown>, params: Record<string, unknown>, watching: boolean): void {
+  for (const parameter of parameters) {
+    if (parameter === "root" || parameter === "me") continue;
+    // While watching, these names are the loop controls, not statement bindings.
+    if (watching && watchOnlyOptions.has(parameter)) continue;
+    const value = textOption(values, parameter);
+    if (value !== undefined) params[parameter] = value;
+  }
+}
+
+function printQuery(name: string, result: RunResult<Record<string, unknown>>, asTsv: boolean, includeTrace: boolean, ndjson: boolean): void {
+  if (asTsv) {
     process.stdout.write(tsv(result.rows));
     if (includeTrace) process.stderr.write(traceTsv(result.trace));
-    warn(result.providers);
+  } else if (ndjson) {
+    process.stdout.write(`${JSON.stringify(queryJson(name, result, includeTrace))}\n`);
   } else {
-    console.log(JSON.stringify({
-      query: name,
-      scope: result.scope,
-      me: result.me,
-      params: result.params,
-      ...callJson(result, includeTrace),
-      row_count: result.rows.length,
-      rows: result.rows,
-      providers: result.providers,
-    }, null, 2));
+    console.log(JSON.stringify(queryJson(name, result, includeTrace), null, 2));
   }
-  return exitCodeFor(result, { expectEmpty: values["expect-empty"] === true, strict: values["strict"] === true });
+  warn(result.providers);
+}
+
+// One call-log line per watch. A line per tick would crowd --help with the
+// query someone left running (ADR 0023).
+async function watchQuery(
+  name: string,
+  runOnce: () => Promise<RunResult<Record<string, unknown>>>,
+  until: ReturnType<typeof parseUntil>,
+  intervalMs: number,
+  timeoutMs: number | null,
+  asTsv: boolean,
+  includeTrace: boolean,
+  flags: ExitFlags,
+): Promise<number> {
+  const signals = abortOnSignal();
+  let recorded = false;
+  let printed = false;
+  let last: RunResult<Record<string, unknown>> | undefined;
+  try {
+    const outcome = await watchUntil({
+      until,
+      intervalMs,
+      timeoutMs,
+      stopWhenIncomplete: flags.strict,
+      signal: signals.signal,
+      observe: async () => {
+        last = await runOnce();
+        if (!recorded) {
+          recordCall(process.env, name);
+          recorded = true;
+        }
+        return { rows: last.rows, providers: last.providers };
+      },
+      onSnapshot: () => {
+        if (last === undefined) return;
+        if (asTsv && printed) process.stdout.write("\n");
+        printQuery(name, last, asTsv, includeTrace, true);
+        printed = true;
+      },
+    });
+    if (outcome === "timeout") process.stderr.write("spacequery: timed out before --until matched\n");
+    if (last === undefined) return outcome === "aborted" ? 130 : 1;
+    return watchExitCode(outcome, last, flags);
+  } finally {
+    signals.stop();
+  }
+}
+
+function abortOnSignal(): { signal: AbortSignal; stop: () => void } {
+  const controller = new AbortController();
+  const onSignal = () => controller.abort();
+  process.on("SIGINT", onSignal);
+  process.on("SIGTERM", onSignal);
+  return {
+    signal: controller.signal,
+    stop: () => {
+      process.off("SIGINT", onSignal);
+      process.off("SIGTERM", onSignal);
+    },
+  };
 }
 
 // A reader that stops early (`spacequery agents | head`) closes the pipe; that

@@ -44,3 +44,4 @@ Each ADR describes one decision and its consequences.
 | [0035](adr/0035-user-providers-are-declared-commands.md) | A user provider is a declared command that fills a declared table. |
 | [0036](adr/0036-terminal-browser-uses-cli-observations.md) | The terminal browser uses fresh CLI observations. |
 | [0038](adr/0038-usage-limits-come-from-cli-and-local-logs.md) | Quota observations come from the Claude CLI and local Codex logs. |
+| [0039](adr/0039-watch-reruns-a-query-until-a-predicate.md) | Watch re-runs a query until a predicate. |

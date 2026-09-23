@@ -94,6 +94,60 @@ Read activity in this order: `agent_status` from herdr describes the present.
 `updated_at` and `last_turn_at` belong to the session record. `idle_minutes`
 derives from `updated_at`.
 
+## Watch
+
+`spacequery watch <query> --until <predicate>` re-runs one query until the current rows match.
+`spacequery watch --sql <text> --until <predicate>` does the same for ad hoc SQL.
+`--until` is required. A report such as `here` is not a watch target.
+`watch` is the command word, not a query name.
+
+Each tick opens a fresh database and discards it. Watch stores no rows.
+The call log records the query once for the watch, not once per tick.
+
+| Predicate | Matches when |
+| --- | --- |
+| `empty` | The result has zero rows. |
+| `nonempty` | The result has one or more rows. |
+| `<column>=<value>` | Every row has that column set to `value`. Add further values with a vertical bar: `status=idle\|done`. |
+
+A column predicate does not match zero rows. Use `empty` for that.
+Null does not match a listed value. A missing column does not match.
+Values are compared as text, so `status=1` matches the number 1.
+The column name is an identifier. A value cannot contain `=` or `|`.
+
+An incomplete observation does not match `--until`.
+A provider with `ok` 0 leaves that tick unknown, including when the rows are empty.
+Empty rows beside a failed provider stay unknown.
+
+```sh
+spacequery watch in-dir --until empty
+spacequery watch working --until empty
+spacequery watch in-dir --until agent_status=idle|blocked
+spacequery watch claude-sessions --until status=idle
+```
+
+`agent_status` on `in-dir`, `working`, and `agents` is herdr's `working`, `idle`, `blocked`, or `unknown`.
+`working` only returns agents that are working, so the wait until nobody is working is `--until empty`.
+`claude-sessions` has `status` from the session record. `workflow` has `status` from the headsign file.
+
+The first snapshot prints immediately.
+A later snapshot prints only when a fingerprint of the rows, plus each provider's `name`, `ok`, and `error`, changes.
+`observed_at` and durations are left out of the fingerprint because they change on every tick.
+Columns that change as time passes, such as `idle_minutes`, are part of the row, so they count as a change.
+A sequence column such as `state_change_seq` or `revision` counts when the query returns it. Watch does not keep a sequence of its own.
+
+JSON from watch is one envelope per line, the same fields as a one-shot query, with no indentation.
+One-shot JSON stays indented. `--tsv` reprints the table on each change and puts a blank line between tables.
+`--trace` adds `trace` to each printed snapshot.
+
+`--interval` is the wait between ticks, in milliseconds. The default is 2000.
+`--timeout` is the deadline, in seconds, measured from the start of the watch. The default is 300.
+`--timeout 0` waits until the predicate matches or a signal arrives.
+SIGINT or SIGTERM stops the loop after the current tick. The exit code is 130.
+
+On timeout, spacequery writes `spacequery: timed out before --until matched` to standard error.
+The last snapshot is the last line already printed. Timeout does not print that snapshot again.
+
 ## Terminal browser
 
 `spacequery ui [--root DIR] [--scope root|agents|all] [--me PANE]` requires an interactive terminal.
@@ -114,8 +168,11 @@ Its keys and result semantics are in [ui.md](ui.md).
 | `--json` | The default. |
 | `--trace` | List every child process with its provider, command, executable path, full arguments, directory, start offset, duration, and result. JSON adds `trace`; TSV writes it to standard error. |
 | `--<name> VALUE` | A parameter of a built-in or user query, bound as text. |
-| `--expect-empty` | Exit 3 after output when the query or report gate section returned rows. `here` uses `agents`. `dependency-report` uses `shared`. |
-| `--strict` | Exit 4 after output when a provider did not answer. |
+| `--expect-empty` | Exit 3 after output when the query or report gate section returned rows. `here` uses `agents`. `dependency-report` uses `shared`. On watch, this applies to the snapshot that satisfied `--until`. |
+| `--strict` | Exit 4 after output when a provider did not answer. On watch, the first incomplete observation exits 4 instead of waiting. |
+| `--until <predicate>` | Watch only. `empty`, `nonempty`, or `<column>=<value>[|<value>...]`. Required with `watch`. |
+| `--interval <ms>` | Watch only. Milliseconds between ticks. Default 2000. |
+| `--timeout <sec>` | Watch only. Seconds before exit 5. Default 300. `0` means no deadline. |
 | `--help` | The built-in and user queries, then reports, with descriptions. `--help --json` prints their names, descriptions, parameters, sources, and report sections as JSON. |
 
 A query that takes `--root` runs the loaders on that root alone by default (`--scope root`); `--scope agents` widens to every repository with an agent, `--scope all` to every ghq repository.
@@ -126,11 +183,13 @@ spacequery records call counts in `$XDG_STATE_HOME/spacequery/calls.jsonl`, or `
 
 | Code | Meaning |
 | --- | --- |
-| 0 | The query ran. A failed provider does not change the code; read `providers`. |
+| 0 | The query ran, or `--until` matched on a complete observation. A failed provider does not change the code of a one-shot query; read `providers`. |
 | 1 | The statement did not run: a missing parameter, a statement that does not prepare. The message is one line on standard error. |
-| 2 | Usage: an unknown query name, a bad `--scope`, no query given. |
-| 3 | `--expect-empty` and the query returned rows. |
+| 2 | Usage: an unknown query name, a bad `--scope`, no query given, `watch` without `--until`, or a watch flag on a one-shot command. |
+| 3 | `--expect-empty` and the query returned rows. On watch, the matching snapshot returned rows. |
 | 4 | `--strict` and a provider did not answer. |
+| 5 | `watch` reached `--timeout` before `--until` matched. The last snapshot was printed. |
+| 130 | `watch` received SIGINT or SIGTERM. |
 
 ## Self
 

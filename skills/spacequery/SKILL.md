@@ -14,6 +14,7 @@ Call it from anywhere:
 
 ```sh
 spacequery <query> [--root DIR] [--scope root|agents|all] [--me PANE] [--tsv] [--trace]
+spacequery watch <query> --until <predicate> [--interval MS] [--timeout SEC]
 ```
 
 `spacequery` is on PATH after `npm link` in the checkout; `node /path/to/spacequery/cli.ts` is the same command without the link.
@@ -34,9 +35,32 @@ Use `--root DIR`, `--scope root|agents|all`, and `--me PANE` to set its initial 
 The browser fetches data when you press `r`.
 See [references/ui.md](references/ui.md) for its keys and observation rules.
 
+## Waiting
+
+`spacequery watch` re-runs one named query until `--until` matches, then exits.
+Each tick is a new observation. Watch keeps no cache and does not write to a provider.
+`--until` is required.
+
+```sh
+spacequery watch in-dir --until empty
+spacequery watch working --until empty
+spacequery watch in-dir --until agent_status=idle|blocked
+spacequery watch claude-sessions --until status=idle
+```
+
+`in-dir`, `working`, and `agents` carry `agent_status` (`working`, `idle`, `blocked`, `unknown`).
+`working` only returns agents that are working, so the wait for idle is `--until empty`.
+`claude-sessions` carries `status`. A column predicate matches when every returned row has one of the values. Zero rows do not match it; use `empty`.
+An incomplete observation does not match `--until`. Empty rows beside a provider with `ok` 0 stay unknown.
+The first snapshot prints immediately. Later snapshots print only when the observation changes.
+JSON from watch is one envelope per line. One-shot JSON stays indented.
+`--interval` defaults to 2000 milliseconds. `--timeout` defaults to 300 seconds. `--timeout 0` waits until the predicate or a signal.
+Exit 0 when `--until` matches, 5 on timeout, 130 on SIGINT or SIGTERM.
+The predicate, the fingerprint, and the exit codes: [references/output.md](references/output.md#watch).
+
 ## Workflow
 
-1. **Before you start work in a repository**: `here` (one call: who else is here with `in-dir`, the checkout with `git-status` and `worktrees`, its pull request with `branch-pull-requests`, ports with `ports-in-dir`, processes with `processes-in-dir`, Docker containers with `containers-in-dir` and `container-ports-in-dir`, tools with `tools-in-dir`, issues, and the workflow). The rows exclude your own pane. As a gate: `spacequery here --expect-empty --strict` exits 0 only when nobody else is here and every provider answered.
+1. **Before you start work in a repository**: `here` (one call: who else is here with `in-dir`, the checkout with `git-status` and `worktrees`, its pull request with `branch-pull-requests`, ports with `ports-in-dir`, processes with `processes-in-dir`, Docker containers with `containers-in-dir` and `container-ports-in-dir`, tools with `tools-in-dir`, issues, and the workflow). The rows exclude your own pane. As a gate: `spacequery here --expect-empty --strict` exits 0 only when nobody else is here and every provider answered. To wait until that is true, `spacequery watch in-dir --until empty` exits 0 when no other agent is in the repository.
 2. **When the user asks what is going on**: `agents-with-sessions` (names, idle time), `session-processes`, `working`, `idle-sessions`, `workspaces`.
    Use `claude-usage` and `codex-usage` for quota percentages and reset information. Check record times; Codex reads bounded tails of recently modified local logs.
    Use `claude-sessions` and `codex-sessions` for locally recorded model, effort, and session names.

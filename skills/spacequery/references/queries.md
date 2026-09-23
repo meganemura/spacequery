@@ -24,6 +24,9 @@ Columns marked `?` can be null.
 
 `agent` is the label herdr detected (`claude`, `codex`, ...).
 `agent_status` is herdr's field and uses herdr's values: `working`, `idle`, `blocked`, `unknown`.
+`spacequery watch in-dir --until agent_status=idle` waits until every returned row has `agent_status` idle.
+`working` only lists agents that are working, so `spacequery watch working --until empty` is the wait for idle.
+The watch rules are in [output.md](output.md#watch).
 `root` is null for an agent outside any repository.
 `agents`, `find`, `in-dir`, and `working` exclude `me`.
 
@@ -68,6 +71,7 @@ mise can prepend directories, so these rows can differ from the caller search pa
 For Claude, `model`, `effort`, and `per_turn_effort` describe one recorded assistant response; `metadata_at` gives its time.
 These nullable fields use a bounded transcript tail. See [session tables](tables.md#sessions-claude_sessions-and-codex_sessions) for the observation rules.
 `kind` and `claude_status` are Claude Code values. `source` is a Codex value.
+`spacequery watch claude-sessions --until status=idle` waits until every returned row has `status` idle. A null `status` does not match.
 A session joins an agent through the session id herdr's integration reports.
 `agents-with-sessions` keeps an agent with no session and returns null session columns.
 A session without a pane appears in `sessions-without-pane`.

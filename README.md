@@ -17,6 +17,7 @@ It does not change them.
 spacequery here
 spacequery in-dir --tsv
 spacequery agents-with-sessions
+spacequery watch in-dir --until empty
 spacequery --help
 ```
 
@@ -39,7 +40,7 @@ spacequery here
 It shows other agents in the repository, the current git state, linked worktrees, the branch pull request, listening ports, local processes, Docker containers and ports, mise tools, open beads issues, and headsign workflow state.
 The agent can then choose a safer next action:
 
-- wait when another agent already works in the repository
+- wait, with `spacequery watch in-dir --until empty`, when another agent already works in the repository
 - reuse an idle worktree, or avoid a worktree that is already occupied
 - notice dirty files before it edits or reviews
 - avoid a port that already has a local server

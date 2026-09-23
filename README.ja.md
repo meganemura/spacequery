@@ -18,6 +18,7 @@ provider の状態は変えない。
 spacequery here
 spacequery in-dir --tsv
 spacequery agents-with-sessions
+spacequery watch in-dir --until empty
 spacequery --help
 ```
 

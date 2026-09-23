@@ -12,7 +12,35 @@ Installed package: `node_modules/spacequery/skills/spacequery/SKILL.md` (this fi
 
 - `spacequery <query|report>` — run a named catalog query or report
 - `spacequery --sql <text>` — ad hoc SQL over the in-memory DB
+- `spacequery watch <query> --until <predicate>` — re-run one named query until the current rows match
 - `spacequery ui` — terminal browser for tables and queries
 - Common flags: `--root`, `--scope root|agents|all`, `--me`, `--json` / `--tsv`, `--trace`, `--expect-empty`, `--strict`
 
 Named queries include `here`-style occupancy via catalog entries such as `in-dir`, `dirty`, `sessions`, `agents-with-sessions`, `worktrees` (see `--help`). Incomplete observation is explicit in the result. Prefer narrowing scope over guessing from a partial view.
+
+## Watch
+
+`spacequery watch <query> --until <predicate>` re-runs a named query. Each tick builds a fresh database. `--until` is required. Watch does not store rows and does not write to a provider.
+
+Predicates:
+
+- `empty` — zero rows
+- `nonempty` — one or more rows
+- `<column>=<value>` or `<column>=<a>|<b>` — every current row has that column set to one of the values. Zero rows do not match. Null does not match.
+
+An incomplete observation (a provider with `ok` 0) does not satisfy `--until`. Empty rows beside a failed provider stay unknown.
+
+```sh
+spacequery watch in-dir --until empty
+spacequery watch working --until empty
+spacequery watch in-dir --until agent_status=idle|blocked
+spacequery watch claude-sessions --until status=idle
+```
+
+`agent_status` on `in-dir`, `working`, and `agents` is `working`, `idle`, `blocked`, or `unknown`. `working` only returns agents that are working, so wait with `--until empty`. `claude-sessions` has `status`.
+
+`--interval` defaults to 2000 milliseconds. `--timeout` defaults to 300 seconds. `--timeout 0` waits until the predicate or a signal.
+
+The first snapshot prints immediately. Later snapshots print only when the observation changes. JSON from watch is one envelope per line (NDJSON). One-shot JSON stays indented.
+
+Exit 0 when `--until` matches. Exit 5 when `--timeout` elapses first; the last snapshot is already printed. Exit 130 on SIGINT or SIGTERM. `--strict` still exits 4 when a provider did not answer. `--expect-empty` still exits 3 when the matching snapshot has rows.
