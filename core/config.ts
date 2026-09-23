@@ -27,6 +27,7 @@ export const providerSummaries: Readonly<Record<string, string>> = {
   beads: "Open beads issues. Off until you enable it.",
   docker: "Containers and published ports. On by default.",
   sessions: "Live Claude Code and Codex sessions. On by default.",
+  cursor: "Recent Cursor agent conversations and their models. On by default.",
   git: "Branch, dirt, and worktrees. On by default.",
   processes: "Processes and listening ports in scope. On by default.",
   skills: "Skills and plugins Claude Code and Codex can load. On by default.",

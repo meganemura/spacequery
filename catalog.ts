@@ -21,6 +21,7 @@ import { skillsQueries } from "./providers/skills/public.ts";
 import { beadsQueries } from "./providers/beads/public.ts";
 import { headsignQueries } from "./providers/headsign/public.ts";
 import { runtagQueries } from "./providers/runtag/public.ts";
+import { cursorQueries } from "./providers/cursor/public.ts";
 
 export type Named = {
   query: Query<string, Entry>;
@@ -116,6 +117,7 @@ export const catalog: Readonly<Record<string, Named>> = {
   "missing-tools-with-agents": named(reportQueries.missingToolsWithAgents, "Repositories with an agent where a requested tool is not installed.", [], "Tools", "When an agent is in a repository whose requested tool is not installed."),
   "tool-versions-split": named(reportQueries.toolVersionsSplit, "Tools whose active version differs between repositories with an agent.", [], "Tools", "When repositories with agents disagree on the active version of a tool."),
   "agents-with-sessions": named(reportQueries.agentsWithSessions, "Agents with the name, model, start time, and last activity of their session.", [], "Sessions", "When you want each agent together with its session name, model, and idle time.", true),
+  "cursor-agents": named(cursorQueries.recent, "Recent Cursor agent conversations, with model, status, and repository when the local database records them.", [], "Cursor", "When you want the model and status of recent Cursor agent conversations stored on this machine."),
   "sessions-without-pane": named(reportQueries.sessionsWithoutPane, "Sessions alive now that herdr does not show as an agent.", [], "Sessions", "When a live session is not shown as a herdr agent."),
   "codex-threads-with-agents": named(reportQueries.codexThreadsWithAgents, "Agents that are Codex threads, with model and effort.", [], "Sessions", "When you want the Codex model and effort for agents that are threads."),
   "prs-with-agents": named(reportQueries.prsWithAgents, "Agents whose branch has an open pull request, with its checks.", [], "GitHub", "When you need the open pull request for a branch an agent is on.", true),

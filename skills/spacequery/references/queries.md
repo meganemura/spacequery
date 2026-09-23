@@ -292,6 +292,18 @@ A missing jobs directory is an empty answer with `runtag` `ok` 1. An unreadable 
 `attempts` and `last_failure` hold JSON text from the state file. `agents`
 excludes `me`.
 
+## Cursor agents
+
+| Query | Parameters | Columns |
+| --- | --- | --- |
+| `cursor-agents` | | `composer_id`, `name?`, `status?`, `unified_mode?`, `model?`, `worktree_path?`, `branch_name?`, `workspace_path?`, `root?`, `is_archived?`, `is_subagent?`, `created_at?`, `updated_at?` |
+
+`cursor-agents` reads the newest 32 Cursor agent conversations from the local IDE database.
+`model` is `modelConfig.modelName` on that conversation's `composerData` document. Message bubbles are not read, so a model recorded only on a bubble stays null.
+`status` and `unified_mode` keep the strings Cursor stored.
+`root` is the git toplevel of `worktree_path` when that path is present, otherwise of `workspace_path`.
+A missing database is an empty answer. Cloud agents are not in this table: their list API needs a credential, and `agent ls` is an interactive resume screen rather than a machine-readable inventory.
+
 ## Subscription quota observations
 
 | Query | Parameters | Columns |

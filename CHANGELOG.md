@@ -4,6 +4,7 @@ The format follows Keep a Changelog, and the versions follow SemVer. Before 1.0 
 
 ## Unreleased
 
+- Added: `cursor-agents` lists the newest 32 Cursor agent conversations from the local IDE database, including model, status, and repository when that database records them. Cloud agents are not in this table.
 - Added: `issues-in-scope` lists open beads issues across repositories in scope. `--scope all` includes every ghq root that has `.beads`, including roots with no agent. `--scope agents` narrows that list.
 - Fixed: `agents-with-sessions` `model` is the Claude transcript model or the Codex thread model for that pane.
 - Changed: `spacequery --help` and `spacequery --help --json` print a short list: the curated queries, plus the ones this machine calls most, after providers that are off are removed. The cap is 25. Curated queries stay when they pass it. `--help --all` lists every enabled query. Each entry has a group and a purpose.

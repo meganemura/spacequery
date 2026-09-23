@@ -48,3 +48,4 @@ Each ADR describes one decision and its consequences.
 | [0040](adr/0040-doctor-reports-observation-health.md) | Doctor reports whether the observation stack answered. |
 | [0041](adr/0041-runtag-jobs-are-read-from-the-files.md) | Runtag jobs are read from the files. |
 | [0042](adr/0042-short-help-and-provider-lists.md) | Help is a short list, and config can hide a provider from lists. |
+| [0043](adr/0043-cursor-agents-are-read-from-the-local-database.md) | Cursor agents are read from the local database. |

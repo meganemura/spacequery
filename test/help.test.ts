@@ -36,6 +36,7 @@ test("the ship default short list is the visible curated queries", () => {
     assert.deepEqual(document.disabled_providers, [...providersOffByDefault].sort());
     assert.equal(document.mode, "short");
     assert.ok(names.includes("in-dir"));
+    assert.equal(names.includes("cursor-agents"), false);
     assert.equal(names.includes("issues"), false);
     assert.equal(names.includes("issues-in-scope"), false);
     assert.equal(names.includes("runs-in-dir"), false);
@@ -52,6 +53,11 @@ test("the ship default short list is the visible curated queries", () => {
     assert.equal(full.queries.some((query) => query.name === "issues"), false);
     assert.equal(full.queries.some((query) => query.name === "issues-in-scope"), false);
     assert.equal(full.queries.some((query) => query.name === "repos"), true);
+    const cursorAgents = full.queries.find((query) => query.name === "cursor-agents");
+    assert.equal(cursorAgents?.group, "Cursor");
+    assert.equal(cursorAgents?.default, false);
+    assert.equal(cursorAgents?.enabled, true);
+    assert.deepEqual(cursorAgents?.requires, ["cursor"]);
     const curated = Object.entries(catalog).filter(([, query]) => query.default).map(([name]) => name);
     assert.equal(curated.length, 25);
     assert.ok(curated.includes("issues"));

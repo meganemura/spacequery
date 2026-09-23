@@ -84,6 +84,7 @@ The predicate, the fingerprint, and the exit codes: [references/output.md](refer
    `model` on `agents-with-sessions` is the Claude transcript model or the Codex thread model for that pane.
    Use `claude-usage` and `codex-usage` for quota percentages and reset information. Check record times; Codex reads bounded tails of recently modified local logs.
    Use `claude-sessions` and `codex-sessions` for effort and the rest of the local session record.
+   `cursor-agents` lists recent Cursor conversations from the local IDE database, including each conversation's model. It does not list cloud agents.
    Claude metadata describes a recent response in the transcript tail; `metadata_at` gives its time. Unavailable values stay null.
 3. **When you look for a place to work**: `idle-worktrees` (a worktree with nobody in it), `dirty-unattended` (changes nobody is tending).
 4. **When a tool is missing or the wrong version**: `which-in-dir`, `which`, `path-entries`, `shadowed-commands`, `tools-in-dir`, `repository-versions`, `missing-tools-with-agents`, `tool-versions-split`.

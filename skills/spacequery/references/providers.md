@@ -31,6 +31,7 @@ The report-level `providers` list can include dependencies, such as providers th
 | `beads` | Open beads issues from repositories in scope that have `.beads`, including title, status, priority, type, assignee, labels, timestamps, and relationship counts. |
 | `docker` | Containers from the current Docker CLI context, including image, lifecycle state, health, Compose identity, repository associations from bind mounts and Compose labels, and exposed or published ports. |
 | `sessions` | Live Claude Code processes and held Codex thread locks, with session id, agent type, process id, working directory, repository root, name, activity times, last transcript branch, and source-specific runtime details. |
+| `cursor` | The newest 32 Cursor agent conversations in the local IDE database, with composer id, name, status, mode, model, worktree, branch, and repository root when those fields are recorded. It starts no process. |
 | `git` | Branch, upstream, dirty and untracked counts, observation time, linked Git checkouts, and ahead or behind counts against the local upstream reference. These counts do not prove the current remote state. |
 | `processes` | User processes whose working directory is inside a repository in scope, plus listening TCP sockets with address, port, command, and repository association when known. |
 | `skills` | Claude and Codex user, project, system, and plugin skills, plus installed plugin identity, source, version, path, and timestamps when those records exist. |

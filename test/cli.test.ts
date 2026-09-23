@@ -33,6 +33,7 @@ test("help prints the short list and --all prints every enabled query", async ()
     assert.equal(names.includes("dependency-report"), false);
     const full = await execFileAsync(process.execPath, ["cli.ts", "--help", "--all"], { cwd: process.cwd(), encoding: "utf8", env });
     assert.match(full.stdout, /^ {2}repos /m);
+    assert.match(full.stdout, /^ {2}cursor-agents /m);
     assert.doesNotMatch(full.stdout, /^ {2}issues /m);
     mkdirSync(join(root, "config", "spacequery"), { recursive: true });
     writeFileSync(join(root, "config", "spacequery", "config.json"), JSON.stringify({

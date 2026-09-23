@@ -115,6 +115,7 @@ test("tablesRead finds every catalog query's declared tables", () => {
       "idle-sessions": ["sessions"],
       "claude-sessions": ["claude_sessions", "sessions"],
       "codex-sessions": ["codex_sessions", "sessions"],
+      "cursor-agents": ["cursor_agents"],
       "pull-requests": ["pull_requests"],
       "branch-pull-requests": ["git_status", "pull_requests"],
       "review-requests": ["review_requests"],

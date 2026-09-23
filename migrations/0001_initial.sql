@@ -98,6 +98,21 @@ CREATE TABLE containers (
     compose_project text,
     compose_service text
   ) strict;
+CREATE TABLE cursor_agents (
+    composer_id text primary key not null,
+    name text,
+    status text,
+    unified_mode text,
+    model text,
+    worktree_path text,
+    branch_name text,
+    workspace_path text,
+    root text,
+    is_archived integer,
+    is_subagent integer,
+    created_at integer,
+    updated_at integer
+  ) strict;
 CREATE TABLE git_status (
     root text primary key not null,
     branch text,

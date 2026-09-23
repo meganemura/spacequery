@@ -211,6 +211,18 @@ is set for plugin skills.
 `plugins`: `id` (key), `agent`, `name`, `marketplace?`, `version?`, `path`,
 `installed_at?`, `updated_at?`. Timestamps are milliseconds since the epoch.
 
+## `cursor_agents` (cursor)
+
+`composer_id` (key), `name?`, `status?`, `unified_mode?`, `model?`,
+`worktree_path?`, `branch_name?`, `workspace_path?`, `root?`, `is_archived?`,
+`is_subagent?`, `created_at?`, `updated_at?`.
+The table contains the newest 32 conversations from Cursor's local index.
+`model` is the conversation's `modelConfig.modelName`. `branch_name` is
+`gitWorktree.branchName`. Timestamps are milliseconds since the epoch.
+A missing database leaves the table empty and the provider `ok` 1.
+Cloud agent ids are absent; this store is the IDE database on the machine
+running Cursor's UI.
+
 ## `issues` (beads)
 
 `id` (key, `root issue_id`), `root`, `issue_id`, `title`, `status`,
