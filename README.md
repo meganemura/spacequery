@@ -119,13 +119,19 @@ The report includes source coverage and unresolved evidence from the same snapsh
 ## Install
 
 ```sh
+npm install -g spacequery
+```
+
+The package is published on npm as `spacequery`.
+
+From a checkout:
+
+```sh
 npm install
 npm link
 spacequery --help
 ```
 
-The npm package name is reserved, but the tool is not published there today.
-Install it from a checkout.
 Without a link, `node cli.ts <query>` works from the checkout.
 
 Give the skill to agents on this machine:

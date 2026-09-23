@@ -27,7 +27,7 @@ If you want to cite an internal document, write its substance in place instead.
 
 - Do not add dependencies without the owner's approval. Pin exact versions. Prefer language-official packages, then vendor packages, and avoid single-maintainer packages.
 - Comments say why, not what. Each module starts with its responsibility and its boundary.
-- The npm package `spacequery` is reserved. The owner runs `npm publish`; do not publish without the owner's explicit approval. The steps are in `docs/releasing.md`.
+- Do not publish a version without the owner's explicit approval. Pushing a `v*` tag runs `.github/workflows/publish.yml`, which publishes to npm after the `publish` environment is approved. The steps are in `docs/releasing.md`.
 - spacequery reads. It never writes to a provider. Actions stay with the tools that own the state.
 - The database is new on every call, so there is one migration. On a schema change, delete `migrations/`, run `npx solarsql build spacequery.config.ts`, then `npx solarsql migration initial spacequery.config.ts`, and commit what they wrote.
 - spacequery holds no cache. The call log under the state directory is the one file spacequery writes; it holds query names and times only. A provider that does not answer gives an empty table and a row in `providers` that says so.

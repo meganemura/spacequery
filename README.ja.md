@@ -109,13 +109,19 @@ provider が無いとき、spacequery は偽の行を作らない。
 ## 導入
 
 ```sh
+npm install -g spacequery
+```
+
+`spacequery` は npm に公開されている。
+
+checkout から導入するときは次のとおり。
+
+```sh
 npm install
 npm link
 spacequery --help
 ```
 
-npm package name は予約済みだが、現時点で tool は publish されていない。
-checkout から導入する。
 link しない場合も、checkout で `node cli.ts <query>` が動く。
 
 この機械のエージェントに skill を渡す。
