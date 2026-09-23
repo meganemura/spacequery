@@ -40,7 +40,8 @@
     "README.md",
     "README.ja.md",
     "CHANGELOG.md",
-    "LICENSE"
+    "LICENSE",
+    "llms.txt"
   ],
   "scripts": {
     "build": "solarsql build spacequery.config.ts",

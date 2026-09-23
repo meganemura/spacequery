@@ -1,0 +1,18 @@
+# spacequery
+
+Observe-only view of one developer's machine for coding agents: agents, dirty repos, worktrees, sessions, and related occupancy. Each call builds a fresh in-memory SQLite database from providers, prints rows, and exits. It does not mutate providers.
+
+Use it before editing, starting servers, opening PRs, or taking over old work, so the agent knows who and what already occupies the machine.
+
+Agent skill: [skills/spacequery/SKILL.md](skills/spacequery/SKILL.md)
+
+Installed package: `node_modules/spacequery/skills/spacequery/SKILL.md` (this file at `node_modules/spacequery/llms.txt`).
+
+## Commands
+
+- `spacequery <query|report>` — run a named catalog query or report
+- `spacequery --sql <text>` — ad hoc SQL over the in-memory DB
+- `spacequery ui` — terminal browser for tables and queries
+- Common flags: `--root`, `--scope root|agents|all`, `--me`, `--json` / `--tsv`, `--trace`, `--expect-empty`, `--strict`
+
+Named queries include `here`-style occupancy via catalog entries such as `in-dir`, `dirty`, `sessions`, `agents-with-sessions`, `worktrees` (see `--help`). Incomplete observation is explicit in the result. Prefer narrowing scope over guessing from a partial view.
