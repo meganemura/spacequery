@@ -219,6 +219,15 @@ is set for plugin skills.
 The table contains open issues from roots in scope that have `.beads`.
 `labels` joins labels with commas. Timestamps are milliseconds since the epoch.
 
+## `runtag_jobs` (runtag)
+
+`id` (key), `status`, `exit_code?`, `orphan`, `repo_root?`, `cwd?`, `supervisor_pid?`.
+The table contains every readable job file under `$XDG_DATA_HOME/runtag/jobs/`, or
+`~/.local/share/runtag/jobs/` when `XDG_DATA_HOME` is unset. `status` is `running`
+or `exited`. `orphan` is 1 when the file says `running` and `supervisor_pid` is not
+a live process; `exit_code` is null on that row. `orphan` is 0 otherwise.
+A missing jobs directory leaves the table empty and the provider `ok` 1.
+
 ## `workflow_runs` (headsign)
 
 `root` (key), `workflow`, `workflow_path?`, `status`, `phase?`,

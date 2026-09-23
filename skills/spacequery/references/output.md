@@ -129,6 +129,14 @@ spacequery watch claude-sessions --until status=idle
 `agent_status` on `in-dir`, `working`, and `agents` is herdr's `working`, `idle`, `blocked`, or `unknown`.
 `working` only returns agents that are working, so the wait until nobody is working is `--until empty`.
 `claude-sessions` has `status` from the session record. `workflow` has `status` from the headsign file.
+`runs-in-dir` has `status` from the runtag job file: `running` or `exited`.
+
+```sh
+spacequery watch runs-in-dir --root <repo> --until status=exited
+```
+
+A runtag orphan stays `running` with `orphan` 1 and `exit_code` null. `--until status=exited` does not match it.
+The job files and `runtag status <id>` belong to [runtag](https://github.com/meganemura/runtag). spacequery only reads the files.
 
 The first snapshot prints immediately.
 A later snapshot prints only when a fingerprint of the rows, plus each provider's `name`, `ok`, and `error`, changes.
@@ -162,6 +170,7 @@ Its keys and result semantics are in [ui.md](ui.md).
 `--root` defaults to the git toplevel of the current directory, or the directory itself outside a repository.
 Doctor does not take `--scope`. Repository-scoped providers run on that one root.
 Doctor does not run user-provider commands, install tools, or write the call log.
+The runtag provider reads job files. A missing jobs directory is `ok` 1. An unreadable jobs directory, or a job file that does not parse, is `ok` 0 and clears the report's `ok`.
 
 ```json
 {

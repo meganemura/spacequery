@@ -253,6 +253,22 @@ to keep it distinct from a Claude Code plugin with the same marketplace ID.
 `issues` reads open beads issues only. `labels` joins label values with commas.
 `agents` excludes `me`.
 
+## Runs (runtag)
+
+| Query | Parameters | Columns |
+| --- | --- | --- |
+| `runs-in-dir` | `root` | `id`, `status`, `exit_code?`, `orphan`, `repo_root?`, `cwd?`, `supervisor_pid?` |
+
+`runs-in-dir` reads job files written by [runtag](https://github.com/meganemura/runtag).
+It keeps a job whose `repo_root` or `cwd` equals `root` or is inside that directory.
+`repo/pkg` matches `repo`. `repo-other` does not.
+`status` is `running` or `exited`. There is no pass or fail column.
+`orphan` is 1 when the file says `running` and `supervisor_pid` is not a live process.
+That row stays `status` `running` with `exit_code` null, so it does not satisfy `status=exited`.
+`spacequery watch runs-in-dir --root <repo> --until status=exited` waits until every returned row has exited.
+Zero rows do not match. After it exits 0, `runtag status <id>` reads `exit_code`.
+A missing jobs directory is an empty answer with `runtag` `ok` 1. An unreadable jobs directory is `ok` 0, including under `spacequery doctor`.
+
 ## Workflows (headsign)
 
 | Query | Parameters | Columns |

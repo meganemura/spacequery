@@ -34,6 +34,7 @@ The report-level `providers` list can include dependencies, such as providers th
 | `processes` | User processes whose working directory is inside a repository in scope, plus listening TCP sockets with address, port, command, and repository association when known. |
 | `skills` | Claude and Codex user, project, system, and plugin skills, plus installed plugin identity, source, version, path, and timestamps when those records exist. |
 | `headsign` | Readable `.headsign/state.json` files for repositories in scope, including workflow, status, phase, iteration counts, attempts, last failure, stop reason, driver agent, and phase entry time. |
+| `runtag` | Job files under `$XDG_DATA_HOME/runtag/jobs/` (default `~/.local/share/runtag/jobs/<id>.json`). Each row has `id`, `status` (`running` or `exited`), `exit_code`, `orphan`, `repo_root`, `cwd`, and `supervisor_pid`. The reader starts no process and does not write a job file. |
 
 ## Quota sources
 
@@ -44,3 +45,12 @@ It reads backward from the 32 newest files by modification time, starting with 4
 Each file stops at the first block with complete quota records, its beginning, or 256 KiB; the total stays below 8 MiB.
 `CODEX_HOME` defaults to `~/.codex`. This loader starts no process and makes no network request.
 These providers run independently when their tables are queried. Repository scope does not filter account quotas.
+
+## Runtag jobs
+
+`runtag` reads the job files [runtag](https://github.com/meganemura/runtag) writes. It does not tag a command or interpret pass and fail.
+A missing jobs directory is an empty table and `ok` 1: runtag has no jobs yet. An empty directory is the same.
+A jobs path that exists but cannot be read, and a `*.json` file that is not a job, are `ok` 0. The error names the path. Valid jobs already read stay in the table.
+`spacequery doctor` uses this load. A machine with no jobs directory still has `runtag` `ok` 1. An unreadable jobs directory or a job file that does not parse makes doctor's `ok` 0.
+`status` is only `running` or `exited`. When the file says `running` and `supervisor_pid` is not a live process, the row stays `running`, `exit_code` is null, and `orphan` is 1. That row does not satisfy `status=exited`.
+`runs-in-dir` keeps a job whose `repo_root` or `cwd` equals `--root` or is inside it. `repo/pkg` matches `repo`. `repo-other` does not.

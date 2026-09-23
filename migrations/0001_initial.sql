@@ -254,6 +254,15 @@ CREATE TABLE root_path_entries (
     duplicate_of integer,
     primary key (root, position)
   ) strict;
+CREATE TABLE runtag_jobs (
+    id text primary key not null,
+    status text not null check (status in ('running', 'exited')),
+    exit_code integer,
+    orphan integer not null check (orphan in (0, 1)),
+    repo_root text,
+    cwd text,
+    supervisor_pid integer
+  ) strict;
 CREATE TABLE sessions (
     session_id text primary key not null,
     agent text not null,

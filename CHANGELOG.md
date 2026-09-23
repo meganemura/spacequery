@@ -4,6 +4,7 @@ The format follows Keep a Changelog, and the versions follow SemVer. Before 1.0 
 
 ## Unreleased
 
+- Added: the `runtag` provider reads job files and `runs-in-dir` lists the jobs for one directory. `spacequery watch runs-in-dir --until status=exited` waits until every returned job has exited. An orphan stays `running`.
 - Added: `spacequery doctor` reports whether each built-in provider answered, with the package version, PATH entry counts, and the user-provider directory. It does not install tools.
 - Added: `spacequery watch <query> --until <predicate>` re-runs one query until the current rows match. JSON watch output is one envelope per line. Exit 5 means `--timeout` elapsed first.
 - Changed: built with solarsql 0.5.0.

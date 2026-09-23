@@ -46,3 +46,4 @@ Each ADR describes one decision and its consequences.
 | [0038](adr/0038-usage-limits-come-from-cli-and-local-logs.md) | Quota observations come from the Claude CLI and local Codex logs. |
 | [0039](adr/0039-watch-reruns-a-query-until-a-predicate.md) | Watch re-runs a query until a predicate. |
 | [0040](adr/0040-doctor-reports-observation-health.md) | Doctor reports whether the observation stack answered. |
+| [0041](adr/0041-runtag-jobs-are-read-from-the-files.md) | Runtag jobs are read from the files. |

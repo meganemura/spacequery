@@ -9,7 +9,7 @@ Before the agent edits, starts a server, opens a pull request, or takes over old
 
 spacequery answers that question.
 It observes existing sources of state, joins their rows in a fresh in-memory SQLite database, prints the result, and exits.
-A provider is one source it observes, such as herdr, git, ghq, mise, Homebrew, gh, Docker, lsof, beads, a session record, or a headsign file.
+A provider is one source it observes, such as herdr, git, ghq, mise, Homebrew, gh, Docker, lsof, beads, a session record, a headsign file, or a runtag job file.
 spacequery reads those sources.
 It does not change them.
 
@@ -103,6 +103,25 @@ The build and ad hoc SQL resolver use `setAuthorizer` from `node:sqlite`.
 
 Put the tools you want spacequery to observe on `PATH`: `herdr`, `git`, `ghq`, `mise`, `brew`, `gh` logged in, `docker`, `lsof`, and `bd`.
 Headsign rows come from files and need no command on `PATH`.
+runtag rows come from `$XDG_DATA_HOME/runtag/jobs/` (or `~/.local/share/runtag/jobs/`). spacequery does not run runtag.
+
+## Waiting on a runtag job
+
+[runtag](https://github.com/meganemura/runtag) tags a detached command and writes the job file.
+spacequery only reads that file.
+
+```sh
+runtag exec --detach --cwd <repo> -- <cmd>...
+spacequery watch runs-in-dir --root <repo> --until status=exited
+runtag status <id>
+```
+
+`runs-in-dir` lists jobs whose `repo_root` or `cwd` is `<repo>` or inside it.
+`status` is `running` or `exited`.
+A job whose file still says `running` after its supervisor pid has died stays `running`, with `orphan` 1 and `exit_code` null.
+That row does not satisfy `--until status=exited`.
+`runtag status <id>` is where the exit code is read after the watch exits 0.
+A missing jobs directory is an empty answer. `spacequery doctor` reports `runtag` as answered in that case, and as failed when the jobs directory cannot be read or a job file does not parse.
 Session rows come from records under `~/.claude` and `~/.codex`.
 Joining a pane to a session needs herdr's Claude Code and Codex integrations.
 

@@ -19,6 +19,7 @@ import { processQueries } from "./providers/processes/public.ts";
 import { skillsQueries } from "./providers/skills/public.ts";
 import { beadsQueries } from "./providers/beads/public.ts";
 import { headsignQueries } from "./providers/headsign/public.ts";
+import { runtagQueries } from "./providers/runtag/public.ts";
 
 export type Named = { query: Query<string, Entry>; description: string; params: readonly string[] };
 export type Report = { description: string; sections: readonly (readonly [string, keyof typeof catalog])[]; gateSection: string };
@@ -74,6 +75,7 @@ export const catalog: Readonly<Record<string, Named>> = {
   "issues-with-agents": { query: reportQueries.issuesWithAgents, description: "Repositories with an agent and their open beads issues.", params: [] },
   "issues-unattended": { query: reportQueries.issuesUnattended, description: "Repositories with open beads issues and no agent.", params: [] },
   "workflow": { query: headsignQueries.inDir, description: "The headsign run of one repository.", params: ["root"] },
+  "runs-in-dir": { query: runtagQueries.inDir, description: "runtag jobs whose repository root or working directory is the given directory or inside it.", params: ["root"] },
   "workflows": { query: headsignQueries.all, description: "Every headsign run, with its phase.", params: [] },
   "running-workflows-with-agents": { query: reportQueries.runningWorkflowsWithAgents, description: "Running headsign workflows in repositories where an agent works.", params: [] },
   "running-workflows-unattended": { query: reportQueries.runningWorkflowsUnattended, description: "Running headsign workflows with no agent in the repository.", params: [] },

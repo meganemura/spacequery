@@ -7,7 +7,7 @@ description: Use when an agent wants to know the state of the developer's machin
 # spacequery
 
 spacequery answers questions about one developer's machine.
-Each call observes the providers (herdr, git, ghq, mise, Homebrew, gh, Docker, ps, lsof, beads, headsign state files, the session records, skill and plugin files, the caller's PATH) at that moment, joins them in an in-memory database, and prints rows.
+Each call observes the providers (herdr, git, ghq, mise, Homebrew, gh, Docker, ps, lsof, beads, headsign state files, runtag job files, the session records, skill and plugin files, the caller's PATH) at that moment, joins them in an in-memory database, and prints rows.
 Nothing is cached, and spacequery never writes to a provider.
 
 Call it from anywhere:
@@ -35,6 +35,7 @@ Before you assume empty means none, run `spacequery doctor` when setup is unclea
 Doctor loads every built-in provider once on one root, the git toplevel or `--root`, and prints JSON.
 Read the report's `ok`, then each provider's `ok` and `error`.
 A provider with `ok` 0 left its tables empty. The `error` says why, such as a missing binary.
+A missing runtag jobs directory is `ok` 1 and an empty table. An unreadable jobs directory, or a job file that does not parse, is `ok` 0.
 `path` counts PATH entries, missing entries, and duplicates when the search path provider answered. Those are the same facts as `path-entries`.
 `user_providers.present` is 1 when `$XDG_CONFIG_HOME/spacequery/providers` exists.
 Doctor does not run user-provider commands, install tools, or change a provider.
@@ -61,11 +62,13 @@ spacequery watch in-dir --until empty
 spacequery watch working --until empty
 spacequery watch in-dir --until agent_status=idle|blocked
 spacequery watch claude-sessions --until status=idle
+spacequery watch runs-in-dir --root <repo> --until status=exited
 ```
 
 `in-dir`, `working`, and `agents` carry `agent_status` (`working`, `idle`, `blocked`, `unknown`).
 `working` only returns agents that are working, so the wait for idle is `--until empty`.
-`claude-sessions` carries `status`. A column predicate matches when every returned row has one of the values. Zero rows do not match it; use `empty`.
+`claude-sessions` carries `status`. `runs-in-dir` carries `status` (`running` or `exited`). A column predicate matches when every returned row has one of the values. Zero rows do not match it; use `empty`.
+A runtag job whose file says `running` while `supervisor_pid` is dead stays `running` with `orphan` 1 and `exit_code` null. It does not satisfy `status=exited`.
 An incomplete observation does not match `--until`. Empty rows beside a provider with `ok` 0 stay unknown.
 The first snapshot prints immediately. Later snapshots print only when the observation changes.
 JSON from watch is one envelope per line. One-shot JSON stays indented.
@@ -90,7 +93,8 @@ The predicate, the fingerprint, and the exit codes: [references/output.md](refer
 7. **Before you start a server, a watcher, or a build**: `ports-in-dir`, `processes-in-dir`, and `container-ports-in-dir`; use `servers-with-agents` for host listeners. `ports-in-dir` shows the current checkout for the listener's working directory. It does not identify the commit loaded when the server started.
 8. **When you wonder which skill applies here, or whether a name collides**: `skills-in-dir`, `duplicate-skill-names`.
 9. **When you pick up a repository**: `issues` and `workflow` for its root; use `running-workflows-unattended` and `issues-unattended` for work nobody holds.
-10. **Before you choose a dependency or tool parser**: `repository-config-files --root DIR`. It inventories recognized file names without interpreting their bodies.
+10. **When you wait for a detached runtag command**: `runtag exec --detach --cwd <repo> -- <cmd>...` writes a job file with `id`. Then `spacequery watch runs-in-dir --root <repo> --until status=exited`. When that exits 0, `runtag status <id>` reads `exit_code`. Tagging and the job file belong to [runtag](https://github.com/meganemura/runtag). spacequery only reads the files. An orphan stays `running` and does not satisfy the wait.
+11. **Before you choose a dependency or tool parser**: `repository-config-files --root DIR`. It inventories recognized file names without interpreting their bodies.
 
 Every query, its parameters, and its columns: [references/queries.md](references/queries.md).
 
@@ -142,6 +146,7 @@ The table lists the queries the workflow names. Every query, with its parameters
 | `duplicate-skill-names` | | Skill names that come from more than one source. |
 | `issues` | `--root` | Open beads issues of one repository. |
 | `workflow` | `--root` | The headsign run of one repository. |
+| `runs-in-dir` | `--root` | runtag jobs whose repository root or working directory is that directory or inside it. |
 | `running-workflows-unattended` | | Running headsign workflows with no agent in the repository. |
 | `issues-unattended` | | Repositories with open beads issues and no agent. |
 

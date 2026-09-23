@@ -10,7 +10,7 @@ spacequery は、コーディングエージェントに開発者の機械 1 台
 spacequery はその問いに答える。
 既存の状態源を観測し、その行を新しい in-memory SQLite database で結合し、結果を印字して終了する。
 **provider** は spacequery が観測する状態源である。
-たとえば herdr、git、ghq、mise、gh、Docker、lsof、beads、session の記録、headsign の file が provider になる。
+たとえば herdr、git、ghq、mise、gh、Docker、lsof、beads、session の記録、headsign の file、runtag の job file が provider になる。
 spacequery は provider を読む。
 provider の状態は変えない。
 
@@ -100,6 +100,25 @@ build と ad hoc SQL の解決が `node:sqlite` の `setAuthorizer` を使うた
 spacequery に観測させたい道具を `PATH` に置く。
 対象は `herdr`、`git`、`ghq`、`mise`、ログイン済みの `gh`、`docker`、`lsof`、`bd` である。
 headsign rows は file から来るので、`PATH` 上の command は要らない。
+runtag rows は `$XDG_DATA_HOME/runtag/jobs/`（未設定なら `~/.local/share/runtag/jobs/`）の file から来る。spacequery は runtag を起動しない。
+
+## runtag job を待つ
+
+[runtag](https://github.com/meganemura/runtag) が detach した command に tag を付け、job file を書く。
+spacequery はその file を読む。
+
+```sh
+runtag exec --detach --cwd <repo> -- <cmd>...
+spacequery watch runs-in-dir --root <repo> --until status=exited
+runtag status <id>
+```
+
+`runs-in-dir` は、`repo_root` または `cwd` が `<repo>` そのものか、その中にある job を返す。
+`status` は `running` か `exited` である。
+file が `running` のまま supervisor pid が死んでいる job は `running` のまま残る。`orphan` は 1、`exit_code` は null である。
+その row は `--until status=exited` を満たさない。
+watch が 0 で終わったあと、`exit_code` は `runtag status <id>` で読む。
+jobs directory が無いときは空の答えである。`spacequery doctor` はそのとき `runtag` を答えありと報告し、directory を読めないときや job file が parse できないときは失敗と報告する。
 session rows は `~/.claude` と `~/.codex` の記録から来る。
 pane と session の結合には、herdr の Claude Code integration と Codex integration が要る。
 

@@ -124,6 +124,27 @@ test("a user-provider path that is not a directory clears doctor ok", async () =
   }
 });
 
+test("doctor treats a missing runtag jobs directory as answered and an unreadable one as failed", async () => {
+  const machine = fixture();
+  try {
+    const missing = await runDoctor({ loaders, root: machine.root, env: machine.env, exec: answeringExec(), repo });
+    assert.equal(missing.providers.find((provider) => provider.name === "runtag")?.ok, 1);
+    assert.equal(missing.ok, 1);
+    const data = join(machine.root, "xdg");
+    mkdirSync(join(data, "runtag"), { recursive: true });
+    writeFileSync(join(data, "runtag", "jobs"), "");
+    const blocked = await runDoctor({
+      loaders, root: machine.root, env: { ...machine.env, XDG_DATA_HOME: data }, exec: answeringExec(), repo,
+    });
+    const runtag = blocked.providers.find((provider) => provider.name === "runtag");
+    assert.equal(blocked.ok, 0);
+    assert.equal(runtag?.ok, 0);
+    assert.match(runtag?.error ?? "", /cannot read/);
+  } finally {
+    machine.cleanup();
+  }
+});
+
 test("doctor help and a refused flag do not observe providers", async () => {
   const help = await execFileAsync(process.execPath, ["cli.ts", "doctor", "--help"], { cwd: process.cwd(), encoding: "utf8" });
   assert.match(help.stdout, /spacequery doctor/);
