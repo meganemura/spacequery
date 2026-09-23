@@ -7,7 +7,7 @@ import type { Exec, Loader, Scope } from "../core/loader.ts";
 import { runQuery } from "../core/run.ts";
 import { loaders } from "../spacequery.config.ts";
 import { sessionCommands } from "../providers/sessions/module.ts";
-import type { SessionsId } from "../providers/sessions/solarsql.generated.ts";
+import type { ClaudeSessionsId, CodexSessionsId, SessionsId } from "../providers/sessions/solarsql.generated.ts";
 import { fakeExec, fixtureAgentsWithLinkedWorktree, fixtureRepo, paneIds, paths, sessionIds } from "./fixture.ts";
 
 const sessionFixtureLoader: Loader = {
@@ -485,6 +485,101 @@ test("report catalog queries join the fixture tables", async () => {
       elapsed_s: null,
     },
   ]);
+});
+
+test("agents-with-sessions uses the Claude or Codex model recorded for the pane", async () => {
+  const loader: Loader = {
+    name: "sessions",
+    tables: ["sessions", "claude_sessions", "codex_sessions"],
+    after: [],
+    async load(ctx) {
+      const recorded = await ctx.db.run(sessionCommands.load, {
+        rows: [
+          {
+            session_id: sessionIds.alphaWorking as SessionsId,
+            agent: "claude",
+            pid: 100,
+            cwd: paths.alpha,
+            root: paths.alpha,
+            name: "claude pane",
+            started_at: null,
+            updated_at: 1_000,
+            last_turn_at: null,
+            last_branch: null,
+          },
+          {
+            session_id: sessionIds.alphaIdle as SessionsId,
+            agent: "codex",
+            pid: 200,
+            cwd: paths.alpha,
+            root: paths.alpha,
+            name: "codex pane",
+            started_at: null,
+            updated_at: 2_000,
+            last_turn_at: null,
+            last_branch: null,
+          },
+        ],
+      });
+      if (!recorded.ok) throw new Error(`sessions: ${recorded.kind}`);
+      const claude = await ctx.db.run(sessionCommands.loadClaude, {
+        rows: [{
+          session_id: sessionIds.alphaWorking as ClaudeSessionsId,
+          model: "claude-opus",
+          effort: "high",
+          per_turn_effort: null,
+          metadata_at: null,
+          kind: "interactive",
+          entrypoint: null,
+          status: "idle",
+          status_updated_at: null,
+          name_source: null,
+          version: null,
+          pid_domain: null,
+          peer_protocol: null,
+        }],
+      });
+      if (!claude.ok) throw new Error(`claude_sessions: ${claude.kind}`);
+      const codex = await ctx.db.run(sessionCommands.loadCodex, {
+        rows: [{
+          session_id: sessionIds.alphaIdle as CodexSessionsId,
+          source: "cli",
+          thread_source: null,
+          model: "gpt-5",
+          model_provider: null,
+          reasoning_effort: "high",
+          cli_version: null,
+          sandbox_policy: null,
+          approval_mode: null,
+          git_branch: null,
+          git_origin_url: null,
+          title: null,
+          tokens_used: 0,
+          archived: 0,
+        }],
+      });
+      if (!codex.ok) throw new Error(`codex_sessions: ${codex.kind}`);
+    },
+  };
+  const rows = (await runQuery(catalog["agents-with-sessions"]!.query, {
+    loaders: loaders.map((item) => item.name === "sessions" ? loader : item),
+    exec: fakeExec(),
+    repo: fixtureRepo,
+    env: {},
+    params: {},
+  })).rows;
+  const claude = rows.find((row) => row.pane_id === paneIds.alphaWorking);
+  const codex = rows.find((row) => row.pane_id === paneIds.alphaIdle);
+  const unmatched = rows.find((row) => row.pane_id === paneIds.scratchIdle);
+  assert.equal(claude?.model, "claude-opus");
+  assert.equal(claude?.kind, "interactive");
+  assert.equal(claude?.claude_status, "idle");
+  assert.equal(claude?.source, null);
+  assert.equal(codex?.model, "gpt-5");
+  assert.equal(codex?.source, "cli");
+  assert.equal(codex?.kind, null);
+  assert.equal(codex?.claude_status, null);
+  assert.equal(unmatched?.model, null);
 });
 
 test("descendants returns the three-level process chain", async () => {

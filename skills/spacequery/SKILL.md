@@ -80,9 +80,10 @@ The predicate, the fingerprint, and the exit codes: [references/output.md](refer
 ## Workflow
 
 1. **Before you start work in a repository**: `here` (one call: who else is here with `in-dir`, the checkout with `git-status` and `worktrees`, its pull request with `branch-pull-requests`, ports with `ports-in-dir`, processes with `processes-in-dir`, Docker containers with `containers-in-dir` and `container-ports-in-dir`, tools with `tools-in-dir`, issues, and the workflow). The rows exclude your own pane. As a gate: `spacequery here --expect-empty --strict` exits 0 only when nobody else is here and every provider answered. If a section looks empty and a provider did not answer, run `spacequery doctor` before you assume nobody is there. To wait until the directory is clear, `spacequery watch in-dir --until empty` exits 0 when no other agent is in the repository.
-2. **When the user asks what is going on**: `agents-with-sessions` (names, idle time), `session-processes`, `working`, `idle-sessions`, `workspaces`.
+2. **When the user asks what is going on**: `agents-with-sessions` (names, model, idle time), `session-processes`, `working`, `idle-sessions`, `workspaces`.
+   `model` on `agents-with-sessions` is the Claude transcript model or the Codex thread model for that pane.
    Use `claude-usage` and `codex-usage` for quota percentages and reset information. Check record times; Codex reads bounded tails of recently modified local logs.
-   Use `claude-sessions` and `codex-sessions` for locally recorded model, effort, and session names.
+   Use `claude-sessions` and `codex-sessions` for effort and the rest of the local session record.
    Claude metadata describes a recent response in the transcript tail; `metadata_at` gives its time. Unavailable values stay null.
 3. **When you look for a place to work**: `idle-worktrees` (a worktree with nobody in it), `dirty-unattended` (changes nobody is tending).
 4. **When a tool is missing or the wrong version**: `which-in-dir`, `which`, `path-entries`, `shadowed-commands`, `tools-in-dir`, `repository-versions`, `missing-tools-with-agents`, `tool-versions-split`.
@@ -94,6 +95,7 @@ The predicate, the fingerprint, and the exit codes: [references/output.md](refer
 7. **Before you start a server, a watcher, or a build**: `ports-in-dir`, `processes-in-dir`, and `container-ports-in-dir`; use `servers-with-agents` for host listeners. `ports-in-dir` shows the current checkout for the listener's working directory. It does not identify the commit loaded when the server started.
 8. **When you wonder which skill applies here, or whether a name collides**: `skills-in-dir`, `duplicate-skill-names`.
 9. **When you pick up a repository**: `issues` and `workflow` for its root; use `running-workflows-unattended` and `issues-unattended` for work nobody holds.
+   For a work list across projects, `issues-in-scope --scope all` reads every ghq root that has `.beads`, whether or not an agent is in that repository. `--scope agents` narrows the same list to roots that have an agent. A call that omits `--scope` uses `agents`, because this query takes no `--root`.
 10. **When you wait for a detached runtag command**: [runtag](https://github.com/meganemura/runtag) ([npm](https://www.npmjs.com/package/runtag)) records with `runtag exec --detach --cwd <repo> -- <cmd>...` and writes a job file with `id`. Then `spacequery watch runs-in-dir --root <repo> --until status=exited`. When that exits 0, `runtag status <id>` reads `exit_code`. spacequery reads the files and watches. An orphan stays `running` and does not satisfy the wait.
 11. **Before you choose a dependency or tool parser**: `repository-config-files --root DIR`. It inventories recognized file names without interpreting their bodies.
 
@@ -114,7 +116,7 @@ The table is the curated set. It is not one machine's call history.
 | `agents` | | When you need every hosted agent and the repository it sits in. |
 | `in-dir` | `--root` | When you are about to work in a repository and need to see who else is there. |
 | `working` | | When you need the agents that are working right now. |
-| `agents-with-sessions` | | When you want each agent together with its session name and idle time. |
+| `agents-with-sessions` | | When you want each agent together with its session name, model, and idle time. |
 | `claude-sessions` | | When you need a live Claude session's recorded model, effort, or name. |
 | `codex-sessions` | | When you need a live Codex thread's model, effort, or source. |
 | `idle-sessions` | | When you want the sessions that have been quiet the longest. |

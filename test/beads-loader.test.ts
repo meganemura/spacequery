@@ -7,8 +7,9 @@ import { join } from "node:path";
 import { test } from "node:test";
 import * as hegel from "@hegeldev/hegel";
 import * as gs from "@hegeldev/hegel/generators";
+import { catalog } from "../catalog.ts";
 import type { Exec, Loader } from "../core/loader.ts";
-import { runSql } from "../core/run.ts";
+import { runQuery, runSql } from "../core/run.ts";
 import { beadsLoader, issuesFrom } from "../providers/beads/loader.ts";
 import { herdrLoader } from "../providers/herdr/loader.ts";
 import { repoLoader } from "../providers/repos/loader.ts";
@@ -58,6 +59,25 @@ test("beads keeps rows when one marked root fails", async () => {
   });
   assert.deepEqual(result.rows, [{ root: alpha, issue_id: "ex-1" }]);
   assert.equal(result.providers.find((provider) => provider.name === "beads")?.ok, 1);
+});
+
+test("issues-in-scope lists every loaded beads root, including one with no agent", async () => {
+  const listed = [alpha, beta, gamma].join("\n");
+  const exec: Exec = async (command, args) => {
+    if (command === "ghq" && args.join(" ") === "list -p") return listed;
+    if (command === "herdr" && args.join(" ") === "api snapshot") return snapshot([alpha]);
+    if (command === "bd" && args[0] === "-C" && args[2] === "list" && args[3] === "--json" && args[1] !== undefined) {
+      if (args[1] === alpha) return JSON.stringify([issue("alpha-1")]);
+      if (args[1] === gamma) return JSON.stringify([issue("gamma-1")]);
+      throw new Error(`bd failed for ${args[1]}`);
+    }
+    throw new Error(`unexpected fake command: ${command} ${args.join(" ")}`);
+  };
+  const options = { loaders, exec, repo: repoForRoots(new Set([alpha, beta, gamma])), env: {}, params: {} };
+  const wide = await runQuery(catalog["issues-in-scope"]!.query, { ...options, scope: "all" });
+  assert.deepEqual(wide.rows.map((row) => [row.root, row.issue_id]), [[alpha, "alpha-1"], [gamma, "gamma-1"]]);
+  const narrowed = await runQuery(catalog["issues-in-scope"]!.query, { ...options, scope: "agents" });
+  assert.deepEqual(narrowed.rows.map((row) => [row.root, row.issue_id]), [[alpha, "alpha-1"]]);
 });
 
 test("beads converts RFC 3339 dates to milliseconds", () => hegel.test((tc) => {

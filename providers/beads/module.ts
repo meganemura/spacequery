@@ -25,6 +25,8 @@ export const issues = table(`
 export const beadsQueries = queries(generated, {
   open: `select id, root, issue_id, title, status, priority, issue_type, assignee, labels, created_at, updated_at, dependency_count, dependent_count, comment_count
     from issues where root = :root order by priority, updated_at desc`,
+  // A work list spans every loaded root. Which roots are loaded is the
+  // caller's scope; agent presence is not a filter on the rows.
   all: `select id, root, issue_id, title, status, priority, issue_type, assignee, labels, created_at, updated_at, dependency_count, dependent_count, comment_count
     from issues order by root, priority`,
 });

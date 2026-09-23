@@ -72,6 +72,8 @@ mise can prepend directories, so these rows can differ from the caller search pa
 `name` is the session registry or database name. Claude `name_source` identifies its source.
 For Claude, `model`, `effort`, and `per_turn_effort` describe one recorded assistant response; `metadata_at` gives its time.
 These nullable fields use a bounded transcript tail. See [session tables](tables.md#sessions-claude_sessions-and-codex_sessions) for the observation rules.
+`model` on `agents-with-sessions` is the model recorded for that pane's session: the Claude transcript model when the session is Claude Code, and the Codex thread model when it is Codex. A pane with no session leaves it null.
+Effort stays on `claude-sessions` (`effort`) and `codex-sessions` (`reasoning_effort`). Those source names differ, so this query keeps them apart.
 `kind` and `claude_status` are Claude Code values. `source` is a Codex value.
 `spacequery watch claude-sessions --until status=idle` waits until every returned row has `status` idle. A null `status` does not match.
 A session joins an agent through the session id herdr's integration reports.
@@ -249,11 +251,16 @@ to keep it distinct from a Claude Code plugin with the same marketplace ID.
 | Query | Parameters | Columns |
 | --- | --- | --- |
 | `issues` | `root` | `id`, `root`, `issue_id`, `title`, `status`, `priority?`, `issue_type?`, `assignee?`, `labels?`, `created_at?`, `updated_at?`, `dependency_count`, `dependent_count`, `comment_count` |
+| `issues-in-scope` | | the same columns, for every repository in scope, ordered by `root`, `priority` |
 | `issues-with-agents` | | `root`, `open_issues`, `top_priority?`, `agents` |
 | `issues-unattended` | | `root`, `open_issues`, `top_priority?` |
 
-`issues` reads open beads issues only. `labels` joins label values with commas.
-`agents` excludes `me`.
+`issues` reads open beads issues for one root. `issues-in-scope` is the same rows for every repository the call loaded, including a root with no agent.
+Use `--scope all` for a work list across projects: it includes every ghq root that has `.beads`.
+`--scope agents` narrows that load to roots that have an agent.
+This query takes no `--root`, so a call that omits `--scope` uses `agents`.
+`labels` joins label values with commas.
+`agents` in the count queries excludes `me`.
 
 ## Runs (runtag)
 

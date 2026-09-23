@@ -75,8 +75,10 @@ export const reportQueries = queries(generated, {
     from tool_uses u join agents a on a.root = u.root
     group by u.tool having count(distinct u.version) > 1 order by u.tool`,
   // Agent panes with the session record that describes their recent work.
+  // Both subtype tables name this field model, and a session is one of the
+  // two, so the pane shows that recorded value in one column.
   agentsWithSessions: `
-    select a.pane_id, a.agent, a.agent_status, s.name, c.status as claude_status, c.kind, x.model, x.source, s.started_at, s.updated_at, s.last_turn_at, s.last_branch, a.root,
+    select a.pane_id, a.agent, a.agent_status, s.name, c.status as claude_status, c.kind, cast(coalesce(c.model, x.model) as text) as model, x.source, s.started_at, s.updated_at, s.last_turn_at, s.last_branch, a.root,
            cast((unixepoch('subsec') * 1000 - s.updated_at) / 60000 as integer) as idle_minutes
     from agents a left join sessions s on s.session_id = a.session_id
     left join claude_sessions c on c.session_id = s.session_id

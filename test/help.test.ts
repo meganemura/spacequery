@@ -37,6 +37,7 @@ test("the ship default short list is the visible curated queries", () => {
     assert.equal(document.mode, "short");
     assert.ok(names.includes("in-dir"));
     assert.equal(names.includes("issues"), false);
+    assert.equal(names.includes("issues-in-scope"), false);
     assert.equal(names.includes("runs-in-dir"), false);
     assert.equal(names.includes("brew-packages"), false);
     assert.deepEqual(document.reports.map((report) => report.name), ["here"]);
@@ -49,6 +50,7 @@ test("the ship default short list is the visible curated queries", () => {
     const full = helpDocument({ userQueries: [], env, mode: "all", loaders, config: loadConfig(env) });
     assert.ok(full.queries.length > names.length);
     assert.equal(full.queries.some((query) => query.name === "issues"), false);
+    assert.equal(full.queries.some((query) => query.name === "issues-in-scope"), false);
     assert.equal(full.queries.some((query) => query.name === "repos"), true);
     const curated = Object.entries(catalog).filter(([, query]) => query.default).map(([name]) => name);
     assert.equal(curated.length, 25);
@@ -72,6 +74,7 @@ test("enabling an optional provider returns its curated queries, and calls fill 
     const document = helpDocument({ userQueries: [], env, mode: "short", loaders, config: loadConfig(env) });
     assert.deepEqual(document.disabled_providers, []);
     assert.equal(document.queries.some((query) => query.name === "issues"), true);
+    assert.equal(document.queries.some((query) => query.name === "issues-in-scope"), false);
     assert.equal(document.queries.some((query) => query.name === "runs-in-dir"), true);
     assert.equal(document.queries.some((query) => query.name === "workflow"), true);
     assert.equal(document.queries.some((query) => query.name === "repos"), false);
@@ -89,6 +92,15 @@ test("enabling an optional provider returns its curated queries, and calls fill 
       config: loadConfig({ ...env, XDG_CONFIG_HOME: join(root, "missing") }),
     });
     assert.equal(hidden.queries.some((query) => query.name === "issues"), false);
+    assert.equal(hidden.queries.some((query) => query.name === "issues-in-scope"), false);
+    const listed = helpDocument({ userQueries: [], env, mode: "all", loaders, config: loadConfig(env) });
+    const workList = listed.queries.find((query) => query.name === "issues-in-scope");
+    assert.equal(workList?.group, "Issues");
+    assert.equal(workList?.default, false);
+    assert.equal(workList?.enabled, true);
+    assert.deepEqual(workList?.requires, ["beads"]);
+    assert.match(workList?.purpose ?? "", /--scope all/);
+    assert.match(workList?.purpose ?? "", /--scope agents/);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
