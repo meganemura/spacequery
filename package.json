@@ -59,6 +59,7 @@
     "@hegeldev/hegel": "0.4.5",
     "@types/node": "26.4.0",
     "@types/react": "19.2.18",
-    "typescript": "7.0.2"
+    "typescript": "7.0.2",
+    "archstrict": "file:../archstrict"
   }
 }
