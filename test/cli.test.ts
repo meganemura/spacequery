@@ -21,7 +21,7 @@ test("help prints the short list and --all prints every enabled query", async ()
   const env = { ...process.env, HOME: root, XDG_CONFIG_HOME: join(root, "config"), XDG_STATE_HOME: join(root, "state") };
   try {
     const { stdout } = await execFileAsync(process.execPath, ["cli.ts", "--help"], { cwd: process.cwd(), encoding: "utf8", env });
-    const names = stdout.split("\n").filter((line) => line.startsWith("  ") && !line.startsWith("  spacequery")).map((line) => line.trim().split(/\s+/)[0]!);
+    const names = stdout.split("\n").filter((line) => line.startsWith("  ") && !line.trim().startsWith("spacequery")).map((line) => line.trim().split(/\s+/)[0]!);
     const queries = names.filter((name) => name !== "here" && name !== "work" && name !== "dependency-report");
     assert.ok(queries.length <= 25, queries.join(","));
     assert.ok(queries.includes("in-dir"));
