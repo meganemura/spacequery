@@ -31,8 +31,8 @@ export const plugins = table(`
 export const skillsQueries = queries(generated, {
   all: `select path, source, agent, name, description, root, plugin from skills order by agent, source, name`,
   inDir: `select path, source, agent, name, description, root, plugin from skills
-    where source in ('claude-user', 'claude-plugin', 'codex-user', 'codex-system', 'codex-plugin')
-       or (source = 'claude-project' and root = :root)
+    where source in ('claude-user', 'claude-plugin', 'codex-user', 'codex-admin', 'codex-system', 'codex-plugin')
+       or (source in ('claude-project', 'codex-project') and root = :root)
     order by agent, name`,
   plugins: `select id, agent, name, marketplace, version, path, installed_at, updated_at from plugins order by agent, name`,
 });

@@ -2,7 +2,7 @@
 
 Date: 2026-09-10
 
-Status: accepted
+Status: accepted; the Codex skill locations are extended by [0049](0049-codex-skills-are-read-from-agents-directories.md)
 
 ## Context
 

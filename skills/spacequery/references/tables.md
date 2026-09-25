@@ -220,8 +220,12 @@ Multiple host bindings become multiple rows.
 
 `skills`: `path` (key), `source`, `agent`, `name`, `description?`, `root?`, `plugin?`.
 `source` is `claude-user`, `claude-project`, `claude-plugin`, `codex-user`,
-`codex-system`, or `codex-plugin`. `root` is set for project skills. `plugin`
-is set for plugin skills.
+`codex-project`, `codex-admin`, `codex-system`, or `codex-plugin`. `root` is
+set for project skills. `plugin` is set for plugin skills. `codex-user` reads
+both `~/.agents/skills` (the documented Codex user location) and
+`~/.codex/skills` (where the installer bundled with Codex writes); a name in both gives
+two rows. `codex-project` reads `<root>/.agents/skills` for the repository
+root only, not the parent folders Codex also scans below it.
 
 `plugins`: `id` (key), `agent`, `name`, `marketplace?`, `version?`, `path`,
 `installed_at?`, `updated_at?`. Timestamps are milliseconds since the epoch.

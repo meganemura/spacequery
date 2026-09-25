@@ -4,6 +4,7 @@ The format follows Keep a Changelog, and the versions follow SemVer. Before 1.0 
 
 ## Unreleased
 
+- Added: `codex-user` skill rows also come from `~/.agents/skills`, the location Codex's own docs name; `~/.codex/skills` stays, since the skill installer bundled with Codex still writes there. A new source `codex-project` reads `<root>/.agents/skills` for the repository root. A new source `codex-admin` reads `/etc/codex/skills`. `skills-in-dir` and `project-skills-with-agents` cover the new project source.
 - Added: `heavy-processes` ranks every process by CPU use, CPU time, and memory, and names the herdr pane that owns it. `pane-load` sums those same measures for each pane. A new `herdr_panes` loader fills a `panes` table with the shell process each pane owns.
 - Changed: `processes` holds every process on the machine, for every user; `--scope` no longer filters it. The table gains `uid` and `cpu_time_s`; `cpu` is renamed `cpu_pct`.
 - Removed: `busy-processes`. `heavy-processes` replaces it.

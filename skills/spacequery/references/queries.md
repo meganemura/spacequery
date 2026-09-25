@@ -254,11 +254,14 @@ failed Docker provider mean unknown.
 | `skills-in-one-agent` | | `name`, `agent` |
 | `project-skills-with-agents` | | `root`, `name`, `description?`, `agents` |
 
-`source` identifies a user, project, plugin, or Codex system skill. Claude
-plugins come from installed registry entries, so an older cache copy is absent.
-Codex records enabled plugin IDs but no installed version, so each cached
-version of an enabled plugin appears. A Codex plugin ID starts with `codex:`
-to keep it distinct from a Claude Code plugin with the same marketplace ID.
+`source` identifies a user, project, admin, plugin, or Codex system skill.
+Claude plugins come from installed registry entries, so an older cache copy is
+absent. Codex records enabled plugin IDs but no installed version, so each
+cached version of an enabled plugin appears. A Codex plugin ID starts with
+`codex:` to keep it distinct from a Claude Code plugin with the same
+marketplace ID. `codex-user` covers both `~/.agents/skills` and
+`~/.codex/skills`; a name in both gives two rows. `project-skills-with-agents`
+covers `claude-project` and `codex-project` rows.
 
 ## Issues (beads)
 

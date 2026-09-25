@@ -36,7 +36,7 @@ The report-level `providers` list can include dependencies, such as providers th
 | `cursor` | The newest 32 Cursor agent conversations in the local IDE database, with composer id, name, status, mode, model, worktree, branch, and repository root when those fields are recorded. It starts no process. |
 | `git` | Branch, upstream, dirty and untracked counts, observation time, linked Git checkouts, and ahead or behind counts against the local upstream reference. These counts do not prove the current remote state. |
 | `processes` | Every process on the machine, for every user, from `ps`, with CPU and memory measures; a working directory and repository root for the caller's own processes, from `lsof`. Listening TCP sockets of the caller's own user, with address, port, command, and repository association when known. |
-| `skills` | Claude and Codex user, project, system, and plugin skills, plus installed plugin identity, source, version, path, and timestamps when those records exist. |
+| `skills` | Claude and Codex user, project, admin, system, and plugin skills, plus installed plugin identity, source, version, path, and timestamps when those records exist. |
 | `headsign` | Readable `.headsign/state.json` files for repositories in scope, including workflow, status, phase, iteration counts, attempts, last failure, stop reason, driver agent, and phase entry time. |
 | `runtag` | Job files under `$XDG_DATA_HOME/runtag/jobs/` (default `~/.local/share/runtag/jobs/<id>.json`). Each row has `id`, `status` (`running` or `exited`), `exit_code`, `orphan`, `repo_root`, `cwd`, and `supervisor_pid`. The reader starts no process and does not write a job file. |
 

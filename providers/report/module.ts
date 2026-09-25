@@ -171,7 +171,7 @@ export const reportQueries = queries(generated, {
   projectSkillsWithAgents: `
     select s.root, s.name, s.description, cast(count(a.pane_id) as integer) as agents
     from skills s join agents a on a.root = s.root
-    where s.source = 'claude-project'
+    where s.source in ('claude-project', 'codex-project')
     group by s.root, s.name, s.description order by s.root, s.name`,
   // Open issues show the work beside agents that occupy the same repository.
   issuesWithAgents: `

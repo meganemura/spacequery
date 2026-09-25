@@ -21,7 +21,7 @@ export type Generated = {
     params: {};
     row: { path: SkillsId; source: string; agent: string; name: string; description: string | null; root: string | null; plugin: string | null };
   };
-  "select path, source, agent, name, description, root, plugin from skills\n    where source in ('claude-user', 'claude-plugin', 'codex-user', 'codex-system', 'codex-plugin')\n       or (source = 'claude-project' and root = :root)\n    order by agent, name": {
+  "select path, source, agent, name, description, root, plugin from skills\n    where source in ('claude-user', 'claude-plugin', 'codex-user', 'codex-admin', 'codex-system', 'codex-plugin')\n       or (source in ('claude-project', 'codex-project') and root = :root)\n    order by agent, name": {
     params: { root: string | null };
     row: { path: SkillsId; source: string; agent: string; name: string; description: string | null; root: string | null; plugin: string | null };
   };
@@ -35,6 +35,6 @@ export const generated: Meta<Generated> = {
   "insert or ignore into skills (path, source, agent, name, description, root, plugin)\n    select value ->> 'path', value ->> 'source', value ->> 'agent', value ->> 'name', value ->> 'description', value ->> 'root', value ->> 'plugin'\n    from json_each(:rows)": { params: ["rows"], encode: ["rows"], json: [], reads: [] },
   "insert or ignore into plugins (id, agent, name, marketplace, version, path, installed_at, updated_at)\n    select value ->> 'id', value ->> 'agent', value ->> 'name', value ->> 'marketplace', value ->> 'version', value ->> 'path', value ->> 'installed_at', value ->> 'updated_at'\n    from json_each(:rows)": { params: ["rows"], encode: ["rows"], json: [], reads: [] },
   "select path, source, agent, name, description, root, plugin from skills order by agent, source, name": { params: [], encode: [], json: [], reads: ["skills"] },
-  "select path, source, agent, name, description, root, plugin from skills\n    where source in ('claude-user', 'claude-plugin', 'codex-user', 'codex-system', 'codex-plugin')\n       or (source = 'claude-project' and root = :root)\n    order by agent, name": { params: ["root"], encode: [], json: [], reads: ["skills"] },
+  "select path, source, agent, name, description, root, plugin from skills\n    where source in ('claude-user', 'claude-plugin', 'codex-user', 'codex-admin', 'codex-system', 'codex-plugin')\n       or (source in ('claude-project', 'codex-project') and root = :root)\n    order by agent, name": { params: ["root"], encode: [], json: [], reads: ["skills"] },
   "select id, agent, name, marketplace, version, path, installed_at, updated_at from plugins order by agent, name": { params: [], encode: [], json: [], reads: ["plugins"] },
 };

@@ -8,10 +8,11 @@ import { test } from "node:test";
 import * as hegel from "@hegeldev/hegel";
 import * as gs from "@hegeldev/hegel/generators";
 import type { Exec, Loader } from "../core/loader.ts";
-import { runSql } from "../core/run.ts";
+import { runQuery, runSql } from "../core/run.ts";
 import { herdrLoader } from "../providers/herdr/loader.ts";
 import { repoLoader } from "../providers/repos/loader.ts";
-import { readFrontmatter, skillsLoader, splitPluginId } from "../providers/skills/loader.ts";
+import { codexAdminSkills, readFrontmatter, skillsLoader, splitPluginId } from "../providers/skills/loader.ts";
+import { skillsQueries } from "../providers/skills/module.ts";
 import { repoForRoots } from "./fixture.ts";
 
 const home = mkdtempSync(join(tmpdir(), "spacequery-skills-"));
@@ -25,9 +26,11 @@ function skill(directory: string, name: string, description: string | null = `De
 
 function setup(): void {
   skill(join(home, ".claude", "skills"), "claude-user");
+  skill(join(home, ".agents", "skills"), "codex-agents-user");
   skill(join(home, ".codex", "skills"), "codex-user");
   skill(join(home, ".codex", "skills", ".system"), "codex-system");
   skill(join(root, ".claude", "skills"), "project", "Project description");
+  skill(join(root, ".agents", "skills"), "codex-project");
   const installed = join(home, ".claude", "plugins", "cache", "example", "installed");
   skill(join(installed, "skills"), "claude-plugin");
   const stale = join(home, ".claude", "plugins", "cache", "example", "stale");
@@ -59,13 +62,16 @@ const exec: Exec = async (command, args, cwd) => {
 setup();
 
 test("skills load every source and keep the project root", async () => {
-  const result = await runSql("select source, agent, name, root from skills order by source, name", { loaders, exec, repo: repoForRoots(new Set([root])), env: { HOME: home }, params: {} });
+  // codex-admin reads the real /etc/codex/skills; codexAdminSkills has its own test with a fake path.
+  const result = await runSql("select source, agent, name, root from skills where source <> 'codex-admin' order by source, name", { loaders, exec, repo: repoForRoots(new Set([root])), env: { HOME: home }, params: {} });
   assert.deepEqual(result.rows, [
     { source: "claude-plugin", agent: "claude", name: "claude-plugin", root: null },
     { source: "claude-project", agent: "claude", name: "project", root },
     { source: "claude-user", agent: "claude", name: "claude-user", root: null },
     { source: "codex-plugin", agent: "codex", name: "codex-plugin", root: null },
+    { source: "codex-project", agent: "codex", name: "codex-project", root },
     { source: "codex-system", agent: "codex", name: "codex-system", root: null },
+    { source: "codex-user", agent: "codex", name: "codex-agents-user", root: null },
     { source: "codex-user", agent: "codex", name: "codex-user", root: null },
   ]);
 });
@@ -73,6 +79,43 @@ test("skills load every source and keep the project root", async () => {
 test("Claude's installed registry excludes a stale cache skill", async () => {
   const result = await runSql("select name from skills where source = 'claude-plugin' order by name", { loaders, exec, repo: repoForRoots(new Set([root])), env: { HOME: home }, params: {} });
   assert.deepEqual(result.rows, [{ name: "claude-plugin" }]);
+});
+
+test("a same-name skill in both codex-user directories gives two rows", async () => {
+  const shared = mkdtempSync(join(tmpdir(), "spacequery-skills-shared-"));
+  skill(join(shared, ".agents", "skills"), "shared");
+  skill(join(shared, ".codex", "skills"), "shared");
+  const result = await runSql(
+    "select source, agent, name from skills where name = 'shared' order by path",
+    { loaders, exec, repo: repoForRoots(new Set()), env: { HOME: shared }, params: {} },
+  );
+  assert.deepEqual(result.rows, [
+    { source: "codex-user", agent: "codex", name: "shared" },
+    { source: "codex-user", agent: "codex", name: "shared" },
+  ]);
+});
+
+test("skills-in-dir returns the project row only for its own root", async () => {
+  const other = join(home, "src", "github.com", "example", "other");
+  const options = { loaders, exec, env: { HOME: home } };
+  const forRoot = await runQuery(skillsQueries.inDir, { ...options, params: { root } });
+  assert.ok(forRoot.rows.some((row) => row["source"] === "claude-project" && row["root"] === root));
+  assert.ok(forRoot.rows.some((row) => row["source"] === "codex-project" && row["root"] === root));
+  const forOther = await runQuery(skillsQueries.inDir, { ...options, params: { root: other } });
+  assert.ok(!forOther.rows.some((row) => row["source"] === "claude-project" || row["source"] === "codex-project"));
+});
+
+test("the admin path is a parameter, so a fake directory proves the read", async () => {
+  const admin = mkdtempSync(join(tmpdir(), "spacequery-skills-admin-"));
+  skill(admin, "admin-skill");
+  const rows = await codexAdminSkills(admin);
+  assert.deepEqual(rows.map((row) => ({ source: row.source, agent: row.agent, name: row.name })), [
+    { source: "codex-admin", agent: "codex", name: "admin-skill" },
+  ]);
+});
+
+test("a missing admin directory yields no rows", async () => {
+  assert.deepEqual(await codexAdminSkills(join(home, "no-such-etc-codex-skills")), []);
 });
 
 test("frontmatter reader round-trips supported YAML scalar forms", () => hegel.test((tc) => {

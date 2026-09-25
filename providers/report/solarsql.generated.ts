@@ -100,7 +100,7 @@ export type Generated = {
     params: {};
     row: { name: string; agent: string };
   };
-  "\n    select s.root, s.name, s.description, cast(count(a.pane_id) as integer) as agents\n    from skills s join agents a on a.root = s.root\n    where s.source = 'claude-project'\n    group by s.root, s.name, s.description order by s.root, s.name": {
+  "\n    select s.root, s.name, s.description, cast(count(a.pane_id) as integer) as agents\n    from skills s join agents a on a.root = s.root\n    where s.source in ('claude-project', 'codex-project')\n    group by s.root, s.name, s.description order by s.root, s.name": {
     params: {};
     row: { root: string | null; name: string; description: string | null; agents: number };
   };
@@ -158,7 +158,7 @@ export const generated: Meta<Generated> = {
   "\n    select p.root, p.pid, p.executable, p.elapsed_s, p.rss_kb\n    from processes p left join agents a on a.root = p.root\n    where p.elapsed_s > 3600 and p.root is not null and a.pane_id is null order by p.elapsed_s desc": { params: [], encode: [], json: [], reads: ["agents", "processes"] },
   "\n    select agent, name, cast(count(*) as integer) as sources, cast(group_concat(source, ',') as text) as source_list\n    from skills group by agent, name having count(*) > 1 order by agent, name": { params: [], encode: [], json: [], reads: ["skills"] },
   "\n    select left_names.name, left_names.agent from (select distinct agent, name from skills) left_names\n    left join (select distinct agent, name from skills) right_names\n      on right_names.name = left_names.name and right_names.agent <> left_names.agent\n    where right_names.agent is null order by left_names.name, left_names.agent": { params: [], encode: [], json: [], reads: ["skills"] },
-  "\n    select s.root, s.name, s.description, cast(count(a.pane_id) as integer) as agents\n    from skills s join agents a on a.root = s.root\n    where s.source = 'claude-project'\n    group by s.root, s.name, s.description order by s.root, s.name": { params: [], encode: [], json: [], reads: ["agents", "skills"] },
+  "\n    select s.root, s.name, s.description, cast(count(a.pane_id) as integer) as agents\n    from skills s join agents a on a.root = s.root\n    where s.source in ('claude-project', 'codex-project')\n    group by s.root, s.name, s.description order by s.root, s.name": { params: [], encode: [], json: [], reads: ["agents", "skills"] },
   "\n    select i.root, cast(count(distinct i.id) as integer) as open_issues,\n           cast(min(i.priority) as integer) as top_priority, cast(count(distinct a.pane_id) as integer) as agents\n    from issues i join agents a on a.root = i.root\n    where :me is null or a.pane_id <> :me\n    group by i.root order by i.root": { params: ["me"], encode: [], json: [], reads: ["agents", "issues"] },
   "\n    select i.root, cast(count(distinct i.id) as integer) as open_issues, cast(min(i.priority) as integer) as top_priority\n    from issues i left join agents a on a.root = i.root\n    where a.pane_id is null group by i.root order by i.root": { params: [], encode: [], json: [], reads: ["agents", "issues"] },
   "\n    select w.root, w.workflow, w.phase, w.total_iterations, w.phase_entered_at, cast(count(a.pane_id) as integer) as agents\n    from workflow_runs w join agents a on a.root = w.root\n    where w.status = 'running' and (:me is null or a.pane_id <> :me)\n    group by w.root, w.workflow, w.phase, w.total_iterations, w.phase_entered_at order by w.root": { params: ["me"], encode: [], json: [], reads: ["agents", "workflow_runs"] },

@@ -8,7 +8,7 @@ import { discoveryLoaders, rootsInScope } from "../../core/scope.ts";
 import { skillsCommands } from "./module.ts";
 import type { PluginsId, SkillsId } from "./solarsql.generated.ts";
 
-type Source = "claude-user" | "claude-project" | "claude-plugin" | "codex-user" | "codex-system" | "codex-plugin";
+type Source = "claude-user" | "claude-project" | "claude-plugin" | "codex-user" | "codex-project" | "codex-admin" | "codex-system" | "codex-plugin";
 type Skill = { path: SkillsId; source: Source; agent: "claude" | "codex"; name: string; description: string | null; root: string | null; plugin: string | null };
 type Plugin = { id: PluginsId; agent: "claude" | "codex"; name: string; marketplace: string | null; version: string | null; path: string; installed_at: number | null; updated_at: number | null };
 type ClaudeInstall = { scope?: unknown; installPath?: unknown; version?: unknown; installedAt?: unknown; lastUpdated?: unknown };
@@ -60,6 +60,12 @@ async function skillsAt(path: string, source: Source, agent: "claude" | "codex",
       throw error;
     }
   })).then((rows) => rows.filter((row) => row !== null));
+}
+
+// The admin path is a parameter, not a literal `/etc/codex/skills`, so a test
+// can prove the read without writing outside its temporary HOME.
+export function codexAdminSkills(path: string): Promise<Skill[]> {
+  return skillsAt(path, "codex-admin", "codex", null, null);
 }
 
 function date(value: unknown): number | null {
@@ -132,14 +138,24 @@ export const skillsLoader: Loader = {
     const home = ctx.env["HOME"];
     if (!home) throw new Error("skills: HOME is not set");
     const roots = await rootsInScope(ctx);
-    const [claude, codex, claudeUser, codexUser, codexSystem, projects] = await Promise.all([
+    const [claude, codex, claudeUser, codexUserAgents, codexUserCodex, codexSystem, codexAdmin, claudeProjects, codexProjects] = await Promise.all([
       claudePlugins(home), codexPlugins(home),
       skillsAt(join(home, ".claude", "skills"), "claude-user", "claude", null, null),
+      // Codex's own docs name `~/.agents/skills` as the user location, but the
+      // installer bundled with Codex still writes to `~/.codex/skills`. Both
+      // directories are read under one source; a name in both gives two rows,
+      // because Codex does not merge duplicate names either.
+      skillsAt(join(home, ".agents", "skills"), "codex-user", "codex", null, null),
       skillsAt(join(home, ".codex", "skills"), "codex-user", "codex", null, null),
       skillsAt(join(home, ".codex", "skills", ".system"), "codex-system", "codex", null, null),
+      codexAdminSkills("/etc/codex/skills"),
       Promise.all(roots.map((root) => skillsAt(join(root, ".claude", "skills"), "claude-project", "claude", root, null))),
+      // Codex also scans the cwd and parent folders below the repository
+      // root. A project skill row is keyed and joined on `root` (see
+      // `skills-in-dir`), so only the root itself is in scope here.
+      Promise.all(roots.map((root) => skillsAt(join(root, ".agents", "skills"), "codex-project", "codex", root, null))),
     ]);
-    const loadedSkills = await ctx.db.run(skillsCommands.loadSkills, { rows: [...claude.skills, ...codex.skills, ...claudeUser, ...codexUser, ...codexSystem, ...projects.flat()] });
+    const loadedSkills = await ctx.db.run(skillsCommands.loadSkills, { rows: [...claude.skills, ...codex.skills, ...claudeUser, ...codexUserAgents, ...codexUserCodex, ...codexSystem, ...codexAdmin, ...claudeProjects.flat(), ...codexProjects.flat()] });
     if (!loadedSkills.ok) throw new Error(`skills: ${loadedSkills.kind}`);
     const loadedPlugins = await ctx.db.run(skillsCommands.loadPlugins, { rows: [...claude.plugins, ...codex.plugins] });
     if (!loadedPlugins.ok) throw new Error(`plugins: ${loadedPlugins.kind}`);
