@@ -96,12 +96,13 @@ The predicate, the fingerprint, and the exit codes: [references/output.md](refer
 5. **When no query fits**: read the tables in [references/tables.md](references/tables.md) and ask the user to add a query file; how: [references/user-queries.md](references/user-queries.md). A user query shows up in `--help` with its description and is called like a built-in. When the required table is absent, a user can declare a command-backed table as a [user provider](references/user-providers.md).
 6. **Before you push or open a pull request**: `prs-with-agents` for the branch you are on, then `failing-checks-with-agents`. These read GitHub and take several seconds. Do not use `--scope all` for this check.
 7. **Before you start a server, a watcher, or a build**: `ports-in-dir`, `processes-in-dir`, and `container-ports-in-dir`; use `servers-with-agents` for host listeners. `ports-in-dir` shows the current checkout for the listener's working directory. It does not identify the commit loaded when the server started.
-8. **When you wonder which skill applies here, or whether a name collides**: `skills-in-dir`, `duplicate-skill-names`.
-9. **When you pick up a repository**: `issues` and `workflow` for its root; use `running-workflows-unattended` and `issues-unattended` for work nobody holds.
-   For a work list across projects, `issues-in-scope` reads every ghq root that has `.beads`, whether or not an agent is in that repository. Omitting `--scope` uses `all`. Herdr and ghq load together, then beads. `--scope agents` narrows the same list to roots that have an agent and does not start ghq.
-   `issues-ready` is the claimable subset of that list: `bd ready` for each root, no open blockers. It uses the same scope default. `work` shows that queue, the open list, and agent models together.
-10. **When you wait for a detached runtag command**: [runtag](https://github.com/meganemura/runtag) ([npm](https://www.npmjs.com/package/runtag)) records with `runtag exec --detach --cwd <repo> -- <cmd>...` and writes a job file with `id`. Then `spacequery watch runs-in-dir --root <repo> --until status=exited`. When that exits 0, `runtag status <id>` reads `exit_code`. spacequery reads the files and watches. An orphan stays `running` and does not satisfy the wait.
-11. **Before you choose a dependency or tool parser**: `repository-config-files --root DIR`. It inventories recognized file names without interpreting their bodies.
+8. **When something is slow, hot, or runs away**: `heavy-processes` first. Read `cpu_pct` for now, `cpu_time_s` and `cpu_life_pct` for a slow build-up, and `rss_kb` for memory. `pane_id` and `workspace_label` name the pane to close. `pane-load` compares panes. `descendants --q <shell_pid>` shows a pane's whole process tree.
+9. **When you wonder which skill applies here, or whether a name collides**: `skills-in-dir`, `duplicate-skill-names`.
+10. **When you pick up a repository**: `issues` and `workflow` for its root; use `running-workflows-unattended` and `issues-unattended` for work nobody holds.
+    For a work list across projects, `issues-in-scope` reads every ghq root that has `.beads`, whether or not an agent is in that repository. Omitting `--scope` uses `all`. Herdr and ghq load together, then beads. `--scope agents` narrows the same list to roots that have an agent and does not start ghq.
+    `issues-ready` is the claimable subset of that list: `bd ready` for each root, no open blockers. It uses the same scope default. `work` shows that queue, the open list, and agent models together.
+11. **When you wait for a detached runtag command**: [runtag](https://github.com/meganemura/runtag) ([npm](https://www.npmjs.com/package/runtag)) records with `runtag exec --detach --cwd <repo> -- <cmd>...` and writes a job file with `id`. Then `spacequery watch runs-in-dir --root <repo> --until status=exited`. When that exits 0, `runtag status <id>` reads `exit_code`. spacequery reads the files and watches. An orphan stays `running` and does not satisfy the wait.
+12. **Before you choose a dependency or tool parser**: `repository-config-files --root DIR`. It inventories recognized file names without interpreting their bodies.
 
 ## Work dashboard
 
@@ -155,6 +156,8 @@ The table is the curated set. It is not one machine's call history.
 | `prs-with-agents` | | When you need the open pull request for a branch an agent is on. |
 | `ports-in-dir` | `--root` | When you are about to bind a port and need the listeners already inside one repository. |
 | `processes-in-dir` | `--root` | When you need the processes whose working directory is inside one repository. |
+| `heavy-processes` | | When something is slow, hot, or runs away, and you need the process and its pane. |
+| `pane-load` | | When you need to choose which pane to close or stop. |
 | `containers-in-dir` | `--root` | When you need the containers associated with one repository. |
 | `skills-in-dir` | `--root` | When you need the skills an agent can use in one repository. |
 | `issues` | `--root` | When you pick up a repository and need its open beads issues. |

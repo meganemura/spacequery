@@ -101,7 +101,7 @@ export const reportQueries = queries(generated, {
       select d.session_pid, p.pid
       from session_descendants d join processes p on p.ppid = d.pid
     )
-    select s.session_id, s.agent, s.name, s.pid as session_pid, p.pid, p.command, p.elapsed_s, p.cpu, p.root
+    select s.session_id, s.agent, s.name, s.pid as session_pid, p.pid, p.command, p.elapsed_s, p.cpu_pct, p.cpu_time_s, p.rss_kb, p.root
     from session_descendants d join sessions s on s.pid = d.session_pid
     join processes p on p.pid = d.pid
     order by s.session_id, p.pid`,
@@ -156,7 +156,7 @@ export const reportQueries = queries(generated, {
   longRunningWithoutAgents: `
     select p.root, p.pid, p.executable, p.elapsed_s, p.rss_kb
     from processes p left join agents a on a.root = p.root
-    where p.elapsed_s > 3600 and a.pane_id is null order by p.elapsed_s desc`,
+    where p.elapsed_s > 3600 and p.root is not null and a.pane_id is null order by p.elapsed_s desc`,
   // A source collision can change which skill an agent chooses.
   duplicateSkillNames: `
     select agent, name, cast(count(*) as integer) as sources, cast(group_concat(source, ',') as text) as source_list
@@ -200,4 +200,52 @@ export const reportQueries = queries(generated, {
   stoppedRuns: `
     select root, workflow, phase, status, end_reason, last_failure from workflow_runs
     where (status <> 'running' and status <> 'complete') or last_failure is not null order by root`,
+  // The shell itself sits at depth 0 of `owned`. A pane's shell can be the
+  // runaway process on its own. Ownership starts there, before any child
+  // process exists.
+  // Each measure keeps its own top 10. A slow build-up shows in
+  // `cpu_time_s`, and a leak shows in `rss_kb`, well before either moves
+  // `cpu_pct`. Ranking by `cpu_pct` alone would find both only once they
+  // were already large.
+  heavyProcesses: `
+    with recursive owned(pid, pane_id) as (
+      select shell_pid, pane_id from panes where shell_pid is not null
+      union
+      select p.pid, o.pane_id from processes p join owned o on p.ppid = o.pid
+    ),
+    ranked as (
+      select p.pid, p.ppid, p.uid, p.executable, p.cpu_pct, p.cpu_time_s, p.rss_kb, p.elapsed_s, p.root, p.command,
+        cast(rank() over (order by p.cpu_pct desc) as integer) as cpu_rank,
+        cast(rank() over (order by p.cpu_time_s desc) as integer) as cpu_time_rank,
+        cast(rank() over (order by p.rss_kb desc) as integer) as rss_rank
+      from processes p
+    )
+    select r.pid, r.ppid, r.uid, r.executable, r.cpu_pct, r.cpu_time_s,
+      cast(round(r.cpu_time_s * 100.0 / max(r.elapsed_s, 1), 1) as real) as cpu_life_pct,
+      r.rss_kb, r.elapsed_s, r.cpu_rank, r.cpu_time_rank, r.rss_rank,
+      o.pane_id, pn.workspace_label, pn.agent, r.root, r.command
+    from ranked r
+    left join owned o on o.pid = r.pid
+    left join panes pn on pn.pane_id = o.pane_id
+    where r.cpu_rank <= 10 or r.cpu_time_rank <= 10 or r.rss_rank <= 10
+    order by r.cpu_pct desc, r.rss_kb desc, r.pid`,
+  // The same ownership shape as `heavyProcesses`'s `owned` CTE: a pane's own
+  // shell counts toward its pane's load at depth 0, before any child
+  // process exists.
+  paneLoad: `
+    with recursive owned(pid, pane_id) as (
+      select shell_pid, pane_id from panes where shell_pid is not null
+      union
+      select p.pid, o.pane_id from processes p join owned o on p.ppid = o.pid
+    )
+    select pn.pane_id, pn.workspace_label, pn.agent, pn.title, pn.cwd, pn.shell_pid,
+      cast(count(p.pid) as integer) as processes,
+      cast(round(coalesce(sum(p.cpu_pct), 0), 1) as real) as cpu_pct,
+      cast(round(coalesce(sum(p.cpu_time_s), 0), 2) as real) as cpu_time_s,
+      cast(coalesce(sum(p.rss_kb), 0) as integer) as rss_kb
+    from panes pn
+    left join owned o on o.pane_id = pn.pane_id
+    left join processes p on p.pid = o.pid
+    group by pn.pane_id, pn.workspace_label, pn.agent, pn.title, pn.cwd, pn.shell_pid
+    order by cpu_pct desc, rss_kb desc, pn.pane_id`,
 });

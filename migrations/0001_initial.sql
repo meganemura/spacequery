@@ -148,6 +148,16 @@ CREATE TABLE listeners (
     root text,
     command text
   ) strict;
+CREATE TABLE panes (
+    pane_id text primary key not null,
+    workspace_id text,
+    workspace_label text,
+    tab_id text,
+    cwd text not null,
+    agent text,
+    title text,
+    shell_pid integer
+  ) strict;
 CREATE TABLE path_commands (
     name text not null,
     dir text not null,
@@ -175,13 +185,15 @@ CREATE TABLE processes (
     pid integer primary key not null,
     ppid integer not null,
     pgid integer not null,
-    cwd text not null,
-    root text not null,
+    uid integer not null,
+    cwd text,
+    root text,
     command text not null,
     executable text not null,
     elapsed_s integer not null,
     rss_kb integer not null,
-    cpu real not null
+    cpu_pct real not null,
+    cpu_time_s real not null
   ) strict;
 CREATE TABLE providers (
     name text primary key not null,

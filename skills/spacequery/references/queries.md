@@ -77,7 +77,7 @@ mise can prepend directories, so these rows can differ from the caller search pa
 | `claude-sessions` | | `session_id`, `cwd`, `root?`, `name?`, `updated_at?`, `model?`, `effort?`, `per_turn_effort?`, `metadata_at?`, `kind?`, `entrypoint?`, `status?`, `status_updated_at?`, `name_source?`, `version?`, `pid_domain?`, `peer_protocol?` |
 | `codex-sessions` | | `session_id`, `cwd`, `root?`, `name?`, `updated_at?`, `model?`, `reasoning_effort?`, `source?`, `thread_source?`, `model_provider?`, `cli_version?`, `sandbox_policy?`, `approval_mode?`, `git_branch?`, `git_origin_url?`, `title?`, `tokens_used`, `archived` |
 | `agents-with-sessions` | | `pane_id`, `agent`, `agent_status`, `name?`, `claude_status?`, `kind?`, `model?`, `source?`, `started_at?`, `updated_at?`, `last_turn_at?`, `last_branch?`, `root?`, `idle_minutes?` |
-| `session-processes` | | `session_id`, `agent`, `name?`, `session_pid`, `pid`, `command`, `elapsed_s`, `cpu`, `root` |
+| `session-processes` | | `session_id`, `agent`, `name?`, `session_pid`, `pid`, `command`, `elapsed_s`, `cpu_pct`, `cpu_time_s`, `rss_kb`, `root?` |
 | `sessions-without-pane` | | `session_id`, `agent`, `cwd`, `root?`, `name?`, `updated_at?` |
 | `codex-threads-with-agents` | | `pane_id`, `root?`, `model?`, `reasoning_effort?`, `source?`, `tokens_used`, `updated_at?` |
 
@@ -208,20 +208,22 @@ with an unsupported format does not fail the provider.
 
 | Query | Parameters | Columns |
 | --- | --- | --- |
-| `processes-in-dir` | `root` | `pid`, `ppid`, `executable`, `command`, `cwd`, `elapsed_s`, `rss_kb`, `cpu` |
-| `descendants` | `q` | `pid`, `ppid`, `command`, `executable`, `elapsed_s`, `cpu`, `root` |
-| `busy-processes` | | `pid`, `cpu`, `rss_kb`, `elapsed_s`, `root`, `command` |
+| `processes-in-dir` | `root` | `pid`, `ppid`, `executable`, `command`, `cwd`, `elapsed_s`, `rss_kb`, `cpu_pct`, `cpu_time_s` |
+| `descendants` | `q` | `pid`, `ppid`, `command`, `executable`, `elapsed_s`, `cpu_pct`, `cpu_time_s`, `rss_kb`, `root?` |
+| `heavy-processes` | | `pid`, `ppid`, `uid`, `executable`, `cpu_pct`, `cpu_time_s`, `cpu_life_pct`, `rss_kb`, `elapsed_s`, `cpu_rank`, `cpu_time_rank`, `rss_rank`, `pane_id?`, `workspace_label?`, `agent?`, `root?`, `command` |
+| `pane-load` | | `pane_id`, `workspace_label?`, `agent?`, `title?`, `cwd`, `shell_pid?`, `processes`, `cpu_pct`, `cpu_time_s`, `rss_kb` |
 | `listening-ports` | | `pid`, `address`, `port`, `cwd?`, `root?`, `command?` |
 | `ports-in-dir` | `root` | `pid`, `address`, `port`, `cwd?`, `root?`, `command?`, `head?`, `branch?`, `dirty_count?`, `untracked_count?`, `elapsed_s?` |
 | `servers-with-agents` | | `root`, `port`, `address`, `pid`, `command?`, `agents` |
 | `long-running-without-agents` | | `root`, `pid`, `executable`, `elapsed_s`, `rss_kb` |
 
-`elapsed_s` is process age in seconds. `rss_kb` is resident memory in KiB. `cpu` is the current CPU percentage from ps. A listener can have null location fields when lsof cannot examine its cwd or it is outside the roots in scope. `ports-in-dir` reports the checkout observed for the process working directory at call time. It does not prove which commit the running process loaded at startup, because the checkout can change after launch. `agents` excludes `me`.
+`elapsed_s` is process age in seconds. `rss_kb` is resident memory at the moment of the call, in KiB. `cpu_pct` is ps's `%cpu`: a decaying average of CPU use over up to a minute (see the ps man page), as a percent of one core. A process tree's `cpu_pct` values can sum past 100. `cpu_time_s` is user plus system CPU seconds accumulated since the process started, ps's `time` field. `cpu_life_pct` is `cpu_time_s` over `elapsed_s`, the share of the process's own lifetime spent on CPU. A listener can have null location fields when lsof cannot examine its cwd, or that cwd is outside any repository. `ports-in-dir` reports the checkout observed for the process working directory at call time. It does not prove which commit the running process loaded at startup, because the checkout can change after launch. `agents` excludes `me`.
 
-The `processes` table contains processes whose working directory is inside a root in scope.
-`descendants`, `session-processes`, and `busy-processes` use this bounded set.
-A descendant that works elsewhere is absent.
-`--scope all` widens this set to every ghq root.
+`heavy-processes` ranks every process by `cpu_pct`, by `cpu_time_s`, and by `rss_kb`, and keeps a process that ranks 10th or better on any one of the three. `cpu_rank`, `cpu_time_rank`, and `rss_rank` give its place on each measure. `pane_id` names the herdr pane that owns the process: the shell itself sits at depth 0 of that ownership, and every process descended from that shell inherits it. A process that no pane owns keeps a null `pane_id`, `workspace_label`, and `agent`.
+
+`pane-load` sums `cpu_pct`, `cpu_time_s`, and `rss_kb` over the processes one pane owns, with `processes` as the count. Each row comes from `panes`, so a pane whose shell has no matching row in `processes` — a null `shell_pid`, or a shell that has already exited — still gets a row, with every sum at zero.
+
+The `processes` table holds every process on the machine. `--scope` leaves it unchanged. `descendants` and `session-processes` see the whole process tree, not only processes inside one repository.
 
 ## Docker
 

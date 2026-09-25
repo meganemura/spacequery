@@ -4,6 +4,9 @@ The format follows Keep a Changelog, and the versions follow SemVer. Before 1.0 
 
 ## Unreleased
 
+- Added: `heavy-processes` ranks every process by CPU use, CPU time, and memory, and names the herdr pane that owns it. `pane-load` sums those same measures for each pane. A new `herdr_panes` loader fills a `panes` table with the shell process each pane owns.
+- Changed: `processes` holds every process on the machine, for every user; `--scope` no longer filters it. The table gains `uid` and `cpu_time_s`; `cpu` is renamed `cpu_pct`.
+- Removed: `busy-processes`. `heavy-processes` replaces it.
 - Added: `spacequery watch work` refreshes the work report on `--interval`. `--until` is optional; when set, it reads the `agents` section, and each printed snapshot is still the whole report. `--timeout 0` keeps refreshing until a signal. JSON is one envelope per line. TSV uses the same section headings as `spacequery work --tsv`.
 - Changed: `issues-in-scope` defaults to `--scope all`. A call that omits `--scope` lists open beads issues in every ghq root that has `.beads`, including a root with no agent. `--scope agents` narrows that list and does not start ghq.
 - Added: `issues-ready` lists claimable beads issues from `bd ready --json --limit 0` for each in-scope root with `.beads`. It defaults to `--scope all`. `--scope agents` narrows it. `beads_ready` follows the beads on/off switch unless config sets `beads_ready` itself.

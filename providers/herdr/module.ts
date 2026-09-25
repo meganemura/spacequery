@@ -2,7 +2,7 @@
 // The loader fills `agents` from `herdr api snapshot` at query time.
 // `root` is the git toplevel of `cwd`, resolved by the loader, so a join on
 // a repository does not depend on cwd being the root (ADR 0003).
-// Boundary: the table, its loading command, and single-table queries.
+// Boundary: these tables, their loading commands, and single-table queries.
 // Joins with other providers live in the report module.
 import { commands, queries, table } from "solarsql";
 import { generated } from "./solarsql.generated.ts";
@@ -21,6 +21,19 @@ export const agents = table(`
     workspace_id text,
     tab_id text,
     title text
+  ) strict
+`);
+
+export const panes = table(`
+  create table panes (
+    pane_id text primary key not null,
+    workspace_id text,
+    workspace_label text,
+    tab_id text,
+    cwd text not null,
+    agent text,
+    title text,
+    shell_pid integer
   ) strict
 `);
 
@@ -56,6 +69,14 @@ export const herdrCommands = commands(generated, {
       `insert into agents (pane_id, session_id, name, agent, agent_status, focused, cwd, foreground_cwd, root, workspace_id, tab_id, title)
        select value ->> 'pane_id', value ->> 'session_id', value ->> 'name', value ->> 'agent', value ->> 'agent_status', value ->> 'focused',
               value ->> 'cwd', value ->> 'foreground_cwd', value ->> 'root', value ->> 'workspace_id', value ->> 'tab_id', value ->> 'title'
+       from json_each(:rows)`,
+    ],
+  },
+  loadPanes: {
+    plan: [
+      `insert into panes (pane_id, workspace_id, workspace_label, tab_id, cwd, agent, title, shell_pid)
+       select value ->> 'pane_id', value ->> 'workspace_id', value ->> 'workspace_label', value ->> 'tab_id',
+              value ->> 'cwd', value ->> 'agent', value ->> 'title', value ->> 'shell_pid'
        from json_each(:rows)`,
     ],
   },

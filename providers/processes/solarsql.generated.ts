@@ -7,37 +7,32 @@ import type { Id, Meta, SqlValue } from "solarsql";
 export type ListenersId = Id<"listeners">;
 
 export type Generated = {
-  "insert or ignore into processes (pid, ppid, pgid, cwd, root, command, executable, elapsed_s, rss_kb, cpu)\n    select value ->> 'pid', value ->> 'ppid', value ->> 'pgid', value ->> 'cwd', value ->> 'root', value ->> 'command', value ->> 'executable', value ->> 'elapsed_s', value ->> 'rss_kb', value ->> 'cpu' from json_each(:rows)": {
-    params: { rows: readonly { "pid": number; "ppid": number; "pgid": number; "cwd": string; "root": string; "command": string; "executable": string; "elapsed_s": number; "rss_kb": number; "cpu": number }[] };
+  "insert or ignore into processes (pid, ppid, pgid, uid, cwd, root, command, executable, elapsed_s, rss_kb, cpu_pct, cpu_time_s)\n    select value ->> 'pid', value ->> 'ppid', value ->> 'pgid', value ->> 'uid', value ->> 'cwd', value ->> 'root', value ->> 'command', value ->> 'executable', value ->> 'elapsed_s', value ->> 'rss_kb', value ->> 'cpu_pct', value ->> 'cpu_time_s' from json_each(:rows)": {
+    params: { rows: readonly { "pid": number; "ppid": number; "pgid": number; "uid": number; "cwd": string | null; "root": string | null; "command": string; "executable": string; "elapsed_s": number; "rss_kb": number; "cpu_pct": number; "cpu_time_s": number }[] };
     row: {};
   };
   "insert or ignore into listeners (id, pid, address, port, cwd, root, command)\n    select value ->> 'id', value ->> 'pid', value ->> 'address', value ->> 'port', value ->> 'cwd', value ->> 'root', value ->> 'command' from json_each(:rows)": {
     params: { rows: readonly { "id": ListenersId; "pid": number; "address": string; "port": number; "cwd": string | null; "root": string | null; "command": string | null }[] };
     row: {};
   };
-  "\n    select pid, ppid, executable, command, cwd, elapsed_s, rss_kb, cpu\n    from processes where root = :root order by elapsed_s desc": {
-    params: { root: string };
-    row: { pid: number; ppid: number; executable: string; command: string; cwd: string; elapsed_s: number; rss_kb: number; cpu: number };
+  "\n    select pid, ppid, executable, command, cwd, elapsed_s, rss_kb, cpu_pct, cpu_time_s\n    from processes where root = :root order by elapsed_s desc": {
+    params: { root: string | null };
+    row: { pid: number; ppid: number; executable: string; command: string; cwd: string | null; elapsed_s: number; rss_kb: number; cpu_pct: number; cpu_time_s: number };
   };
   "\n    select pid, address, port, cwd, root, command\n    from listeners order by port": {
     params: {};
     row: { pid: number; address: string; port: number; cwd: string | null; root: string | null; command: string | null };
   };
-  "\n    with recursive process_descendants as (\n      select pid, ppid, command, executable, elapsed_s, cpu, root\n      from processes where ppid = cast(:q as integer)\n      union\n      select p.pid, p.ppid, p.command, p.executable, p.elapsed_s, p.cpu, p.root\n      from processes p join process_descendants d on p.ppid = d.pid\n    )\n    select d.pid, d.ppid, d.command, d.executable, d.elapsed_s, d.cpu, d.root\n    from process_descendants d order by d.pid": {
+  "\n    with recursive process_descendants as (\n      select pid, ppid, command, executable, elapsed_s, cpu_pct, cpu_time_s, rss_kb, root\n      from processes where ppid = cast(:q as integer)\n      union\n      select p.pid, p.ppid, p.command, p.executable, p.elapsed_s, p.cpu_pct, p.cpu_time_s, p.rss_kb, p.root\n      from processes p join process_descendants d on p.ppid = d.pid\n    )\n    select d.pid, d.ppid, d.command, d.executable, d.elapsed_s, d.cpu_pct, d.cpu_time_s, d.rss_kb, d.root\n    from process_descendants d order by d.pid": {
     params: { q: SqlValue };
-    row: { pid: number; ppid: number; command: string; executable: string; elapsed_s: number; cpu: number; root: string };
-  };
-  "\n    select pid, cpu, rss_kb, elapsed_s, root, command\n    from processes order by cpu desc, rss_kb desc": {
-    params: {};
-    row: { pid: number; cpu: number; rss_kb: number; elapsed_s: number; root: string; command: string };
+    row: { pid: number; ppid: number; command: string; executable: string; elapsed_s: number; cpu_pct: number; cpu_time_s: number; rss_kb: number; root: string | null };
   };
 };
 
 export const generated: Meta<Generated> = {
-  "insert or ignore into processes (pid, ppid, pgid, cwd, root, command, executable, elapsed_s, rss_kb, cpu)\n    select value ->> 'pid', value ->> 'ppid', value ->> 'pgid', value ->> 'cwd', value ->> 'root', value ->> 'command', value ->> 'executable', value ->> 'elapsed_s', value ->> 'rss_kb', value ->> 'cpu' from json_each(:rows)": { params: ["rows"], encode: ["rows"], json: [], reads: [] },
+  "insert or ignore into processes (pid, ppid, pgid, uid, cwd, root, command, executable, elapsed_s, rss_kb, cpu_pct, cpu_time_s)\n    select value ->> 'pid', value ->> 'ppid', value ->> 'pgid', value ->> 'uid', value ->> 'cwd', value ->> 'root', value ->> 'command', value ->> 'executable', value ->> 'elapsed_s', value ->> 'rss_kb', value ->> 'cpu_pct', value ->> 'cpu_time_s' from json_each(:rows)": { params: ["rows"], encode: ["rows"], json: [], reads: [] },
   "insert or ignore into listeners (id, pid, address, port, cwd, root, command)\n    select value ->> 'id', value ->> 'pid', value ->> 'address', value ->> 'port', value ->> 'cwd', value ->> 'root', value ->> 'command' from json_each(:rows)": { params: ["rows"], encode: ["rows"], json: [], reads: [] },
-  "\n    select pid, ppid, executable, command, cwd, elapsed_s, rss_kb, cpu\n    from processes where root = :root order by elapsed_s desc": { params: ["root"], encode: [], json: [], reads: ["processes"] },
+  "\n    select pid, ppid, executable, command, cwd, elapsed_s, rss_kb, cpu_pct, cpu_time_s\n    from processes where root = :root order by elapsed_s desc": { params: ["root"], encode: [], json: [], reads: ["processes"] },
   "\n    select pid, address, port, cwd, root, command\n    from listeners order by port": { params: [], encode: [], json: [], reads: ["listeners"] },
-  "\n    with recursive process_descendants as (\n      select pid, ppid, command, executable, elapsed_s, cpu, root\n      from processes where ppid = cast(:q as integer)\n      union\n      select p.pid, p.ppid, p.command, p.executable, p.elapsed_s, p.cpu, p.root\n      from processes p join process_descendants d on p.ppid = d.pid\n    )\n    select d.pid, d.ppid, d.command, d.executable, d.elapsed_s, d.cpu, d.root\n    from process_descendants d order by d.pid": { params: ["q"], encode: [], json: [], reads: ["processes"] },
-  "\n    select pid, cpu, rss_kb, elapsed_s, root, command\n    from processes order by cpu desc, rss_kb desc": { params: [], encode: [], json: [], reads: ["processes"] },
+  "\n    with recursive process_descendants as (\n      select pid, ppid, command, executable, elapsed_s, cpu_pct, cpu_time_s, rss_kb, root\n      from processes where ppid = cast(:q as integer)\n      union\n      select p.pid, p.ppid, p.command, p.executable, p.elapsed_s, p.cpu_pct, p.cpu_time_s, p.rss_kb, p.root\n      from processes p join process_descendants d on p.ppid = d.pid\n    )\n    select d.pid, d.ppid, d.command, d.executable, d.elapsed_s, d.cpu_pct, d.cpu_time_s, d.rss_kb, d.root\n    from process_descendants d order by d.pid": { params: ["q"], encode: [], json: [], reads: ["processes"] },
 };

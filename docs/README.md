@@ -23,7 +23,7 @@ Each ADR describes one decision and its consequences.
 | [0014](adr/0014-sessions-are-observed-not-searched.md) | Sessions are observed, not searched. |
 | [0015](adr/0015-the-skill-is-the-usage-documentation.md) | The skill is the usage documentation, and the README is the door. |
 | [0016](adr/0016-github-is-observed-through-gh.md) | GitHub is observed through gh. |
-| [0017](adr/0017-processes-in-scope-only.md) | Processes in scope are observed through ps and lsof. |
+| [0017](adr/0017-processes-in-scope-only.md) | Processes in scope are observed through ps and lsof (the scope restriction is superseded by 0048). |
 | [0018](adr/0018-skills-are-read-from-the-filesystem.md) | Skills and plugins are read from agent files. |
 | [0019](adr/0019-beads-issues-are-read-per-repository.md) | Beads issues are read per repository. |
 | [0020](adr/0020-headsign-state-is-read-from-the-file.md) | Headsign state is read from the file. |
@@ -53,3 +53,4 @@ Each ADR describes one decision and its consequences.
 | [0045](adr/0045-ready-beads-issues-are-a-separate-read.md) | Ready beads issues are a separate read, and work lists default to every beads root. |
 | [0046](adr/0046-the-work-dashboard-is-one-section-list.md) | The work dashboard is one section list. |
 | [0047](adr/0047-the-work-dashboard-refreshes-on-the-watch-interval.md) | The work dashboard refreshes on the watch interval. |
+| [0048](adr/0048-processes-are-the-machines-and-panes-own-their-shells.md) | The process table is the machine's, and a pane owns its shell. |

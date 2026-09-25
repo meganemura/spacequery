@@ -6,6 +6,7 @@ import { catalog } from "../catalog.ts";
 import type { Exec, Loader, Scope } from "../core/loader.ts";
 import { runQuery } from "../core/run.ts";
 import { loaders } from "../spacequery.config.ts";
+import { herdrCommands } from "../providers/herdr/module.ts";
 import { sessionCommands } from "../providers/sessions/module.ts";
 import type { ClaudeSessionsId, CodexSessionsId, SessionsId } from "../providers/sessions/solarsql.generated.ts";
 import { fakeExec, fixtureAgentsWithLinkedWorktree, fixtureRepo, paneIds, paths, sessionIds } from "./fixture.ts";
@@ -133,9 +134,9 @@ function portExec(): Exec {
   const base = fakeExec();
   return async (command, args, cwd, options) => {
     if (command === "ps") {
-      assert.deepEqual(args, ["-axo", "pid,ppid,pgid,etime,rss,pcpu,command"]);
+      assert.deepEqual(args, ["-axo", "pid,ppid,pgid,uid,etime,time,rss,pcpu,command"]);
       return [
-        "201 1 201 03:04 100 0.1 /usr/local/bin/node server.js",
+        "201 1 201 501 03:04 0:01.00 100 0.1 /usr/local/bin/node server.js",
       ].join("\n");
     }
     if (command === "lsof" && args.join(" ") === `-a -d cwd -u ${process.getuid!()} -Fpn`) {
@@ -154,17 +155,45 @@ function processTreeExec(): Exec {
   const base = fakeExec();
   return async (command, args, cwd, options) => {
     if (command === "ps") {
-      assert.deepEqual(args, ["-axo", "pid,ppid,pgid,etime,rss,pcpu,command"]);
+      assert.deepEqual(args, ["-axo", "pid,ppid,pgid,uid,etime,time,rss,pcpu,command"]);
       return [
-        "101 100 100 00:10 100 5.0 /bin/first --watch",
-        "102 101 100 00:09 300 5.0 /bin/second child",
-        "103 102 100 00:08 200 1.0 /bin/third child",
-        "200 1 200 00:07 400 9.0 /bin/outside-chain",
+        "101 100 100 501 00:10 0:05.00 100 5.0 /bin/first --watch",
+        "102 101 100 501 00:09 0:04.50 300 5.0 /bin/second child",
+        "103 102 100 501 00:08 0:03.00 200 1.0 /bin/third child",
+        "200 1 200 501 00:07 0:02.00 400 9.0 /bin/outside-chain",
       ].join("\n");
     }
     if (command === "lsof" && args.join(" ") === `-a -d cwd -u ${process.getuid!()} -Fpn`) {
       assert.deepEqual(options, { exitCodes: [1] });
       return [101, 102, 103, 200].flatMap((pid) => [`p${pid}`, "fcwd", `n${paths.alpha}`]).join("\n");
+    }
+    if (command === "lsof" && args.join(" ") === `-a -nP -iTCP -sTCP:LISTEN -u ${process.getuid!()} -Fpn`) {
+      assert.deepEqual(options, { exitCodes: [1] });
+      return "";
+    }
+    return base(command, args, cwd, options);
+  };
+}
+
+// The pane's shell (pid 100) runs first --watch (101) as a child, second
+// child (102) as a grandchild, and third child (103) as a great-grandchild.
+// pid 200 has no ancestor in any pane.
+function paneOwnershipExec(): Exec {
+  const base = fakeExec();
+  return async (command, args, cwd, options) => {
+    if (command === "ps") {
+      assert.deepEqual(args, ["-axo", "pid,ppid,pgid,uid,etime,time,rss,pcpu,command"]);
+      return [
+        "100 1 100 501 00:11 0:06.00 150 6.0 /bin/zsh -i",
+        "101 100 100 501 00:10 0:05.00 100 5.0 /bin/first --watch",
+        "102 101 100 501 00:09 0:04.50 300 5.0 /bin/second child",
+        "103 102 100 501 00:08 0:03.00 200 1.0 /bin/third child",
+        "200 1 200 501 00:07 0:02.00 400 9.0 /bin/outside-chain",
+      ].join("\n");
+    }
+    if (command === "lsof" && args.join(" ") === `-a -d cwd -u ${process.getuid!()} -Fpn`) {
+      assert.deepEqual(options, { exitCodes: [1] });
+      return [100, 101, 102, 103, 200].flatMap((pid) => [`p${pid}`, "fcwd", `n${paths.alpha}`]).join("\n");
     }
     if (command === "lsof" && args.join(" ") === `-a -nP -iTCP -sTCP:LISTEN -u ${process.getuid!()} -Fpn`) {
       assert.deepEqual(options, { exitCodes: [1] });
@@ -584,17 +613,17 @@ test("agents-with-sessions uses the Claude or Codex model recorded for the pane"
 
 test("descendants returns the three-level process chain", async () => {
   assert.deepEqual((await query("descendants", undefined, { q: "100" }, processTreeExec())).rows, [
-    { pid: 101, ppid: 100, command: "/bin/first --watch", executable: "first", elapsed_s: 10, cpu: 5, root: paths.alpha },
-    { pid: 102, ppid: 101, command: "/bin/second child", executable: "second", elapsed_s: 9, cpu: 5, root: paths.alpha },
-    { pid: 103, ppid: 102, command: "/bin/third child", executable: "third", elapsed_s: 8, cpu: 1, root: paths.alpha },
+    { pid: 101, ppid: 100, command: "/bin/first --watch", executable: "first", elapsed_s: 10, cpu_pct: 5, cpu_time_s: 5, rss_kb: 100, root: paths.alpha },
+    { pid: 102, ppid: 101, command: "/bin/second child", executable: "second", elapsed_s: 9, cpu_pct: 5, cpu_time_s: 4.5, rss_kb: 300, root: paths.alpha },
+    { pid: 103, ppid: 102, command: "/bin/third child", executable: "third", elapsed_s: 8, cpu_pct: 1, cpu_time_s: 3, rss_kb: 200, root: paths.alpha },
   ]);
 });
 
 test("session-processes returns descendants for each live session", async () => {
   assert.deepEqual((await query("session-processes", undefined, {}, processTreeExec())).rows, [
-    { session_id: sessionIds.alphaWorking, agent: "claude", name: "session needle", session_pid: 100, pid: 101, command: "/bin/first --watch", elapsed_s: 10, cpu: 5, root: paths.alpha },
-    { session_id: sessionIds.alphaWorking, agent: "claude", name: "session needle", session_pid: 100, pid: 102, command: "/bin/second child", elapsed_s: 9, cpu: 5, root: paths.alpha },
-    { session_id: sessionIds.alphaWorking, agent: "claude", name: "session needle", session_pid: 100, pid: 103, command: "/bin/third child", elapsed_s: 8, cpu: 1, root: paths.alpha },
+    { session_id: sessionIds.alphaWorking, agent: "claude", name: "session needle", session_pid: 100, pid: 101, command: "/bin/first --watch", elapsed_s: 10, cpu_pct: 5, cpu_time_s: 5, rss_kb: 100, root: paths.alpha },
+    { session_id: sessionIds.alphaWorking, agent: "claude", name: "session needle", session_pid: 100, pid: 102, command: "/bin/second child", elapsed_s: 9, cpu_pct: 5, cpu_time_s: 4.5, rss_kb: 300, root: paths.alpha },
+    { session_id: sessionIds.alphaWorking, agent: "claude", name: "session needle", session_pid: 100, pid: 103, command: "/bin/third child", elapsed_s: 8, cpu_pct: 1, cpu_time_s: 3, rss_kb: 200, root: paths.alpha },
   ]);
 });
 
@@ -602,22 +631,118 @@ test("session-processes gives each session its own rows once when two sessions s
   const options = { loaders: sharedPidLoaders, exec: processTreeExec(), repo: fixtureRepo, env: {}, params: {} };
   const sessionRows = (await runQuery(catalog["session-processes"]!.query, options)).rows;
   assert.deepEqual(sessionRows, [
-    { session_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", agent: "claude", name: "session one", session_pid: 100, pid: 101, command: "/bin/first --watch", elapsed_s: 10, cpu: 5, root: paths.alpha },
-    { session_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", agent: "claude", name: "session one", session_pid: 100, pid: 102, command: "/bin/second child", elapsed_s: 9, cpu: 5, root: paths.alpha },
-    { session_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", agent: "claude", name: "session one", session_pid: 100, pid: 103, command: "/bin/third child", elapsed_s: 8, cpu: 1, root: paths.alpha },
-    { session_id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", agent: "claude", name: "session two", session_pid: 100, pid: 101, command: "/bin/first --watch", elapsed_s: 10, cpu: 5, root: paths.alpha },
-    { session_id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", agent: "claude", name: "session two", session_pid: 100, pid: 102, command: "/bin/second child", elapsed_s: 9, cpu: 5, root: paths.alpha },
-    { session_id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", agent: "claude", name: "session two", session_pid: 100, pid: 103, command: "/bin/third child", elapsed_s: 8, cpu: 1, root: paths.alpha },
+    { session_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", agent: "claude", name: "session one", session_pid: 100, pid: 101, command: "/bin/first --watch", elapsed_s: 10, cpu_pct: 5, cpu_time_s: 5, rss_kb: 100, root: paths.alpha },
+    { session_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", agent: "claude", name: "session one", session_pid: 100, pid: 102, command: "/bin/second child", elapsed_s: 9, cpu_pct: 5, cpu_time_s: 4.5, rss_kb: 300, root: paths.alpha },
+    { session_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", agent: "claude", name: "session one", session_pid: 100, pid: 103, command: "/bin/third child", elapsed_s: 8, cpu_pct: 1, cpu_time_s: 3, rss_kb: 200, root: paths.alpha },
+    { session_id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", agent: "claude", name: "session two", session_pid: 100, pid: 101, command: "/bin/first --watch", elapsed_s: 10, cpu_pct: 5, cpu_time_s: 5, rss_kb: 100, root: paths.alpha },
+    { session_id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", agent: "claude", name: "session two", session_pid: 100, pid: 102, command: "/bin/second child", elapsed_s: 9, cpu_pct: 5, cpu_time_s: 4.5, rss_kb: 300, root: paths.alpha },
+    { session_id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", agent: "claude", name: "session two", session_pid: 100, pid: 103, command: "/bin/third child", elapsed_s: 8, cpu_pct: 1, cpu_time_s: 3, rss_kb: 200, root: paths.alpha },
   ]);
   const descendantRows = (await runQuery(catalog["descendants"]!.query, { ...options, params: { q: "100" } })).rows;
   assert.equal(descendantRows.length, 3);
 });
 
-test("busy-processes orders CPU before resident memory", async () => {
-  assert.deepEqual((await query("busy-processes", undefined, {}, processTreeExec())).rows, [
-    { pid: 200, cpu: 9, rss_kb: 400, elapsed_s: 7, root: paths.alpha, command: "/bin/outside-chain" },
-    { pid: 102, cpu: 5, rss_kb: 300, elapsed_s: 9, root: paths.alpha, command: "/bin/second child" },
-    { pid: 101, cpu: 5, rss_kb: 100, elapsed_s: 10, root: paths.alpha, command: "/bin/first --watch" },
-    { pid: 103, cpu: 1, rss_kb: 200, elapsed_s: 8, root: paths.alpha, command: "/bin/third child" },
+function withPanes(rows: readonly { pane_id: string; workspace_id: string | null; workspace_label: string | null; tab_id: string | null; cwd: string; agent: string | null; title: string | null; shell_pid: number | null }[]): Loader {
+  return {
+    name: "herdr_panes",
+    tables: ["panes"],
+    after: [],
+    async load(ctx) {
+      const r = await ctx.db.run(herdrCommands.loadPanes, { rows: rows as never });
+      if (!r.ok) throw new Error(`panes: ${r.kind}`);
+    },
+  };
+}
+
+test("heavy-processes attributes a pane's shell (depth 0) and its grandchild to the pane, and leaves an unowned process with a null pane", async () => {
+  const panesLoader = withPanes([{ pane_id: "w1:p1", workspace_id: "w1", workspace_label: "alpha workspace", tab_id: "w1:t1", cwd: paths.alpha, agent: "claude", title: "alpha", shell_pid: 100 }]);
+  const rows = (await runQuery(catalog["heavy-processes"]!.query, {
+    loaders: [...loaders.map((item) => item.name === "herdr_panes" ? panesLoader : item)],
+    exec: paneOwnershipExec(),
+    repo: fixtureRepo,
+    env: {},
+    params: {},
+  })).rows;
+  const owned = new Map(rows.map((row) => [row.pid, row.pane_id]));
+  assert.equal(owned.get(100), "w1:p1"); // the shell itself, depth 0
+  assert.equal(owned.get(101), "w1:p1"); // its child
+  assert.equal(owned.get(102), "w1:p1"); // its grandchild
+  assert.equal(owned.get(103), "w1:p1"); // its great-grandchild
+  assert.equal(owned.get(200), null); // no ancestor in any pane
+  const shell = rows.find((row) => row.pid === 100);
+  assert.equal(shell?.workspace_label, "alpha workspace");
+  assert.equal(shell?.agent, "claude");
+  // pid 200 has the highest cpu_pct and rss_kb; pid 100 has the highest cpu_time_s.
+  assert.equal(rows.find((row) => row.pid === 200)?.cpu_rank, 1);
+  assert.equal(rows.find((row) => row.pid === 200)?.rss_rank, 1);
+  assert.equal(rows.find((row) => row.pid === 100)?.cpu_time_rank, 1);
+});
+
+test("heavy-processes rank filter drops a process outside every top 10", async () => {
+  const rankExec: Exec = async (command, args, cwd, options) => {
+    if (command === "ps") {
+      assert.deepEqual(args, ["-axo", "pid,ppid,pgid,uid,etime,time,rss,pcpu,command"]);
+      // 11 processes, cpu_pct, cpu_time_s, and rss_kb all decreasing together
+      // with pid: pid 1 ranks 1st on every measure, pid 11 ranks 11th on all three.
+      return Array.from({ length: 11 }, (_, index) => {
+        const pid = index + 1;
+        const level = 11 - pid;
+        return `${pid} 1 ${pid} 501 00:01 ${level}:00.00 ${100 + level * 100} ${level}.0 /bin/proc-${pid}`;
+      }).join("\n");
+    }
+    if (command === "lsof") return "";
+    return fakeExec()(command, args, cwd, options);
+  };
+  const rows = (await runQuery(catalog["heavy-processes"]!.query, {
+    loaders: [...loaders.map((item) => item.name === "herdr_panes" ? withPanes([]) : item)],
+    exec: rankExec,
+    repo: fixtureRepo,
+    env: {},
+    params: {},
+  })).rows;
+  assert.deepEqual(new Set(rows.map((row) => row.pid)), new Set([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]));
+});
+
+test("pane-load sums processes owned by a pane and reports zero for a pane with no observed process", async () => {
+  const panesLoader = withPanes([
+    { pane_id: "w1:p1", workspace_id: "w1", workspace_label: "alpha workspace", tab_id: "w1:t1", cwd: paths.alpha, agent: "claude", title: "alpha", shell_pid: 100 },
+    { pane_id: "w2:p1", workspace_id: "w2", workspace_label: "empty workspace", tab_id: "w2:t1", cwd: paths.beta, agent: null, title: "beta", shell_pid: 999 },
   ]);
+  const rows = (await runQuery(catalog["pane-load"]!.query, {
+    loaders: [...loaders.map((item) => item.name === "herdr_panes" ? panesLoader : item)],
+    exec: paneOwnershipExec(),
+    repo: fixtureRepo,
+    env: {},
+    params: {},
+  })).rows;
+  const alpha = rows.find((row) => row.pane_id === "w1:p1");
+  const empty = rows.find((row) => row.pane_id === "w2:p1");
+  assert.equal(alpha?.processes, 4);
+  assert.equal(alpha?.cpu_pct, 17);
+  assert.equal(alpha?.cpu_time_s, 18.5);
+  assert.equal(alpha?.rss_kb, 750);
+  assert.equal(empty?.processes, 0);
+  assert.equal(empty?.cpu_pct, 0);
+  assert.equal(empty?.cpu_time_s, 0);
+  assert.equal(empty?.rss_kb, 0);
+});
+
+test("long-running-without-agents skips a process the loader could not place in a repository", async () => {
+  const noRootExec: Exec = async (command, args, cwd, options) => {
+    if (command === "ps") {
+      assert.deepEqual(args, ["-axo", "pid,ppid,pgid,uid,etime,time,rss,pcpu,command"]);
+      return ["300 1 300 501 2-00:00:00 1:00:00.00 500 1.0 /bin/long-runner"].join("\n");
+    }
+    if (command === "lsof" && args.join(" ") === `-a -d cwd -u ${process.getuid!()} -Fpn`) {
+      assert.deepEqual(options, { exitCodes: [1] });
+      return "";
+    }
+    if (command === "lsof" && args.join(" ") === `-a -nP -iTCP -sTCP:LISTEN -u ${process.getuid!()} -Fpn`) {
+      assert.deepEqual(options, { exitCodes: [1] });
+      return "";
+    }
+    return fakeExec()(command, args, cwd, options);
+  };
+  const rows = (await query("long-running-without-agents", undefined, {}, noRootExec)).rows;
+  assert.deepEqual(rows, []);
 });

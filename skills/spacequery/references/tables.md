@@ -34,6 +34,21 @@ The tables describe the caller's PATH and do not change with `--scope`.
 | `workspace_id`, `tab_id` | text? | Where the pane sits. |
 | `title` | text? | The terminal title. |
 
+## `panes` (herdr_panes)
+
+| Column | Type | Meaning |
+| --- | --- | --- |
+| `pane_id` | text, key | herdr's pane id. |
+| `workspace_id` | text? | The workspace the pane sits in. |
+| `workspace_label` | text? | That workspace's label. |
+| `tab_id` | text? | The tab the pane sits in. |
+| `cwd` | text | The pane's working directory. |
+| `agent` | text? | The detected agent, when herdr reports one for this pane. |
+| `title` | text? | The terminal title. |
+| `shell_pid` | integer? | The pid of the shell process the pane owns, from `herdr pane process-info`. |
+
+A separate loader, `herdr_panes`, fills this table: `herdr api snapshot`, then one `herdr pane process-info` call per pane id from that snapshot, run concurrently. A query that reads only `agents` starts none of these calls. Every pane in the snapshot gets a row, including a pane with no agent.
+
 ## `sessions`, `claude_sessions`, and `codex_sessions`
 
 `sessions` is the supertype for data both sources share. Each subtype has one row for its matching parent and keeps source column names and values.
@@ -170,11 +185,11 @@ One search across GitHub for the pull requests that request the caller's review;
 
 ## `processes` and `listeners` (processes)
 
-`processes`: `pid` (key), `ppid`, `pgid`, `cwd`, `root`, `command`, `executable`, `elapsed_s`, `rss_kb`, `cpu`.
-It contains user processes whose cwd is inside a root in scope. `executable` is the basename of the first command field.
+`processes`: `pid` (key), `ppid`, `pgid`, `uid`, `cwd?`, `root?`, `command`, `executable`, `elapsed_s`, `rss_kb`, `cpu_pct`, `cpu_time_s`.
+It contains every process `ps` lists, for every user. `cwd` comes from `lsof`, for the user's own processes; `root` is the git toplevel of `cwd` (ADR 0003), looked up once per distinct cwd. `--scope` leaves this table unchanged. A process whose cwd `lsof` could not place, or that belongs to another user, keeps `cwd` and `root` null. `executable` is the basename of the first command field. `cpu_pct` is ps's `%cpu`. `cpu_time_s` is ps's `time`, the cumulative user and system seconds since the process started.
 
 `listeners`: `id` (key, `pid:address:port`), `pid`, `address`, `port`, `cwd?`, `root?`, `command?`.
-It contains every listening TCP socket of the user. A process can have rows for both IPv4 and IPv6 or for several ports. `root` is set when its cwd is inside a root in scope.
+It contains every listening TCP socket of the caller's own user. A process can have rows for both IPv4 and IPv6, or for several ports. `root` comes from the same cwd lookup as `processes.root`: the git toplevel of `cwd`, when `lsof` placed one.
 
 ## `containers`, `container_roots`, and `container_ports` (docker)
 
@@ -266,7 +281,7 @@ since the epoch.
 - Join on `root`. `agents.root` can be null; `sessions.root` too.
 - Exclude the caller with `(:me is null or a.pane_id <> :me)`; the CLI binds `:me`.
 - Give every expression column a `cast(... as integer | real | text)` when you want a stable type; SQLite does not require it for a user query.
-- Every table is read in full; there are no indexes, and a call holds at most a few hundred rows per table.
+- Every table is read in full; there are no indexes. Most tables hold at most a few hundred rows per call; `processes` can hold about a thousand, one row per process on the machine.
 
 ## `claude_usage` and `codex_usage`
 

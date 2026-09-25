@@ -61,7 +61,7 @@ test("the ship default short list is the visible curated queries", () => {
     assert.equal(cursorAgents?.enabled, true);
     assert.deepEqual(cursorAgents?.requires, ["cursor"]);
     const curated = Object.entries(catalog).filter(([, query]) => query.default).map(([name]) => name);
-    assert.equal(curated.length, 27);
+    assert.equal(curated.length, 29);
     assert.ok(curated.includes("issues"));
     assert.equal(reports.here.default, true);
     assert.equal(reports.work.default, true);
@@ -101,7 +101,7 @@ test("enabling an optional provider returns its curated queries, and calls fill 
     recordCall(env, "repos");
     const fresh = helpDocument({ userQueries: [], env, mode: "short", loaders, config: loadConfig({ ...env, XDG_CONFIG_HOME: join(root, "absent") }) });
     assert.equal(fresh.queries[0]?.name, "repos");
-    assert.equal(fresh.queries.length, 21);
+    assert.equal(fresh.queries.length, 23);
     const hidden = helpDocument({
       userQueries: [],
       env,

@@ -21,7 +21,7 @@ const claudeUsage = JSON.stringify({ is_error: false, local_command: "usage", nu
 function answeringExec(fail = new Set<string>()): Exec {
   return async (command, args) => {
     if (fail.has(command)) throw new Error(`spawn ${command} ENOENT`);
-    if (command === "herdr") return JSON.stringify({ result: { snapshot: { agents: [] } } });
+    if (command === "herdr") return JSON.stringify({ result: { snapshot: { agents: [], panes: [], workspaces: [] } } });
     if (command === "mise") return args[0] === "env" ? JSON.stringify({ PATH: "" }) : "{}";
     if (command === "gh") return "[]";
     if (command === "claude") return claudeUsage;

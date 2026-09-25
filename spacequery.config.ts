@@ -9,7 +9,7 @@ import { config } from "solarsql";
 import type { Loader } from "./core/loader.ts";
 import { loader as searchPathLoader } from "./providers/search-path/public.ts";
 import { loader as repoLoader } from "./providers/repos/public.ts";
-import { loader as herdrLoader } from "./providers/herdr/public.ts";
+import { loader as herdrLoader, panesLoader as herdrPanesLoader } from "./providers/herdr/public.ts";
 import { loader as gitLoader } from "./providers/git/public.ts";
 import { loader as miseLoader } from "./providers/mise/public.ts";
 import { loader as brewLoader } from "./providers/brew/public.ts";
@@ -27,7 +27,7 @@ import { loader as runtagLoader } from "./providers/runtag/public.ts";
 
 import { claudeUsageLoader, codexUsageLoader } from "./providers/usage/public.ts";
 
-export const loaders: readonly Loader[] = [claudeUsageLoader, codexUsageLoader, searchPathLoader, repoLoader, herdrLoader, githubLoader, githubReviewsLoader, miseLoader, brewLoader, repositoryVersionsLoader, repositoryConfigFilesLoader, beadsLoader, beadsReadyLoader, dockerLoader, sessionsLoader, cursorLoader, gitLoader, processesLoader, skillsLoader, headsignLoader, runtagLoader];
+export const loaders: readonly Loader[] = [claudeUsageLoader, codexUsageLoader, searchPathLoader, repoLoader, herdrLoader, herdrPanesLoader, githubLoader, githubReviewsLoader, miseLoader, brewLoader, repositoryVersionsLoader, repositoryConfigFilesLoader, beadsLoader, beadsReadyLoader, dockerLoader, sessionsLoader, cursorLoader, gitLoader, processesLoader, skillsLoader, headsignLoader, runtagLoader];
 
 export default config({
   modules: ["./providers/usage","./core/providers", "./providers/search-path", "./providers/repos", "./providers/herdr", "./providers/git", "./providers/mise", "./providers/brew", "./providers/repository-versions", "./providers/repository-config-files", "./providers/sessions", "./providers/cursor", "./providers/github", "./providers/docker", "./providers/processes", "./providers/skills", "./providers/beads", "./providers/headsign", "./providers/runtag", { dir: "./providers/report", readsAll: true }],

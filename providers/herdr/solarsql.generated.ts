@@ -5,10 +5,16 @@ import type { Id, Meta } from "solarsql";
 
 // The id of a row of agents.
 export type AgentsId = Id<"agents">;
+// The id of a row of panes.
+export type PanesId = Id<"panes">;
 
 export type Generated = {
   "insert into agents (pane_id, session_id, name, agent, agent_status, focused, cwd, foreground_cwd, root, workspace_id, tab_id, title)\n       select value ->> 'pane_id', value ->> 'session_id', value ->> 'name', value ->> 'agent', value ->> 'agent_status', value ->> 'focused',\n              value ->> 'cwd', value ->> 'foreground_cwd', value ->> 'root', value ->> 'workspace_id', value ->> 'tab_id', value ->> 'title'\n       from json_each(:rows)": {
     params: { rows: readonly { "pane_id": AgentsId; "session_id": string | null; "name": string | null; "agent": string; "agent_status": string; "focused": number; "cwd": string; "foreground_cwd": string | null; "root": string | null; "workspace_id": string | null; "tab_id": string | null; "title": string | null }[] };
+    row: {};
+  };
+  "insert into panes (pane_id, workspace_id, workspace_label, tab_id, cwd, agent, title, shell_pid)\n       select value ->> 'pane_id', value ->> 'workspace_id', value ->> 'workspace_label', value ->> 'tab_id',\n              value ->> 'cwd', value ->> 'agent', value ->> 'title', value ->> 'shell_pid'\n       from json_each(:rows)": {
+    params: { rows: readonly { "pane_id": PanesId; "workspace_id": string | null; "workspace_label": string | null; "tab_id": string | null; "cwd": string; "agent": string | null; "title": string | null; "shell_pid": number | null }[] };
     row: {};
   };
   "\n    select pane_id, name, agent, agent_status, cwd, root, workspace_id, title\n    from agents where (:me is null or pane_id <> :me) order by pane_id": {
@@ -43,6 +49,7 @@ export type Generated = {
 
 export const generated: Meta<Generated> = {
   "insert into agents (pane_id, session_id, name, agent, agent_status, focused, cwd, foreground_cwd, root, workspace_id, tab_id, title)\n       select value ->> 'pane_id', value ->> 'session_id', value ->> 'name', value ->> 'agent', value ->> 'agent_status', value ->> 'focused',\n              value ->> 'cwd', value ->> 'foreground_cwd', value ->> 'root', value ->> 'workspace_id', value ->> 'tab_id', value ->> 'title'\n       from json_each(:rows)": { params: ["rows"], encode: ["rows"], json: [], reads: [] },
+  "insert into panes (pane_id, workspace_id, workspace_label, tab_id, cwd, agent, title, shell_pid)\n       select value ->> 'pane_id', value ->> 'workspace_id', value ->> 'workspace_label', value ->> 'tab_id',\n              value ->> 'cwd', value ->> 'agent', value ->> 'title', value ->> 'shell_pid'\n       from json_each(:rows)": { params: ["rows"], encode: ["rows"], json: [], reads: [] },
   "\n    select pane_id, name, agent, agent_status, cwd, root, workspace_id, title\n    from agents where (:me is null or pane_id <> :me) order by pane_id": { params: ["me"], encode: [], json: [], reads: ["agents"] },
   "\n    select pane_id, name, agent, agent_status, cwd, title\n    from agents where root = :root and (:me is null or pane_id <> :me) order by pane_id": { params: ["root", "me"], encode: [], json: [], reads: ["agents"] },
   "\n    select pane_id, name, agent, agent_status, root, cwd, title\n    from agents where agent_status = 'working' and (:me is null or pane_id <> :me) order by pane_id": { params: ["me"], encode: [], json: [], reads: ["agents"] },

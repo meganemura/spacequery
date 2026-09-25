@@ -2,7 +2,7 @@
 
 Date: 2026-09-10
 
-Status: accepted
+Status: accepted; the scope-only process table is superseded by [0048](0048-processes-are-the-machines-and-panes-own-their-shells.md)
 
 ## Context
 
