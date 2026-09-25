@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import * as hegel from "@hegeldev/hegel";
 import * as gs from "@hegeldev/hegel/generators";
+import { PrepareError } from "../core/resolve.ts";
 import { runSql } from "../core/run.ts";
 import { loaders } from "../spacequery.config.ts";
 import { fakeExec, fixtureRepo, paths } from "./fixture.ts";
@@ -104,3 +105,26 @@ test("SQL reports each omitted named parameter", () => hegel.testAsync(async (tc
     (error: unknown) => error instanceof Error && error.message.includes(`missing parameter: ${missing}`),
   );
 }));
+
+test("a comparison a declared type makes impossible carries a warning, not a failure", async () => {
+  const result = await runSql("select count(*) from panes where shell_pid = 'x'", { loaders: [], params: {} });
+  assert.deepEqual(result.warnings, ["panes.shell_pid is integer; 'x' can never equal it"]);
+  assert.deepEqual(result.rows, [{ "count(*)": 0 }]);
+});
+
+test("a typed named-query path stays free of warnings", async () => {
+  const result = await runSql("select pid from processes limit 0", { loaders: [], params: {} });
+  assert.deepEqual(result.warnings, []);
+});
+
+test("a statement that does not prepare throws a PrepareError with the fix", async () => {
+  await assert.rejects(
+    runSql("select pid, cpu from processes", { loaders: [], params: {} }),
+    (error: unknown) => {
+      assert.ok(error instanceof PrepareError);
+      assert.equal(error.message, "no such column: cpu");
+      assert.match(error.hint ?? "", /did you mean cpu_pct\? \(processes\)/);
+      return true;
+    },
+  );
+});

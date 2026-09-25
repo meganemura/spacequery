@@ -33,11 +33,13 @@ JSON is the default output, and this example uses `--trace`:
 | `row_count` | The number of returned rows, after SQL filtering and limits. Zero for an empty result. |
 | `rows` | The rows, in the order the query defines. |
 | `providers` | One row per provider this call ran: `source` is `built-in` or `user`, `ok` is 1 or 0, `observed_at` is milliseconds since the epoch, `ms` is its duration, and `error` is its failure message. |
+| `warnings` | Present only when non-empty. One text per comparison in `--sql` or a user query file that the schema makes impossible to ever match: the wrong type, a value outside a CHECK enum, or a comparison with `null` using `=` or `<>`. The rows still ran; a warning does not remove any. |
 
 A provider that failed leaves its tables empty, so a join through them gives no rows.
 Treat empty `rows` next to a failed provider as "unknown", not as "none".
 A provider the query does not read is absent from `providers`.
 The exact provider names are listed in [providers.md](providers.md).
+A named query is typed by the build and never carries `warnings`; only `--sql` and a user query file do.
 
 A report has a report envelope instead of `query` and `rows`:
 
@@ -197,6 +199,9 @@ When `runtag` is enabled, a missing jobs directory is `ok` 1. An unreadable jobs
   ],
   "path": { "entries": 12, "missing": 3, "duplicates": 1 },
   "user_providers": { "directory": "/home/u/.config/spacequery/providers", "present": 0, "error": null },
+  "user_queries": [
+    { "name": "long-running", "path": "/home/u/.config/spacequery/queries/long-running.sql", "ok": 0, "error": "no such column: cpu", "hint": "  did you mean cpu_pct? (processes)\n  ..." }
+  ],
   "disabled_providers": ["beads", "beads_ready", "brew", "headsign", "runtag"],
   "config": "/home/u/.config/spacequery/config.json"
 }
@@ -205,7 +210,7 @@ When `runtag` is enabled, a missing jobs directory is `ok` 1. An unreadable jobs
 | Field | Meaning |
 | --- | --- |
 | `command` | Always `doctor`. |
-| `ok` | 1 when every enabled built-in provider answered and the user-provider directory had no error. 0 otherwise. A missing user-provider directory does not clear this bit. A provider that is off does not clear it. |
+| `ok` | 1 when every enabled built-in provider answered, the user-provider directory had no error, and every user query file still prepares. 0 otherwise. A missing user-provider directory does not clear this bit. A provider that is off does not clear it. |
 | `version` | The spacequery package version. |
 | `package` | The directory that contains `package.json` for this command. |
 | `root` | The one repository doctor observed. |
@@ -214,6 +219,7 @@ When `runtag` is enabled, a missing jobs directory is `ok` 1. An unreadable jobs
 | `providers` | One row per enabled built-in provider, the same fields as a query envelope, ordered by name. |
 | `path` | PATH entry, missing-entry, and duplicate-entry counts when `search_path` answered. Null when it did not. These are the facts `path-entries` stores. |
 | `user_providers` | `directory` is `$XDG_CONFIG_HOME/spacequery/providers` (or `~/.config/spacequery/providers`). `present` is 1 when that path is a directory. `error` explains a path that is not a directory or cannot be listed. Absence is `present` 0 and `error` null. |
+| `user_queries` | One row per user query file: `name`, `path`, `ok` (1 when it still prepares), `error` (SQLite's message, or null), and `hint` (the fix from [Errors that name the fix](#errors-that-name-the-fix), or null). Doctor prepares each file the same way a call would, including user-provider tables; it does not run the query. |
 | `disabled_providers` | Built-in provider names that are off for lists and for doctor. Sorted. |
 | `config` | The path of `config.json`, whether or not the file exists. |
 | `trace` | With `--trace`, the same child-process rows as a query. |
@@ -227,6 +233,35 @@ Both of those print this object and no stack:
 ```
 
 `do` is the command to run next.
+
+## Errors that name the fix
+
+`--sql` and a user query file are typed by nothing until they prepare. A wrong name fails there, in about 0.1 seconds, before any loader runs. The message on standard error carries the fix, indented under SQLite's own line:
+
+```
+spacequery: no such column: cpu
+  did you mean cpu_pct? (processes)
+  columns of processes: pid integer, ppid integer, ..., cwd text?, cpu_pct real, cpu_time_s real
+  try: select pid, cpu_pct from processes limit 1
+```
+
+Every table's columns show their declared type, `?` for a nullable column, and the allowed values of a CHECK enum (`status text in ('observed', 'skipped')`).
+A `try:` line is a corrected statement spacequery has already confirmed prepares; it is never run for you. It appears only when the fix is certain: one name is closest, or the substitution has no other reading.
+A column that exists in a table the statement does not name gets `X is in T2, not T1; T2 joins T1 on <key>`, with a `try:` that adds the join, for a plain `select ... from T1 [where ...]`.
+A column reached through the wrong alias gets the alias that has it instead.
+Also covered: a double-quoted value (SQLite reads it as an identifier; use single quotes), `ambiguous column name`, `misuse of aggregate function`, `no such function` (with close names), `no such table` (with close tables), a syntax error (a caret under the rejected token, with a fix for a trailing comma or a reserved word used as a name), and `incomplete input` (the clause the statement ends inside).
+A hint that lists no table ends with the command that lists a table's columns: `spacequery --sql "select name, type from pragma_table_info('<table>')"`.
+An error this list does not cover still prints SQLite's own message and the columns of the tables the statement names.
+Exit code stays 1.
+
+A statement that prepares can still hold a comparison the schema makes impossible to ever match: the wrong type, a value outside a CHECK enum, or `= null`/`<> null` (always unknown regardless of nullability), or `is null` against a column declared `not null`. spacequery warns on standard error and keeps running; `--json` also lists it under `warnings`:
+
+```
+spacequery: warning: panes.shell_pid is integer; 'x' can never equal it
+```
+
+This is a heuristic reading of the statement's tokens, not the query planner: it resolves a bare column only when exactly one table read by the statement has that name, and a qualified column only through an alias its own `from`/`join` clause declares. A column it cannot resolve to exactly one table stays silent rather than guessed at.
+`spacequery doctor` runs the same prepare check, and the same hint, against every user query file; see `user_queries` above.
 
 ## Flags
 
@@ -258,7 +293,7 @@ spacequery records call counts in `$XDG_STATE_HOME/spacequery/calls.jsonl`, or `
 | Code | Meaning |
 | --- | --- |
 | 0 | The query ran, doctor printed a report, or `--until` matched on a complete observation. A failed provider does not change the code of a one-shot query or of doctor; read `providers`, or doctor's `ok`. |
-| 1 | The statement did not run: a missing parameter, a statement that does not prepare. Doctor uses this when it fails before a report and prints `{error, do}`. A query message is one line on standard error. |
+| 1 | The statement did not run: a missing parameter, a statement that does not prepare. Doctor uses this when it fails before a report and prints `{error, do}`. A query message is one line on standard error, followed by the hint lines from [Errors that name the fix](#errors-that-name-the-fix). |
 | 2 | Usage: an unknown query name, a bad `--scope`, no query given, `watch` without `--until`, a watch flag on a one-shot command, or a flag doctor does not take. Doctor prints `{error, do}`. |
 | 3 | `--expect-empty` and the query returned rows. On watch, the matching snapshot returned rows. |
 | 4 | `--strict` and a provider did not answer. |

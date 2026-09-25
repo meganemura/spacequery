@@ -97,6 +97,7 @@ test("report JSON exposes section_status in the CLI envelope", () => {
     scope: "root",
     me: null,
     params: { root: "/workspace/example" },
+    warnings: [],
   };
 
   const envelope = reportJson("here", result);

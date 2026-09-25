@@ -151,6 +151,39 @@ test("doctor treats a missing runtag jobs directory as answered and an unreadabl
   }
 });
 
+test("doctor reports a broken user query file and clears ok", async () => {
+  const machine = fixture();
+  try {
+    const queries = join(machine.env.XDG_CONFIG_HOME!, "spacequery", "queries");
+    mkdirSync(queries, { recursive: true });
+    writeFileSync(join(queries, "broken.sql"), "select pid, cpu from processes\n");
+    const report = await runDoctor({ loaders, root: machine.root, env: machine.env, exec: answeringExec(), repo });
+    assert.equal(report.ok, 0);
+    assert.equal(report.user_queries.length, 1);
+    const broken = report.user_queries[0]!;
+    assert.equal(broken.name, "broken");
+    assert.equal(broken.ok, 0);
+    assert.equal(broken.error, "no such column: cpu");
+    assert.match(broken.hint ?? "", /did you mean cpu_pct\?/);
+  } finally {
+    machine.cleanup();
+  }
+});
+
+test("doctor reports a good user query file as ok", async () => {
+  const machine = fixture();
+  try {
+    const queries = join(machine.env.XDG_CONFIG_HOME!, "spacequery", "queries");
+    mkdirSync(queries, { recursive: true });
+    writeFileSync(join(queries, "good.sql"), "select pid from processes\n");
+    const report = await runDoctor({ loaders, root: machine.root, env: machine.env, exec: answeringExec(), repo });
+    assert.equal(report.ok, 1);
+    assert.deepEqual(report.user_queries, [{ name: "good", path: join(queries, "good.sql"), ok: 1, error: null, hint: null }]);
+  } finally {
+    machine.cleanup();
+  }
+});
+
 test("doctor help and a refused flag do not observe providers", async () => {
   const help = await execFileAsync(process.execPath, ["cli.ts", "doctor", "--help"], { cwd: process.cwd(), encoding: "utf8" });
   assert.match(help.stdout, /spacequery doctor/);

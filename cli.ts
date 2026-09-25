@@ -20,6 +20,7 @@ import { loadConfig, unknownProviderWarnings, type HelpMode } from "./core/confi
 import { doctorGuidance, runDoctor, type DoctorGuidance } from "./core/doctor.ts";
 import { helpDocument, helpFooter, helpLines } from "./core/help.ts";
 import type { Scope } from "./core/loader.ts";
+import { PrepareError } from "./core/resolve.ts";
 import { runQuery, runReport, runSql, type ProviderRow, type ReportResult, type RunResult, type TraceRow } from "./core/run.ts";
 import { defaultWatchIntervalMs, defaultWatchTimeoutSec, parseUntil, parseWatchTiming, watchUntil, type WatchStop } from "./core/watch.ts";
 import { fsRepo } from "./core/repo.ts";
@@ -96,6 +97,7 @@ function usage(userQueries: readonly UserQuery[], userProviders: readonly UserPr
     "",
     "doctor reports whether each enabled built-in provider answered, for one root. It does not install tools or change a provider.",
     "Before you treat empty rows as none, run doctor when a provider looks incomplete.",
+    "doctor also prepares every user query file and lists each one in user_queries; a file that no longer prepares clears ok.",
     "JSON is the doctor output. --json selects that same document. When doctor cannot run, the output is {error, do}.",
   ].join("\n");
 }
@@ -184,6 +186,20 @@ function warn(providers: ProviderRow[]): void {
   for (const p of providers) if (!p.ok) process.stderr.write(`spacequery: provider ${p.name} failed: ${p.error}\n`);
 }
 
+// A comparison the schema makes impossible to ever match. Each text is
+// printed once per process even under watch, where the same ad hoc SQL
+// would otherwise repeat the same warning on every tick. A warning already
+// names the table, the column, and the values it takes, so no columns line
+// follows it.
+const warnedNeverMatch = new Set<string>();
+function warnNeverMatch(warnings: readonly string[]): void {
+  for (const text of warnings) {
+    if (warnedNeverMatch.has(text)) continue;
+    warnedNeverMatch.add(text);
+    process.stderr.write(`spacequery: warning: ${text}\n`);
+  }
+}
+
 function callJson(result: Pick<RunResult<unknown>, "ms" | "trace">, includeTrace: boolean): Record<string, unknown> {
   return { ms: result.ms, ...(includeTrace ? { trace: result.trace } : {}) };
 }
@@ -198,6 +214,7 @@ export function queryJson(name: string, result: RunResult<Record<string, unknown
     row_count: result.rows.length,
     rows: result.rows,
     providers: result.providers,
+    ...(result.warnings.length > 0 ? { warnings: result.warnings } : {}),
   };
 }
 
@@ -431,6 +448,7 @@ function doctorUsage(): string {
     "JSON is the output. --json selects that same document.",
     "--root defaults to the git toplevel of the current directory.",
     "A missing user-provider directory is present 0. Doctor does not run user-provider commands and does not install tools.",
+    "user_queries lists each user query file with ok, error, and hint; a file that no longer prepares clears ok. Doctor does not run the query.",
     "When doctor cannot run, the output is {error, do}.",
   ].join("\n");
 }
@@ -526,6 +544,7 @@ function printQuery(name: string, result: RunResult<Record<string, unknown>>, as
     console.log(JSON.stringify(queryJson(name, result, includeTrace), null, 2));
   }
   warn(result.providers);
+  warnNeverMatch(result.warnings);
 }
 
 // One call-log line per watch. A line per tick would crowd --help with the
@@ -665,8 +684,10 @@ if (isMainModule(process.argv[1])) {
     process.exitCode = await main(process.argv.slice(2));
   } catch (e) {
     // A statement that does not prepare, or a parameter with no flag. The
-    // message is the whole story; a stack would point into the core.
-    process.stderr.write(`spacequery: ${e instanceof Error ? e.message : String(e)}\n`);
+    // message is the whole story; a stack would point into the core. A
+    // prepare failure of ad hoc SQL also carries the fix, on its own lines.
+    const hint = e instanceof PrepareError && e.hint !== undefined ? `\n${e.hint}` : "";
+    process.stderr.write(`spacequery: ${e instanceof Error ? e.message : String(e)}${hint}\n`);
     process.exitCode = 1;
   }
 }

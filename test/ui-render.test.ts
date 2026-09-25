@@ -14,7 +14,7 @@ import type { Inputs, Observation, observe } from "../ui/execute.ts";
 const query: Item = { kind: "query", name: "sample", source: "user", description: "Sample rows", sql: "select :search as value", params: ["search"], tables: ["sample_rows"], columns: [{ name: "value", type: "TEXT", nullable: false, key: false }] };
 const table: Item = { ...query, kind: "table", name: "sample_rows", params: [] };
 const initial: Inputs = { root: "/workspace", scope: "auto", params: {} };
-const observation: Observation = { rows: [{ value: "a long value", nullable: null }], providers: [{ name: "sample", source: "user", ok: 0, observed_at: 1000, ms: 2, error: "Fixture failure" }], scope: "root", params: {}, me: null, trace: [], ms: 2, receivedAt: 1000 };
+const observation: Observation = { rows: [{ value: "a long value", nullable: null }], providers: [{ name: "sample", source: "user", ok: 0, observed_at: 1000, ms: 2, error: "Fixture failure" }], scope: "root", params: {}, me: null, trace: [], ms: 2, receivedAt: 1000, warnings: [] };
 
 async function screen(items: Item[], execute: typeof observe, height = 24, mouse = true, width = 100, providers?: readonly ProviderToggle[], onToggleProvider?: (name: string, enabled: boolean) => void) {
   let frame = "";

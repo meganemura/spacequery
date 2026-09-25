@@ -5,13 +5,17 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import { diagnosePrepareError } from "./diagnose.ts";
 import type { Exec, Loader } from "./loader.ts";
 import type { Repo } from "./repo.ts";
 import { disabledProviderNames, isProviderEnabled, loadConfig } from "./config.ts";
-import { observeProviders, type PathHealth, type ProviderRow, type TraceRow } from "./run.ts";
-import { userProvidersDirectory } from "./user-providers.ts";
+import { observeProviders, openObservationDatabase, type PathHealth, type ProviderRow, type TraceRow } from "./run.ts";
+import { loadUserProviders, userProvidersDirectory } from "./user-providers.ts";
+import { loadUserQueries, type UserQuery } from "./user-queries.ts";
 
 export type UserProviderDirectory = { directory: string; present: 0 | 1; error: string | null };
+
+export type UserQueryStatus = { name: string; path: string; ok: 0 | 1; error: string | null; hint: string | null };
 
 export type DoctorReport = {
   command: "doctor";
@@ -24,6 +28,7 @@ export type DoctorReport = {
   providers: ProviderRow[];
   path: PathHealth | null;
   user_providers: UserProviderDirectory;
+  user_queries: UserQueryStatus[];
   disabled_providers: string[];
   config: string;
   trace?: TraceRow[];
@@ -83,7 +88,10 @@ export async function runDoctor(options: DoctorOptions): Promise<DoctorReport> {
     exec: options.exec,
     repo: options.repo,
   });
-  const answered = observed.providers.every((provider) => provider.ok === 1) && user_providers.error === null;
+  const user_queries = checkUserQueries(env, options.loaders);
+  const answered = observed.providers.every((provider) => provider.ok === 1)
+    && user_providers.error === null
+    && user_queries.every((query) => query.ok === 1);
   return {
     command: "doctor",
     ok: answered ? 1 : 0,
@@ -95,10 +103,34 @@ export async function runDoctor(options: DoctorOptions): Promise<DoctorReport> {
     providers: observed.providers,
     path: observed.path,
     user_providers,
+    user_queries,
     disabled_providers: disabledProviderNames(options.loaders.map((loader) => loader.name), preferences),
     config: preferences.path,
     ...(options.trace ? { trace: observed.trace } : {}),
   };
+}
+
+// A user query file is typed by nothing until it runs. Doctor prepares it
+// on the same empty schema a call would, so a table or column rename that
+// breaks the file surfaces here instead of the next time someone calls it.
+function checkUserQueries(env: Readonly<Record<string, string | undefined>>, builtInLoaders: readonly Loader[]): UserQueryStatus[] {
+  const userProviders = loadUserProviders(env, builtInLoaders);
+  const queries: UserQuery[] = loadUserQueries(env);
+  if (queries.length === 0) return [];
+  const raw = openObservationDatabase(userProviders);
+  try {
+    return queries.map((query) => {
+      try {
+        raw.prepare(query.sql);
+        return { name: query.name, path: query.path, ok: 1, error: null, hint: null };
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        return { name: query.name, path: query.path, ok: 0, error: message, hint: diagnosePrepareError(raw, query.sql, message) ?? null };
+      }
+    });
+  } finally {
+    raw.close();
+  }
 }
 
 function packageIdentity(): { version: string; package: string } {

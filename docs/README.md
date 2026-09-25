@@ -55,3 +55,4 @@ Each ADR describes one decision and its consequences.
 | [0047](adr/0047-the-work-dashboard-refreshes-on-the-watch-interval.md) | The work dashboard refreshes on the watch interval. |
 | [0048](adr/0048-processes-are-the-machines-and-panes-own-their-shells.md) | The process table is the machine's, and a pane owns its shell. |
 | [0049](adr/0049-codex-skills-are-read-from-agents-directories.md) | Codex skills are read from `.agents/skills` directories too. |
+| [0050](adr/0050-ad-hoc-sql-errors-name-the-fix.md) | Ad hoc SQL errors name the fix. |

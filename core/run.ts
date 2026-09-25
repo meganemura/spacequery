@@ -13,6 +13,7 @@ import { migrations } from "../migrations/index.ts";
 import { providerCommands, providerQueries, type ProvidersId } from "./providers/public.ts";
 import type { Exec, LoadContext, Loader, Scope } from "./loader.ts";
 import { fsRepo, type Repo } from "./repo.ts";
+import { neverMatchWarnings } from "./diagnose.ts";
 import { directLoadersFor, loadersFor, tablesRead } from "./resolve.ts";
 import { givenCommandPath, resolveCommandName } from "./search-path.ts";
 import type { UserProvider } from "./user-providers.ts";
@@ -90,6 +91,9 @@ export type RunResult<R> = {
   me: string | null;
   // The values bound to the statement. They identify an empty observation.
   params: Record<string, unknown>;
+  // A comparison the schema makes impossible to ever match. Named queries
+  // are typed by the build, so this is empty outside ad hoc SQL.
+  warnings: readonly string[];
 };
 
 export type ReportSection = readonly [name: string, query: Query<string, Entry>];
@@ -109,6 +113,7 @@ export type ReportResult = {
   scope: Scope;
   me: string | null;
   params: Record<string, unknown>;
+  warnings: readonly string[];
 };
 
 // A named query from a catalog.
@@ -125,7 +130,10 @@ export function sqlParameterNames(sql: string): string[] {
 // Ad hoc SQL. Parameters bind by the names the statement uses.
 export async function runSql(sql: string, options: RunOptions): Promise<RunResult<Record<string, unknown>>> {
   const names = sqlParameterNames(sql);
-  const state = await prepare((raw) => tablesRead(raw, sql), names, options);
+  const state = await prepare((raw) => {
+    const tables = tablesRead(raw, sql);
+    return { tables, warnings: neverMatchWarnings(raw, sql, tables) };
+  }, names, options);
   const statement = state.raw.prepare(sql);
   const bound = Object.fromEntries(names.map((name) => [name, state.params[name] ?? null]));
   const rows = statement.all(bound as Record<string, never>).map((row) => ({ ...row })) as Record<string, unknown>[];
@@ -173,17 +181,28 @@ type RunState = {
   scope: Scope;
   me: string | null;
   params: Record<string, unknown>;
+  warnings: readonly string[];
 };
 
-async function prepare(tables: readonly string[] | ((raw: DatabaseSync) => readonly string[]), paramNames: readonly string[], options: RunOptions): Promise<RunState> {
-  const started = performance.now();
+// The empty database a call prepares a statement against: the built-in
+// schema, plus any user-provider tables. Doctor uses this same schema to
+// check that a user query file still prepares, without loading a provider.
+export function openObservationDatabase(userProviders: readonly UserProvider[]): DatabaseSync {
   const raw = new DatabaseSync(":memory:");
   migrate(raw, migrations);
-  const userProviders = options.userProviders ?? [];
-  const userProviderSet = new Set<Loader>(userProviders);
   for (const provider of userProviders) {
     for (const table of provider.tableDeclarations) raw.exec(table.sql);
   }
+  return raw;
+}
+
+type TablesResolution = { tables: readonly string[]; warnings: readonly string[] };
+
+async function prepare(tables: readonly string[] | ((raw: DatabaseSync) => TablesResolution), paramNames: readonly string[], options: RunOptions): Promise<RunState> {
+  const started = performance.now();
+  const userProviders = options.userProviders ?? [];
+  const raw = openObservationDatabase(userProviders);
+  const userProviderSet = new Set<Loader>(userProviders);
   const db = node(raw);
   const root = options.params?.["root"];
   const scope = options.scope ?? (typeof root === "string" && paramNames.includes("root") ? "root" : "agents");
@@ -232,7 +251,8 @@ async function prepare(tables: readonly string[] | ((raw: DatabaseSync) => reado
     env,
     repo: options.repo ?? fsRepo,
   };
-  const needed = loadersFor([...options.loaders, ...userProviders], typeof tables === "function" ? tables(raw) : tables, scope);
+  const resolved: TablesResolution = typeof tables === "function" ? tables(raw) : { tables, warnings: [] };
+  const needed = loadersFor([...options.loaders, ...userProviders], resolved.tables, scope);
   // Independent loaders overlap. A loader still waits for the loaders whose
   // tables it reads, including one that failed and left those tables empty.
   // Writes share this connection: each solarsql command is one synchronous
@@ -259,7 +279,7 @@ async function prepare(tables: readonly string[] | ((raw: DatabaseSync) => reado
     if (params[name] === undefined) throw new Error(`missing parameter: ${name}`);
     bound[name] = params[name];
   }
-  return { raw, db, providers: await db.all(providerQueries.all), started, trace, scope, me, params: bound };
+  return { raw, db, providers: await db.all(providerQueries.all), started, trace, scope, me, params: bound, warnings: resolved.warnings };
 }
 
 export type PathHealth = { entries: number; missing: number; duplicates: number };
@@ -303,6 +323,7 @@ function resultMetadata(state: RunState, statementEnded: number): Omit<RunResult
     scope: state.scope,
     me: state.me,
     params: state.params,
+    warnings: state.warnings,
   };
 }
 

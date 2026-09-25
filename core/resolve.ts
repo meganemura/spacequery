@@ -4,9 +4,26 @@
 // solarsql uses the same probe for its boundary check, and it costs microseconds.
 // Boundary: reading the statement only. run.ts orders and runs the loaders.
 import { constants, type DatabaseSync } from "node:sqlite";
+import { diagnosePrepareError } from "./diagnose.ts";
 import type { Loader, Scope } from "./loader.ts";
 
-// The tables a statement reads, by name, as the engine sees them.
+// A prepare failure carries the fix as `hint`, kept apart from `message` so
+// a caller that prints its own message (doctor's `user_queries` rows) does
+// not have to split the two back out of a merged string. diagnose.ts always
+// has something to say, even for an error it has no rule for.
+export class PrepareError extends Error {
+  readonly hint: string;
+  constructor(message: string, hint: string) {
+    super(message);
+    this.name = "PrepareError";
+    this.hint = hint;
+  }
+}
+
+// The tables a statement reads, by name, as the engine sees them. On a
+// prepare failure, `raw` already has the schema this call's statement was
+// checked against (migrations, plus any user-provider tables), so the
+// diagnosis is run there rather than on a second, unrelated database.
 export function tablesRead(raw: DatabaseSync, sql: string): string[] {
   const out = new Set<string>();
   raw.setAuthorizer((code: number, table: string | null) => {
@@ -15,6 +32,9 @@ export function tablesRead(raw: DatabaseSync, sql: string): string[] {
   });
   try {
     raw.prepare(sql);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new PrepareError(message, diagnosePrepareError(raw, sql, message));
   } finally {
     raw.setAuthorizer(null);
   }
