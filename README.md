@@ -1,6 +1,6 @@
 # 🪐 spacequery
 
-[![npm version](https://img.shields.io/npm/v/spacequery)](https://www.npmjs.com/package/spacequery)
+[![npm version](https://img.shields.io/npm/v/spacequery?logo=npm)](https://www.npmjs.com/package/spacequery)
 
 spacequery gives a coding agent one current view of a developer's machine.
 An agent can already call git, GitHub, process tools, terminal sessions, and worktree tools.
