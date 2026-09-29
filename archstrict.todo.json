@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "modules": {
+    "catalog.ts": [
+      {"rule":"cycle","path":"catalog.ts","evidence":"catalog.ts -> providers -> core -> catalog.ts"}
+    ],
+    "providers": [
+      {"rule":"type-leak","path":"providers/repository-versions/public.ts","evidence":"'Row', declared in 'providers/repository-versions/loader.ts', is never exported by name from module 'providers' - referenced by 'WorkspaceDiscovery', 'workspacePatterns'"},
+      {"rule":"type-leak","path":"providers/repository-versions/public.ts","evidence":"'Status', declared in 'providers/repository-versions/loader.ts', is never exported by name from module 'providers' - referenced by 'WorkspaceDiscovery'"}
+    ]
+  }
+}

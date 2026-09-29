@@ -31,3 +31,14 @@ If you want to cite an internal document, write its substance in place instead.
 - spacequery reads. It never writes to a provider. Actions stay with the tools that own the state.
 - The database is new on every call, so there is one migration. On a schema change, delete `migrations/`, run `npx solarsql build spacequery.config.ts`, then `npx solarsql migration initial spacequery.config.ts`, and commit what they wrote.
 - spacequery holds no cache. The call log under the state directory is the one file spacequery writes; it holds query names and times only. A provider that does not answer gives an empty table and a row in `providers` that says so.
+
+
+<!-- ARCHSTRICT_START -->
+## archstrict
+
+In projects with an `archstrict.config.ts` (module-boundary/architecture linting), run `archstrict rules <path>` BEFORE creating a file or adding an import - it reports the module, tags, and constraints that would govern that path, even before it exists. Run `archstrict check` after editing to confirm.
+
+The full rule reference (every rule's evidence/because/do shape, the config schema, the pre-edit query) is at `node_modules/archstrict/skills/archstrict/SKILL.md` when installed via npm - read it before configuring `archstrict.config.ts`, or when a violation's `do:` text alone isn't enough.
+
+If there is no `archstrict.config.ts`, skip archstrict entirely - it may not be installed here.
+<!-- ARCHSTRICT_END -->

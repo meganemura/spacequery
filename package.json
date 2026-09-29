@@ -46,7 +46,8 @@
   ],
   "scripts": {
     "build": "solarsql build spacequery.config.ts",
-    "check": "solarsql build --check spacequery.config.ts && tsc --noEmit",
+    "check": "solarsql build --check spacequery.config.ts && tsc --noEmit && archstrict check",
+    "archstrict": "archstrict check",
     "test": "node --test 'test/**/*.test.ts'",
     "prepublishOnly": "npm run check && npm test"
   },
@@ -59,6 +60,7 @@
     "@hegeldev/hegel": "0.4.5",
     "@types/node": "26.4.0",
     "@types/react": "19.2.18",
+    "archstrict": "0.1.0",
     "typescript": "7.0.2"
   }
 }
