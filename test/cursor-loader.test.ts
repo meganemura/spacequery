@@ -14,7 +14,7 @@ import { cursorLoader, cursorUserDirectory, fileUriToPath, selectRecent, type Cu
 import { repoForRoots } from "./fixture.ts";
 
 const home = mkdtempSync(join(tmpdir(), "spacequery-cursor-"));
-const user = cursorUserDirectory(home, "linux");
+const user = cursorUserDirectory(home, process.platform);
 const globalDatabase = join(user, "globalStorage", "state.vscdb");
 const alpha = "/home/u/src/github.com/example/alpha";
 const worktree = "/home/u/src/github.com/example/alpha-wt";
@@ -82,7 +82,7 @@ test("cursor-agents reads the model, branch, and repository from the global inde
 
 test("the composerHeaders table supplies the index when the item key is absent", async () => {
   const machine = mkdtempSync(join(tmpdir(), "spacequery-cursor-table-"));
-  const path = join(cursorUserDirectory(machine, "linux"), "globalStorage", "state.vscdb");
+  const path = join(cursorUserDirectory(machine, process.platform), "globalStorage", "state.vscdb");
   writeDatabase(path, (db) => {
     db.exec("create table composerHeaders (composerId text, createdAt integer, lastUpdatedAt integer, isArchived integer, isSubagent integer, value text)");
     db.prepare("insert into composerHeaders (composerId, createdAt, lastUpdatedAt, isArchived, isSubagent, value) values (?, ?, ?, ?, ?, ?)").run(
@@ -98,7 +98,7 @@ test("the composerHeaders table supplies the index when the item key is absent",
 
 test("a Cursor 2.x workspace index is used when the global index is absent", async () => {
   const machine = mkdtempSync(join(tmpdir(), "spacequery-cursor-workspace-"));
-  const workspace = join(cursorUserDirectory(machine, "linux"), "workspaceStorage", "ws");
+  const workspace = join(cursorUserDirectory(machine, process.platform), "workspaceStorage", "ws");
   writeDatabase(join(workspace, "state.vscdb"), (db) => {
     put(db, "ItemTable", "composer.composerData", { allComposers: [{ composerId: "local", name: "Workspace agent", lastUpdatedAt: 4, unifiedMode: "agent" }] });
   });
@@ -113,7 +113,7 @@ test("a Cursor 2.x workspace index is used when the global index is absent", asy
 
 test("an unreadable composer index fails the provider", async () => {
   const machine = mkdtempSync(join(tmpdir(), "spacequery-cursor-bad-"));
-  const path = join(cursorUserDirectory(machine, "linux"), "globalStorage", "state.vscdb");
+  const path = join(cursorUserDirectory(machine, process.platform), "globalStorage", "state.vscdb");
   writeDatabase(path, (db) => {
     db.prepare("insert into ItemTable (key, value) values ('composer.composerHeaders', ?)").run("not-json");
   });
@@ -126,6 +126,8 @@ test("an unreadable composer index fails the provider", async () => {
 
 test("macOS state lives under Application Support", () => {
   assert.equal(cursorUserDirectory("/Users/u", "darwin"), "/Users/u/Library/Application Support/Cursor/User");
+  assert.equal(cursorUserDirectory("/home/u", "linux"), join("/home/u", ".config", "Cursor", "User"));
+  assert.equal(cursorUserDirectory("C:\\Users\\u", "win32"), join("C:\\Users\\u", ".config", "Cursor", "User"));
   assert.equal(fileUriToPath("file:///home/u/src/a%20b"), "/home/u/src/a b");
   assert.equal(fileUriToPath("vscode-remote://ssh/repo"), null);
 });
