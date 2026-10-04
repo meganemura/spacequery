@@ -242,7 +242,7 @@ A missing database leaves the table empty and the provider `ok` 1.
 Cloud agent ids are absent; this store is the IDE database on the machine
 running Cursor's UI.
 
-## `issues` (beads)
+## `issues` (beads, legacy)
 
 `id` (key, `root issue_id`), `root`, `issue_id`, `title`, `status`,
 `priority?`, `issue_type?`, `assignee?`, `labels?`, `created_at?`,
@@ -250,12 +250,19 @@ running Cursor's UI.
 The table contains open issues from roots in scope that have `.beads`.
 `labels` joins labels with commas. Timestamps are milliseconds since the epoch.
 
-## `ready_issues` (beads_ready)
+## `ready_issues` (beads_ready, legacy)
 
 The same columns as `issues`.
 The table contains claimable issues from `bd ready` for roots in scope that have `.beads`.
 A claimable issue has no open blockers. In-progress, blocked, and deferred issues stay out.
 The reader passes `--limit 0` so the default cap does not hide the rest of the queue, and it does not pass `--claim`.
+
+## `pd_issues` and `pd_issue_sources` (polylinedb)
+
+`pd_issues` stores each unclosed issue by selected store and issue ID. Its columns are `id` (key), `store`, `issue_id`, `tool`, `project`, `body`, `status`, `issue_type`, `priority`, `labels`, `created_at`, and `updated_at`.
+The loader reads `open`, `in_progress`, and `deferred` issues. It leaves closed issues out.
+`pd_issue_sources` stores `root` (key), `store?`, `project?`, and `state`. A configured root has its selected store and project. An unconfigured root has null store and project.
+Queries join both tables by store and project. Repositories that share one project therefore see the same issues.
 
 ## `runtag_jobs` (runtag)
 

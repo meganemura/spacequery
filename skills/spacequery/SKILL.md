@@ -7,7 +7,7 @@ description: Use when an agent wants to know the state of the developer's machin
 # spacequery
 
 spacequery answers questions about one developer's machine.
-Each call observes the providers (herdr, git, ghq, mise, Homebrew, gh, Docker, ps, lsof, beads, headsign state files, runtag job files, the session records, skill and plugin files, the caller's PATH) at that moment, joins them in an in-memory database, and prints rows.
+Each call observes selected providers (herdr, git, ghq, mise, Homebrew, gh, Docker, ps, lsof, polylinedb, beads, headsign state files, runtag job files, session records, skill and plugin files, and the caller's PATH) at that moment, joins their rows in an in-memory database, and prints the result.
 Nothing is cached, and spacequery never writes to a provider.
 
 Call it from anywhere:
@@ -33,7 +33,7 @@ Exact provider JSON names and their state sources: [references/providers.md](ref
 
 Before you assume empty means none, run `spacequery doctor` when setup is unclear or a provider looks incomplete.
 Doctor loads every enabled built-in provider once on one root, the git toplevel or `--root`, and prints JSON.
-`beads`, `beads_ready`, `brew`, `headsign`, and `runtag` are off until `$XDG_CONFIG_HOME/spacequery/config.json` enables them. Setting `beads` to true also enables `beads_ready` unless the file sets `beads_ready` itself. Doctor lists the names that stay off in `disabled_providers` and does not load them.
+`beads`, `brew`, `headsign`, `polylinedb`, and `runtag` are off until `$XDG_CONFIG_HOME/spacequery/config.json` enables them. Setting `beads` to true also enables `beads_ready` unless the file sets `beads_ready` itself. Doctor lists the names that stay off in `disabled_providers` and does not load them.
 Read the report's `ok`, then each provider's `ok` and `error`.
 A provider with `ok` 0 left its tables empty. The `error` says why, such as a missing binary.
 A missing runtag jobs directory is `ok` 1 and an empty table. An unreadable jobs directory, or a job file that does not parse, is `ok` 0.
@@ -80,13 +80,13 @@ The predicate, the fingerprint, and the exit codes: [references/output.md](refer
 
 ## Workflow
 
-1. **Before you start work in a repository**: `here` (one call: who else is here with `in-dir`, the checkout with `git-status` and `worktrees`, its pull request with `branch-pull-requests`, ports with `ports-in-dir`, processes with `processes-in-dir`, Docker containers with `containers-in-dir` and `container-ports-in-dir`, tools with `tools-in-dir`, issues, and the workflow). The rows exclude your own pane. As a gate: `spacequery here --expect-empty --strict` exits 0 only when nobody else is here and every provider answered. If a section looks empty and a provider did not answer, run `spacequery doctor` before you assume nobody is there. To wait until the directory is clear, `spacequery watch in-dir --until empty` exits 0 when no other agent is in the repository.
+1. **Before you start work in a repository**: `here` (one call: who else is here with `in-dir`, the checkout with `git-status` and `worktrees`, its pull request with `branch-pull-requests`, ports with `ports-in-dir`, processes with `processes-in-dir`, Docker containers with `containers-in-dir` and `container-ports-in-dir`, tools with `tools-in-dir`, selected project issues, and the workflow). The rows exclude your own pane. As a gate: `spacequery here --expect-empty --strict` exits 0 only when nobody else is here and every provider answered. If a section looks empty and a provider did not answer, run `spacequery doctor` before you assume nobody is there. To wait until the directory is clear, `spacequery watch in-dir --until empty` exits 0 when no other agent is in the repository.
 2. **When the user asks what is going on**: `agents-with-sessions` (names, model, idle time), `session-processes`, `working`, `idle-sessions`, `workspaces`.
    `model` on `agents-with-sessions` is the Claude transcript model or the Codex thread model for that pane. Herdr and the session files load together.
    Use `claude-usage` and `codex-usage` for quota percentages and reset information. Check record times; Codex reads bounded tails of recently modified local logs. To pick an agent by roster and quota, and to read headroom, exhausted, and unknown: [references/quota.md](references/quota.md).
    Use `claude-sessions` and `codex-sessions` for effort and the rest of the local session record.
    `cursor-agents` lists recent Cursor conversations from the local IDE database, including each conversation's model. It does not list cloud agents.
-   `work` puts claimable beads issues, the open work list, herdr agents with their session models, and those Cursor agents in one call. It defaults to `--scope all`. Refresh that same snapshot with `spacequery watch work`. See [Work dashboard](#work-dashboard).
+   `work` puts open and unclosed project issues, their selected repository sources, herdr agents with their session models, and recent local Cursor agents in one call. It defaults to `--scope all`. Refresh that same snapshot with `spacequery watch work`. See [Work dashboard](#work-dashboard).
    Claude metadata describes a recent response in the transcript tail; `metadata_at` gives its time. Unavailable values stay null.
 3. **When you look for a place to work**: `idle-worktrees` (a worktree with nobody in it), `dirty-unattended` (changes nobody is tending).
 4. **When a tool is missing or the wrong version**: `which-in-dir`, `which`, `path-entries`, `shadowed-commands`, `tools-in-dir`, `repository-versions`, `missing-tools-with-agents`, `tool-versions-split`.
@@ -100,14 +100,14 @@ The predicate, the fingerprint, and the exit codes: [references/output.md](refer
 8. **When something is slow, hot, or runs away**: `heavy-processes` first. Read `cpu_pct` for now, `cpu_time_s` and `cpu_life_pct` for a slow build-up, and `rss_kb` for memory. `pane_id` and `workspace_label` name the pane to close. `pane-load` compares panes. `descendants --q <shell_pid>` shows a pane's whole process tree.
 9. **When you wonder which skill applies here, or whether a name collides**: `skills-in-dir`, `duplicate-skill-names`.
 10. **When you pick up a repository**: `issues` and `workflow` for its root; use `running-workflows-unattended` and `issues-unattended` for work nobody holds.
-    For a work list across projects, `issues-in-scope` reads every ghq root that has `.beads`, whether or not an agent is in that repository. Omitting `--scope` uses `all`. Herdr and ghq load together, then beads. `--scope agents` narrows the same list to roots that have an agent and does not start ghq.
-    `issues-ready` is the claimable subset of that list: `bd ready` for each root, no open blockers. It uses the same scope default. `work` shows that queue, the open list, and agent models together.
+    For a work list across projects, `issues-in-scope` reads each selected polylinedb project for every root in scope. The selected store and project come from `pd context --json`. It reads every page for `open`, `in_progress`, and `deferred`, and it omits `closed`. Omitting `--scope` uses `all`; `--scope agents` narrows the list to roots with an agent.
+    `issues-open` shows the open subset. `issues-sources` shows which roots have a configured project. A read failure leaves the provider tables empty; the loader does not switch stores or use legacy beads rows. Use `beads-issues-legacy`, `beads-issues-in-scope-legacy`, or `beads-ready-legacy` only when you explicitly need the retained beads inventory.
 11. **When you wait for a detached runtag command**: [runtag](https://github.com/meganemura/runtag) ([npm](https://www.npmjs.com/package/runtag)) records with `runtag exec --detach --cwd <repo> -- <cmd>...` and writes a job file with `id`. Then `spacequery watch runs-in-dir --root <repo> --until status=exited`. When that exits 0, `runtag status <id>` reads `exit_code`. spacequery reads the files and watches. An orphan stays `running` and does not satisfy the wait.
 12. **Before you choose a dependency or tool parser**: `repository-config-files --root DIR`. It inventories recognized file names without interpreting their bodies.
 
 ## Work dashboard
 
-`work` is the dashboard. One report, four sections, in this order: `ready` (`issues-ready`), `issues` (`issues-in-scope`), `agents` (`agents-with-sessions`), and `cursor` (`cursor-agents`).
+`work` is the dashboard. One report, five sections, in this order: `open` (`issues-open`), `issues` (`issues-in-scope`), `issue_sources` (`issues-sources`), `agents` (`agents-with-sessions`), and `cursor` (`cursor-agents`).
 `spacequery work`, `spacequery work --tsv`, and `spacequery ui` render that list. `cursor` is the local IDE database. Cloud `bc-` agents are not in it.
 `spacequery work --json` returns the rows in `sections` and names the queries in `definition.sections`. It defaults to `--scope all`.
 
@@ -133,12 +133,12 @@ The table is the curated set. It is not one machine's call history.
 `spacequery --help` prints these after it drops any query whose provider is off, then adds queries this machine calls often, up to about 25. The call log only ranks that list.
 `spacequery --help --json` is the same list as data, with `group`, `purpose`, `default`, `enabled`, and `requires`. A report entry also has `sections`. The `work` report adds `default_scope` and `refresh`.
 `spacequery --help --all` and `spacequery --help --all --json` list every enabled query. The columns for the rest are in [references/queries.md](references/queries.md).
-`beads`, `beads_ready`, `brew`, `headsign`, and `runtag` are off until you set them to `true` under `providers` in `$XDG_CONFIG_HOME/spacequery/config.json` (`~/.config/spacequery/config.json` when the variable is unset). Setting `beads` to true also enables `beads_ready` unless the file sets `beads_ready` itself. A named query and `--sql` still run when the provider is off in the list.
+`beads`, `brew`, `headsign`, `polylinedb`, and `runtag` are off until you set them to `true` under `providers` in `$XDG_CONFIG_HOME/spacequery/config.json` (`~/.config/spacequery/config.json` when the variable is unset). Setting `beads` to true also enables `beads_ready` unless the file sets `beads_ready` itself. A named query and `--sql` still run when the provider is off in the list.
 
 | Query | Parameter | When |
 | --- | --- | --- |
 | `here` | `--root` | When you start work in a repository and want the other agents, the checkout, and what is already running. |
-| `work` | | When you want claimable beads issues, the open work list, and the models of herdr and Cursor agents. |
+| `work` | | When you want open and unclosed project issues, their sources, and the models of herdr and Cursor agents. |
 | `agents` | | When you need every hosted agent and the repository it sits in. |
 | `in-dir` | `--root` | When you are about to work in a repository and need to see who else is there. |
 | `working` | | When you need the agents that are working right now. |
@@ -161,10 +161,10 @@ The table is the curated set. It is not one machine's call history.
 | `pane-load` | | When you need to choose which pane to close or stop. |
 | `containers-in-dir` | `--root` | When you need the containers associated with one repository. |
 | `skills-in-dir` | `--root` | When you need the skills an agent can use in one repository. |
-| `issues` | `--root` | When you pick up a repository and need its open beads issues. |
-| `issues-in-scope` | | When you want open beads issues across projects. Omitting --scope reads every ghq root with .beads. --scope agents narrows to roots that have an agent. |
-| `issues-ready` | | When you want claimable beads issues across projects. Omitting --scope reads every ghq root with .beads. --scope agents narrows to roots that have an agent. |
-| `issues-unattended` | | When open beads issues have no agent in the repository. |
+| `issues` | `--root` | When you pick up a repository and need its unclosed project issues. |
+| `issues-in-scope` | | When you need unclosed issues across projects. Omitting --scope reads every ghq root; --scope agents narrows to roots that have an agent. |
+| `issues-open` | | When you need issues whose status is open. Omitting --scope reads every ghq root. |
+| `issues-unattended` | | When unclosed project issues have no agent in the repository. |
 | `running-workflows-unattended` | | When a headsign workflow is running with no agent in the repository. |
 | `workflow` | `--root` | When you pick up a repository and need its headsign run. |
 | `runs-in-dir` | `--root` | When you are waiting on a detached runtag job for one directory. |

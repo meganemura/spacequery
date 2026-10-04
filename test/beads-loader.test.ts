@@ -61,7 +61,7 @@ test("beads keeps rows when one marked root fails", async () => {
   assert.equal(result.providers.find((provider) => provider.name === "beads")?.ok, 1);
 });
 
-test("issues-in-scope lists every loaded beads root, including one with no agent", async () => {
+test("beads-issues-in-scope-legacy lists every loaded beads root, including one with no agent", async () => {
   const listed = [alpha, beta, gamma].join("\n");
   const exec: Exec = async (command, args) => {
     if (command === "ghq" && args.join(" ") === "list -p") return listed;
@@ -74,15 +74,15 @@ test("issues-in-scope lists every loaded beads root, including one with no agent
     throw new Error(`unexpected fake command: ${command} ${args.join(" ")}`);
   };
   const options = { loaders, exec, repo: repoForRoots(new Set([alpha, beta, gamma])), env: {}, params: {} };
-  const wide = await runQuery(catalog["issues-in-scope"]!.query, { ...options, scope: "all" });
+  const wide = await runQuery(catalog["beads-issues-in-scope-legacy"]!.query, { ...options, scope: "all" });
   assert.deepEqual(wide.rows.map((row) => [row.root, row.issue_id]), [[alpha, "alpha-1"], [gamma, "gamma-1"]]);
   assert.deepEqual(wide.providers.map((provider) => provider.name), ["beads", "herdr", "repos"]);
-  const narrowed = await runQuery(catalog["issues-in-scope"]!.query, { ...options, scope: "agents" });
+  const narrowed = await runQuery(catalog["beads-issues-in-scope-legacy"]!.query, { ...options, scope: "agents" });
   assert.deepEqual(narrowed.rows.map((row) => [row.root, row.issue_id]), [[alpha, "alpha-1"]]);
   assert.deepEqual(narrowed.providers.map((provider) => provider.name), ["beads", "herdr"]);
 });
 
-test("issues-ready lists claimable issues and does not run bd list", async () => {
+test("beads-ready-legacy lists claimable issues and does not run bd list", async () => {
   const listed = [alpha, beta, gamma].join("\n");
   const commands: string[][] = [];
   const exec: Exec = async (command, args) => {
@@ -97,13 +97,13 @@ test("issues-ready lists claimable issues and does not run bd list", async () =>
     throw new Error(`unexpected fake command: ${command} ${args.join(" ")}`);
   };
   const options = { loaders: [repoLoader, herdrLoader, beadsLoader, beadsReadyLoader], exec, repo: repoForRoots(new Set([alpha, beta, gamma])), env: {}, params: {} };
-  const wide = await runQuery(catalog["issues-ready"]!.query, { ...options, scope: "all" });
+  const wide = await runQuery(catalog["beads-ready-legacy"]!.query, { ...options, scope: "all" });
   assert.deepEqual(wide.rows.map((row) => row.root), [alpha, alpha, gamma]);
   assert.deepEqual(wide.rows.map((row) => row.issue_id).sort(), ["alpha-open", "alpha-ready", "gamma-ready"]);
   assert.equal(wide.rows.every((row) => row.status === "open" && row.priority === 2 && String(row.title).startsWith("Example ")), true);
   assert.deepEqual(wide.providers.map((provider) => provider.name), ["beads_ready", "herdr", "repos"]);
   assert.equal(commands.some((command) => command[0] === "bd" && command[3] === "list"), false);
-  const narrowed = await runQuery(catalog["issues-ready"]!.query, { ...options, scope: "agents" });
+  const narrowed = await runQuery(catalog["beads-ready-legacy"]!.query, { ...options, scope: "agents" });
   assert.deepEqual(narrowed.rows.map((row) => row.issue_id).sort(), ["alpha-open", "alpha-ready"]);
   assert.deepEqual(narrowed.providers.map((provider) => provider.name), ["beads_ready", "herdr"]);
   assert.equal(narrowed.providers.some((provider) => provider.name === "repos"), false);

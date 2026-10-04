@@ -22,14 +22,15 @@ import { loader as dockerLoader } from "./providers/docker/public.ts";
 import { loader as processesLoader } from "./providers/processes/public.ts";
 import { loader as skillsLoader } from "./providers/skills/public.ts";
 import { loader as beadsLoader, readyLoader as beadsReadyLoader } from "./providers/beads/public.ts";
+import { loader as polylinedbLoader } from "./providers/polylinedb/public.ts";
 import { loader as headsignLoader } from "./providers/headsign/public.ts";
 import { loader as runtagLoader } from "./providers/runtag/public.ts";
 
 import { claudeUsageLoader, codexUsageLoader } from "./providers/usage/public.ts";
 
-export const loaders: readonly Loader[] = [claudeUsageLoader, codexUsageLoader, searchPathLoader, repoLoader, herdrLoader, herdrPanesLoader, githubLoader, githubReviewsLoader, miseLoader, brewLoader, repositoryVersionsLoader, repositoryConfigFilesLoader, beadsLoader, beadsReadyLoader, dockerLoader, sessionsLoader, cursorLoader, gitLoader, processesLoader, skillsLoader, headsignLoader, runtagLoader];
+export const loaders: readonly Loader[] = [claudeUsageLoader, codexUsageLoader, searchPathLoader, repoLoader, herdrLoader, herdrPanesLoader, githubLoader, githubReviewsLoader, miseLoader, brewLoader, repositoryVersionsLoader, repositoryConfigFilesLoader, beadsLoader, beadsReadyLoader, polylinedbLoader, dockerLoader, sessionsLoader, cursorLoader, gitLoader, processesLoader, skillsLoader, headsignLoader, runtagLoader];
 
 export default config({
-  modules: ["./providers/usage","./core/providers", "./providers/search-path", "./providers/repos", "./providers/herdr", "./providers/git", "./providers/mise", "./providers/brew", "./providers/repository-versions", "./providers/repository-config-files", "./providers/sessions", "./providers/cursor", "./providers/github", "./providers/docker", "./providers/processes", "./providers/skills", "./providers/beads", "./providers/headsign", "./providers/runtag", { dir: "./providers/report", readsAll: true }],
+  modules: ["./providers/usage","./core/providers", "./providers/search-path", "./providers/repos", "./providers/herdr", "./providers/git", "./providers/mise", "./providers/brew", "./providers/repository-versions", "./providers/repository-config-files", "./providers/sessions", "./providers/cursor", "./providers/github", "./providers/docker", "./providers/processes", "./providers/skills", "./providers/beads", "./providers/polylinedb", "./providers/headsign", "./providers/runtag", { dir: "./providers/report", readsAll: true }],
   migrations: "./migrations",
 });

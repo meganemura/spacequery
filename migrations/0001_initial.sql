@@ -171,6 +171,28 @@ CREATE TABLE path_entries (
     "exists" integer not null check ("exists" in (0, 1)),
     duplicate_of integer
   ) strict;
+CREATE TABLE pd_issue_sources (
+    root text primary key not null,
+    store text,
+    project text,
+    state text not null check (state in ('configured', 'unconfigured')),
+    check ((state = 'configured' and store is not null and project is not null)
+      or (state = 'unconfigured' and store is null and project is null))
+  ) strict;
+CREATE TABLE pd_issues (
+    id text primary key not null,
+    store text not null,
+    issue_id text not null,
+    tool text not null,
+    project text not null,
+    body text not null,
+    status text not null check (status in ('open', 'in_progress', 'deferred', 'closed')),
+    issue_type text not null check (issue_type in ('bug', 'task', 'epic', 'feature', 'chore')),
+    priority integer not null check (priority between 0 and 4),
+    labels text not null check (json_valid(labels)),
+    created_at text not null,
+    updated_at text not null
+  ) strict;
 CREATE TABLE plugins (
     id text primary key not null,
     agent text not null,

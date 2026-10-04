@@ -50,9 +50,10 @@ Each ADR describes one decision and its consequences.
 | [0042](adr/0042-short-help-and-provider-lists.md) | Help is a short list, and config can hide a provider from lists. |
 | [0043](adr/0043-cursor-agents-are-read-from-the-local-database.md) | Cursor agents are read from the local database. |
 | [0044](adr/0044-independent-loaders-run-together.md) | Independent loaders run together. |
-| [0045](adr/0045-ready-beads-issues-are-a-separate-read.md) | Ready beads issues are a separate read, and work lists default to every beads root. |
+| [0045](adr/0045-ready-beads-issues-are-a-separate-read.md) | Historical beads reads remain available under explicit legacy query names. |
 | [0046](adr/0046-the-work-dashboard-is-one-section-list.md) | The work dashboard is one section list. |
 | [0047](adr/0047-the-work-dashboard-refreshes-on-the-watch-interval.md) | The work dashboard refreshes on the watch interval. |
 | [0048](adr/0048-processes-are-the-machines-and-panes-own-their-shells.md) | The process table is the machine's, and a pane owns its shell. |
 | [0049](adr/0049-codex-skills-are-read-from-agents-directories.md) | Codex skills are read from `.agents/skills` directories too. |
 | [0050](adr/0050-ad-hoc-sql-errors-name-the-fix.md) | Ad hoc SQL errors name the fix. |
+| [0051](adr/0051-project-issues-come-from-polylinedb.md) | Generic issue queries read the selected polylinedb project store. |

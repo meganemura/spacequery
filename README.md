@@ -9,7 +9,7 @@ Before the agent edits, starts a server, opens a pull request, or takes over old
 
 spacequery answers that question.
 It observes existing sources of state, joins their rows in a fresh in-memory SQLite database, prints the result, and exits.
-A provider is one source it observes, such as herdr, git, ghq, mise, Homebrew, gh, Docker, lsof, beads, a session record, a headsign file, or a runtag job file.
+A provider is one source it observes, such as herdr, git, ghq, mise, Homebrew, gh, Docker, lsof, polylinedb, a session record, a headsign file, or a runtag job file.
 spacequery reads those sources.
 It does not change them.
 
@@ -39,7 +39,7 @@ spacequery here
 ```
 
 `here` is a report about one repository.
-It shows other agents in the repository, the current git state, linked worktrees, the branch pull request, listening ports, local processes, Docker containers and ports, mise tools, open beads issues, and headsign workflow state.
+It shows other agents in the repository, the current git state, linked worktrees, the branch pull request, listening ports, local processes, Docker containers and ports, mise tools, unclosed project issues, and headsign workflow state.
 The agent can then choose a safer next action:
 
 - wait, with `spacequery watch in-dir --until empty`, when another agent already works in the repository
@@ -102,9 +102,9 @@ The README is the door: it explains what spacequery is, why it helps, how to ins
 spacequery requires Node 24.10 or later.
 The build and ad hoc SQL resolver use `setAuthorizer` from `node:sqlite`.
 
-Put the tools you want spacequery to observe on `PATH`: `herdr`, `git`, `ghq`, `mise`, `brew`, `gh` logged in, `docker`, `lsof`, and `bd`.
+Put the tools you want spacequery to observe on `PATH`: `herdr`, `git`, `ghq`, `mise`, `brew`, `gh` logged in, `docker`, `lsof`, and `pd`. `bd` is used only by the explicitly named legacy beads queries.
 `spacequery --help` prints a short list. `spacequery --help --all` prints every enabled query.
-`beads`, `brew`, `headsign`, and `runtag` stay out of that list until `~/.config/spacequery/config.json` enables them. A query you name still runs.
+`beads`, `brew`, `headsign`, `polylinedb`, and `runtag` stay out of that list until `~/.config/spacequery/config.json` enables them. A query you name still runs.
 Headsign rows come from files and need no command on `PATH`.
 Session rows come from records under `~/.claude` and `~/.codex`.
 Joining a pane to a session needs herdr's Claude Code and Codex integrations.

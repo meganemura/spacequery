@@ -2,7 +2,7 @@
 
 Date: 2026-09-23
 
-Status: accepted
+Status: superseded for issue sections by ADR 0051. The dashboard still refreshes through the same watch interval.
 
 ## Context
 

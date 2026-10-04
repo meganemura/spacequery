@@ -202,7 +202,7 @@ When `runtag` is enabled, a missing jobs directory is `ok` 1. An unreadable jobs
   "user_queries": [
     { "name": "long-running", "path": "/home/u/.config/spacequery/queries/long-running.sql", "ok": 0, "error": "no such column: cpu", "hint": "  did you mean cpu_pct? (processes)\n  ..." }
   ],
-  "disabled_providers": ["beads", "beads_ready", "brew", "headsign", "runtag"],
+  "disabled_providers": ["beads", "beads_ready", "brew", "headsign", "polylinedb", "runtag"],
   "config": "/home/u/.config/spacequery/config.json"
 }
 ```
@@ -270,7 +270,7 @@ This is a heuristic reading of the statement's tokens, not the query planner: it
 | `--root DIR` | The repository for a query or report that takes `root`. Default: the git toplevel of the current directory, or the directory itself outside a repository. A query that takes `--root` runs the loaders on that root alone by default (`--scope root`); `--scope agents` widens to every repository with an agent, `--scope all` to every ghq repository. |
 | `--scope root` | Repository-scoped loaders run on the root bound to the query. |
 | `--scope agents` | Repository-scoped loaders run on the repositories that have an agent. |
-| `--scope all` | git, mise, repository_versions, processes, beads, beads_ready, headsign, skills, and github also run on every ghq repository. Several seconds. `issues-in-scope`, `issues-ready`, and `work` use this scope when `--scope` is omitted. |
+| `--scope all` | git, mise, repository_versions, processes, beads, beads_ready, polylinedb, headsign, skills, and github also run on every ghq repository. Several seconds. `issues-in-scope`, `issues-open`, `issues-sources`, and `work` use this scope when `--scope` is omitted. |
 | `--me PANE` | The pane to exclude. Default: the caller's own pane, from `HERDR_PANE_ID`, then `CLAUDE_CODE_SESSION_ID` matched to a session, then the pane herdr has in focus. `--me ""` keeps every pane. |
 | `--tsv` | Rows only, tab separated. A report prints named sections. |
 | `--json` | The default. |
@@ -281,10 +281,10 @@ This is a heuristic reading of the statement's tokens, not the query planner: it
 | `--until <predicate>` | Watch only. `empty`, `nonempty`, or `<column>=<value>[|<value>...]`. Required with `watch`. |
 | `--interval <ms>` | Watch only. Milliseconds between ticks. Default 2000. |
 | `--timeout <sec>` | Watch only. Seconds before exit 5. Default 300. `0` means no deadline. |
-| `--help` | The short list: curated queries union the ones this machine calls most, after providers that are off are removed, capped at about 25. Curated queries stay when they exceed the cap. `--help --all` lists every enabled query. `--help --short` forces the short list when config asks for `all`. `--help --json` prints the same selection as a document with `mode`, `config`, `disabled_providers`, `queries`, and `reports`. Each entry has `group`, `purpose`, `default`, `enabled`, `requires`, `params`, and `source`. A report also has `sections`. A report's `enabled` follows its gate section. Its `requires` lists every provider the sections read, so `here` can stay listed while beads is off. `work` also has `default_scope` and `refresh`. |
+| `--help` | The short list: curated queries union the ones this machine calls most, after providers that are off are removed, capped at about 25. Curated queries stay when they exceed the cap. `--help --all` lists every enabled query. `--help --short` forces the short list when config asks for `all`. `--help --json` prints the same selection as a document with `mode`, `config`, `disabled_providers`, `queries`, and `reports`. Each entry has `group`, `purpose`, `default`, `enabled`, `requires`, `params`, and `source`. A report also has `sections`. A report's `enabled` follows its gate section. Its `requires` lists every provider the sections read, so `here` can stay listed while polylinedb is off. `work` also has `default_scope` and `refresh`. |
 
 A query that takes `--root` runs the loaders on that root alone by default (`--scope root`); `--scope agents` widens to every repository with an agent, `--scope all` to every ghq repository.
-`issues-in-scope`, `issues-ready`, and `work` take no `--root` and default to `--scope all`. `--scope agents` narrows them to roots with an agent.
+`issues-in-scope`, `issues-open`, `issues-sources`, `work`, and the explicitly named legacy beads inventory queries take no `--root` and default to `--scope all`. `--scope agents` narrows them to roots with an agent.
 
 spacequery records call counts in `$XDG_STATE_HOME/spacequery/calls.jsonl`, or `~/.local/state/spacequery/calls.jsonl` when the variable is unset.
 

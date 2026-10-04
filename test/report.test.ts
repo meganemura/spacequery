@@ -8,7 +8,7 @@ import { test } from "node:test";
 import { catalog, reports } from "../catalog.ts";
 import type { Exec } from "../core/loader.ts";
 import { providerQueries } from "../core/providers/public.ts";
-import { runReport } from "../core/run.ts";
+import { runQuery, runReport } from "../core/run.ts";
 import { loaders } from "../spacequery.config.ts";
 import { fakeExec, fixtureRepo, paneIds, paths, repoForRoots } from "./fixture.ts";
 
@@ -17,6 +17,10 @@ const hereSections = reports.here.sections.map(([section, query]) => [section, c
 function reportExec(): Exec {
   const base = fakeExec();
   return async (command, args, cwd, options) => {
+    if (command === "pd" && args[0] === "context" && args[1] === "--json") {
+      return JSON.stringify({ mode: "local", connection: null, source: "repository", data_dir: "/tmp/spacequery-pd-fixture", database_path: "/tmp/spacequery-pd-fixture/polylinedb.sqlite", project: "example" });
+    }
+    if (command === "pd" && args.includes("list")) return JSON.stringify({ issues: [], next_cursor: null });
     if (command === "gh" && args[0] === "api" && args[1] === "graphql") {
       const aliases = [...(args[3] ?? "").matchAll(/r(\d+): repository\(owner: "([^"]+)", name: "([^"]+)"\)/g)];
       const data = Object.fromEntries(aliases.map(([, index, owner, name]) => {
@@ -91,10 +95,10 @@ test("here runs its ordered sections after one union of providers", async () => 
     containers: { providers: ["docker"], ok: 1, errors: [] },
     container_ports: { providers: ["docker"], ok: 1, errors: [] },
     tools: { providers: ["mise"], ok: 1, errors: [] },
-    issues: { providers: ["beads"], ok: 1, errors: [] },
+    issues: { providers: ["polylinedb"], ok: 1, errors: [] },
     workflow: { providers: ["headsign"], ok: 1, errors: [] },
   });
-  assert.deepEqual(result.providers.map((provider) => provider.name), ["beads", "docker", "git", "github", "headsign", "herdr", "mise", "processes"]);
+  assert.deepEqual(result.providers.map((provider) => provider.name), ["docker", "git", "github", "headsign", "herdr", "mise", "polylinedb", "processes"]);
   assert.equal(new Set(result.providers.map((provider) => provider.name)).size, result.providers.length);
   assert.equal(typeof result.ms, "number");
   assert.ok(result.trace.length > 0);
@@ -179,34 +183,30 @@ test("a dependency failure stays in report providers for widened scope", async (
   ]);
 });
 
-test("work shows claimable issues, the open list, and agent models from one load", async () => {
+test("work shows project issues, their open subset, sources, and agent models from one load", async () => {
   const home = mkdtempSync(join(tmpdir(), "spacequery-work-"));
-  const alpha = join(home, "alpha");
-  const gamma = join(home, "gamma");
-  mkdirSync(join(alpha, ".beads"), { recursive: true });
-  mkdirSync(join(gamma, ".beads"), { recursive: true });
+  const alpha = paths.alpha;
+  const gamma = paths.gamma;
+  const store = join(home, "polylinedb");
   mkdirSync(join(home, ".claude", "sessions"), { recursive: true });
   const calls: string[] = [];
-  let inFlight = 0;
-  let maxBeads = 0;
-  const issue = (id: string, priority: number) => ({ id, title: id, status: "open", priority, issue_type: "task", labels: [], created_at: "2026-09-10T00:00:00.000Z", updated_at: "2026-09-10T01:00:00.000Z" });
+  const issue = (id: string, status: string, priority: number) => ({
+    id, tool: "synthetic", project: "demo", body: id, status, type: "task", priority, labels: [],
+    created_at: "2026-09-10T00:00:00.000Z", updated_at: "2026-09-10T01:00:00.000Z",
+  });
+  const issuesByStatus = {
+    open: [issue("pd-1", "open", 1), issue("pd-2", "open", 2)],
+    in_progress: [issue("pd-3", "in_progress", 2)],
+    deferred: [issue("pd-4", "deferred", 3)],
+  };
   const exec: Exec = async (command, args) => {
     calls.push([command, ...args].join(" "));
-    if (command === "bd") {
-      inFlight += 1;
-      maxBeads = Math.max(maxBeads, inFlight);
-      await new Promise((resolve) => setTimeout(resolve, 20));
-      inFlight -= 1;
-      const root = args[1];
-      if (args[2] === "list" && args[3] === "--json") {
-        if (root === alpha) return JSON.stringify([issue("alpha-open", 1), issue("alpha-ready", 2)]);
-        if (root === gamma) return JSON.stringify([issue("gamma-open", 1)]);
-      }
-      if (args[2] === "ready" && args[3] === "--json" && args[4] === "--limit" && args[5] === "0") {
-        if (root === alpha) return JSON.stringify([issue("alpha-ready", 2)]);
-        if (root === gamma) return "[]";
-      }
-      throw new Error(`unexpected bd ${args.join(" ")}`);
+    if (command === "pd" && args[0] === "context" && args[1] === "--json") {
+      return JSON.stringify({ mode: "local", connection: null, source: "repository", data_dir: store, database_path: join(store, "polylinedb.sqlite"), project: "demo" });
+    }
+    if (command === "pd" && args.includes("list")) {
+      const status = args[args.indexOf("--status") + 1] as keyof typeof issuesByStatus;
+      return JSON.stringify({ issues: issuesByStatus[status], next_cursor: null });
     }
     if (command === "ghq" && args.join(" ") === "list -p") return `${alpha}\n${gamma}\n`;
     if (command === "herdr" && args.join(" ") === "api snapshot") {
@@ -221,25 +221,36 @@ test("work shows claimable issues, the open list, and agent models from one load
       loaders, exec, repo: repoForRoots(new Set([alpha, gamma])), env: { HOME: home }, scope: "all", params: {},
     });
     assert.equal(result.scope, "all");
-    assert.deepEqual(Object.keys(result.sections), ["ready", "issues", "agents", "cursor"]);
-    const ready = result.sections.ready!;
+    assert.deepEqual(Object.keys(result.sections), ["open", "issues", "issue_sources", "agents", "cursor"]);
+    const open = result.sections.open!;
     const issues = result.sections.issues!;
+    const sources = result.sections.issue_sources!;
     const agents = result.sections.agents!;
-    assert.deepEqual(ready.map((row) => [row.root, row.issue_id, row.priority]), [[alpha, "alpha-ready", 2]]);
-    assert.deepEqual(issues.map((row) => [row.root, row.issue_id]), [[alpha, "alpha-open"], [alpha, "alpha-ready"], [gamma, "gamma-open"]]);
+    assert.deepEqual(open.map((row) => [row.root, row.issue_id, row.status]), [[alpha, "pd-1", "open"], [alpha, "pd-2", "open"]]);
+    assert.deepEqual(issues.map((row) => [row.root, row.issue_id, row.status]), [
+      [alpha, "pd-1", "open"], [alpha, "pd-2", "open"], [alpha, "pd-3", "in_progress"], [alpha, "pd-4", "deferred"],
+    ]);
+    assert.deepEqual(sources.map((row) => [row.root, row.project, row.state]), [[alpha, "demo", "configured"], [gamma, "demo", "configured"]]);
     assert.equal(agents[0]?.pane_id, "pane-alpha");
     assert.equal(agents[0]?.model, null);
     assert.deepEqual(result.sections.cursor, []);
-    assert.deepEqual(result.providers.map((provider) => provider.name), ["beads", "beads_ready", "cursor", "herdr", "repos", "sessions"]);
+    assert.deepEqual(result.providers.map((provider) => provider.name), ["cursor", "herdr", "polylinedb", "repos", "sessions"]);
     assert.equal(result.providers.every((provider) => provider.ok === 1), true);
-    assert.deepEqual(result.sectionStatus.ready!.providers, ["beads_ready"]);
-    assert.deepEqual(result.sectionStatus.issues!.providers, ["beads"]);
+    assert.deepEqual(result.sectionStatus.open!.providers, ["polylinedb"]);
+    assert.deepEqual(result.sectionStatus.issues!.providers, ["polylinedb"]);
+    assert.deepEqual(result.sectionStatus.issue_sources!.providers, ["polylinedb"]);
     assert.deepEqual(result.sectionStatus.agents!.providers, ["herdr", "sessions"]);
     assert.deepEqual(result.sectionStatus.cursor!.providers, ["cursor"]);
-    assert.ok(maxBeads >= 2);
-    assert.equal(calls.some((call) => call.includes(" list --json")), true);
-    assert.equal(calls.some((call) => call.endsWith("ready --json --limit 0")), true);
+    assert.equal(calls.filter((call) => call.includes(" list --project demo --status ")).length, 3);
+    assert.equal(calls.filter((call) => call.startsWith("pd context")).length, 2);
+    assert.equal(calls.some((call) => call.startsWith("bd ")), false);
     assert.equal(calls.some((call) => call.startsWith("git ")), false);
+
+    const issueOptions = { loaders, exec, repo: repoForRoots(new Set([alpha, gamma])), env: { HOME: home }, scope: "all" as const, params: {} };
+    const withAgents = await runQuery(catalog["issues-with-agents"]!.query, issueOptions);
+    const unattended = await runQuery(catalog["issues-unattended"]!.query, issueOptions);
+    assert.deepEqual(withAgents.rows, [{ root: alpha, unclosed_issues: 4, top_priority: 1, agents: 1 }]);
+    assert.deepEqual(unattended.rows, [{ root: gamma, unclosed_issues: 4, top_priority: 1 }]);
   } finally {
     rmSync(home, { recursive: true, force: true });
   }

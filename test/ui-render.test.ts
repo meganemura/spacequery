@@ -718,30 +718,30 @@ test("a report renders its definition and the same sections", async () => {
   const report: Item = {
     kind: "report", name: "work", source: "built-in", description: "dashboard", sql: "", params: [],
     tables: [], columns: [], purpose: "When you want the work list.",
-    sections: [["ready", "issues-ready"], ["agents", "agents-with-sessions"]],
+    sections: [["open", "issues-open"], ["agents", "agents-with-sessions"]],
     defaultScope: "all", refresh: "Refresh with spacequery watch work. --interval defaults to 2000 milliseconds.",
   };
-  const ready: Item = { ...query, name: "issues-ready", purpose: "Claimable issues." };
-  const ui = await screen([ready, report], async () => ({
+  const open: Item = { ...query, name: "issues-open", purpose: "Open issues." };
+  const ui = await screen([open, report], async () => ({
     ...observation, rows: [], scope: "all",
-    sections: { ready: [{ issue_id: "g-1" }], agents: [] },
+    sections: { open: [{ issue_id: "g-1" }], agents: [] },
   }));
   try {
     await ui.key("t");
     assert.match(ui.frame(), /\[Reports\]/);
     await ui.key("\t");
-    let sawReady = false;
+    let sawOpen = false;
     let sawRefresh = false;
     for (let i = 0; i < 16; i++) {
       const frame = ui.frame();
-      if (frame.includes("issues-ready")) sawReady = true;
+      if (frame.includes("issues-open")) sawOpen = true;
       if (frame.includes("watch work")) sawRefresh = true;
       await ui.key("j");
     }
-    assert.equal(sawReady, true);
+    assert.equal(sawOpen, true);
     assert.equal(sawRefresh, true);
     await ui.key("r");
-    assert.match(ui.frame(), /# ready/);
+    assert.match(ui.frame(), /# open/);
     assert.match(ui.frame(), /g-1/);
     assert.match(ui.frame(), /# agents/);
     assert.match(ui.frame(), /\(empty\)/);

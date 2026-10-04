@@ -21,6 +21,7 @@ import { dockerQueries } from "./providers/docker/public.ts";
 import { processQueries } from "./providers/processes/public.ts";
 import { skillsQueries } from "./providers/skills/public.ts";
 import { beadsQueries } from "./providers/beads/public.ts";
+import { polylinedbQueries } from "./providers/polylinedb/public.ts";
 import { headsignQueries } from "./providers/headsign/public.ts";
 import { runtagQueries } from "./providers/runtag/public.ts";
 import { cursorQueries } from "./providers/cursor/public.ts";
@@ -107,11 +108,15 @@ export const catalog: Readonly<Record<string, Named>> = {
   "skills": named(skillsQueries.all, "Every skill Claude Code and Codex can load, with its source.", [], "Skills", "When you need every skill Claude Code and Codex can load."),
   "skills-in-dir": named(skillsQueries.inDir, "The skills an agent can use in one repository.", ["root"], "Skills", "When you need the skills an agent can use in one repository.", true),
   "plugins": named(skillsQueries.plugins, "Every installed plugin, with its version.", [], "Skills", "When you need installed plugins and their versions."),
-  "issues": named(beadsQueries.open, "Open beads issues of one repository.", ["root"], "Issues", "When you pick up a repository and need its open beads issues.", true),
-  "issues-in-scope": named(beadsQueries.all, "Open beads issues across repositories in scope, one row per issue.", [], "Issues", "When you want open beads issues across projects. Omitting --scope reads every ghq root with .beads. --scope agents narrows to roots that have an agent.", true, "all"),
-  "issues-ready": named(beadsQueries.ready, "Claimable beads issues across repositories in scope, one row per issue.", [], "Issues", "When you want claimable beads issues across projects. Omitting --scope reads every ghq root with .beads. --scope agents narrows to roots that have an agent.", true, "all"),
-  "issues-with-agents": named(reportQueries.issuesWithAgents, "Repositories with an agent and their open beads issues.", [], "Issues", "When you want open beads issues in repositories that have an agent."),
-  "issues-unattended": named(reportQueries.issuesUnattended, "Repositories with open beads issues and no agent.", [], "Issues", "When open beads issues have no agent in the repository.", true),
+  "issues": named(polylinedbQueries.inDir, "Unclosed polylinedb issues for one repository.", ["root"], "Issues", "When you pick up a repository and need its unclosed project issues.", true),
+  "issues-in-scope": named(polylinedbQueries.all, "Unclosed polylinedb issues across repositories in scope, one row per issue.", [], "Issues", "When you need unclosed issues across projects. Omitting --scope reads every ghq root; --scope agents narrows to roots that have an agent.", true, "all"),
+  "issues-open": named(polylinedbQueries.open, "Polylinedb issues with open status across repositories in scope.", [], "Issues", "When you need issues whose status is open. Omitting --scope reads every ghq root.", true, "all"),
+  "issues-sources": named(polylinedbQueries.sources, "Polylinedb store and project selection for repositories in scope.", [], "Issues", "When you need to see which repositories have a configured project.", false, "all"),
+  "beads-issues-legacy": named(beadsQueries.open, "Open beads issues of one repository.", ["root"], "Legacy issues", "When you need the retained beads issue inventory for one repository."),
+  "beads-issues-in-scope-legacy": named(beadsQueries.all, "Open beads issues across repositories in scope, one row per issue.", [], "Legacy issues", "When you need the retained beads issue inventory across repositories.", false, "all"),
+  "beads-ready-legacy": named(beadsQueries.ready, "Claimable beads issues across repositories in scope, one row per issue.", [], "Legacy issues", "When you need the retained beads ready queue.", false, "all"),
+  "issues-with-agents": named(reportQueries.issuesWithAgents, "Repositories with an agent and their unclosed project issues.", [], "Issues", "When you need project issues in repositories that have an agent.", false, "all"),
+  "issues-unattended": named(reportQueries.issuesUnattended, "Repositories with unclosed project issues and no agent.", [], "Issues", "When unclosed project issues have no agent in the repository.", true, "all"),
   "workflow": named(headsignQueries.inDir, "The headsign run of one repository.", ["root"], "Workflows", "When you pick up a repository and need its headsign run.", true),
   "runs-in-dir": named(runtagQueries.inDir, "runtag jobs whose repository root or working directory is the given directory or inside it.", ["root"], "Runs", "When you are waiting on a detached runtag job for one directory.", true),
   "workflows": named(headsignQueries.all, "Every headsign run, with its phase.", [], "Workflows", "When you need every headsign run and its phase."),

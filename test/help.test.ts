@@ -39,7 +39,7 @@ test("the ship default short list is the visible curated queries", () => {
     assert.equal(names.includes("cursor-agents"), false);
     assert.equal(names.includes("issues"), false);
     assert.equal(names.includes("issues-in-scope"), false);
-    assert.equal(names.includes("issues-ready"), false);
+    assert.equal(names.includes("issues-open"), false);
     assert.equal(names.includes("runs-in-dir"), false);
     assert.equal(names.includes("brew-packages"), false);
     assert.deepEqual(document.reports.map((report) => report.name), ["here", "work"]);
@@ -53,7 +53,7 @@ test("the ship default short list is the visible curated queries", () => {
     assert.ok(full.queries.length > names.length);
     assert.equal(full.queries.some((query) => query.name === "issues"), false);
     assert.equal(full.queries.some((query) => query.name === "issues-in-scope"), false);
-    assert.equal(full.queries.some((query) => query.name === "issues-ready"), false);
+    assert.equal(full.queries.some((query) => query.name === "issues-open"), false);
     assert.equal(full.queries.some((query) => query.name === "repos"), true);
     const cursorAgents = full.queries.find((query) => query.name === "cursor-agents");
     assert.equal(cursorAgents?.group, "Cursor");
@@ -83,7 +83,7 @@ test("enabling an optional provider returns its curated queries, and calls fill 
   const configDir = join(root, "config", "spacequery");
   mkdirSync(configDir, { recursive: true });
   writeFileSync(join(configDir, "config.json"), JSON.stringify({
-    providers: { beads: true, brew: true, headsign: true, runtag: true },
+    providers: { beads: true, brew: true, headsign: true, polylinedb: true, runtag: true },
   }));
   const env = { HOME: root, XDG_CONFIG_HOME: join(root, "config"), XDG_STATE_HOME: join(root, "state") };
   try {
@@ -91,7 +91,8 @@ test("enabling an optional provider returns its curated queries, and calls fill 
     assert.deepEqual(document.disabled_providers, []);
     assert.equal(document.queries.some((query) => query.name === "issues"), true);
     assert.equal(document.queries.some((query) => query.name === "issues-in-scope"), true);
-    assert.equal(document.queries.some((query) => query.name === "issues-ready"), true);
+    assert.equal(document.queries.some((query) => query.name === "issues-open"), true);
+    assert.equal(document.queries.some((query) => query.name === "beads-ready-legacy"), false);
     assert.equal(document.queries.some((query) => query.name === "runs-in-dir"), true);
     assert.equal(document.queries.some((query) => query.name === "workflow"), true);
     assert.equal(document.queries.some((query) => query.name === "repos"), false);
@@ -111,20 +112,24 @@ test("enabling an optional provider returns its curated queries, and calls fill 
     });
     assert.equal(hidden.queries.some((query) => query.name === "issues"), false);
     assert.equal(hidden.queries.some((query) => query.name === "issues-in-scope"), false);
-    assert.equal(hidden.queries.some((query) => query.name === "issues-ready"), false);
+    assert.equal(hidden.queries.some((query) => query.name === "issues-open"), false);
     const listed = helpDocument({ userQueries: [], env, mode: "all", loaders, config: loadConfig(env) });
     const workList = listed.queries.find((query) => query.name === "issues-in-scope");
     assert.equal(workList?.group, "Issues");
     assert.equal(workList?.default, true);
     assert.equal(workList?.enabled, true);
-    assert.deepEqual(workList?.requires, ["beads"]);
+    assert.deepEqual(workList?.requires, ["polylinedb"]);
     assert.match(workList?.purpose ?? "", /Omitting --scope/);
     assert.match(workList?.purpose ?? "", /--scope agents/);
-    const ready = listed.queries.find((query) => query.name === "issues-ready");
-    assert.equal(ready?.default, true);
-    assert.deepEqual(ready?.requires, ["beads_ready"]);
+    const open = listed.queries.find((query) => query.name === "issues-open");
+    assert.equal(open?.default, true);
+    assert.deepEqual(open?.requires, ["polylinedb"]);
+    const legacyReady = listed.queries.find((query) => query.name === "beads-ready-legacy");
+    assert.ok(legacyReady);
+    assert.equal(legacyReady?.default, false);
+    assert.deepEqual(legacyReady?.requires, ["beads_ready"]);
     assert.equal(catalog["issues-in-scope"]?.defaultScope, "all");
-    assert.equal(catalog["issues-ready"]?.defaultScope, "all");
+    assert.equal(catalog["issues-open"]?.defaultScope, "all");
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

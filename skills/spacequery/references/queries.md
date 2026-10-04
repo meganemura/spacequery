@@ -14,14 +14,15 @@ Columns marked `?` can be null.
 (`containers-in-dir`), `container_ports` (`container-ports-in-dir`), `tools`
 (`tools-in-dir`), `issues`, and `workflow`.
 
-`work` runs `ready` (`issues-ready`), `issues` (`issues-in-scope`), `agents`
-(`agents-with-sessions`), and `cursor` (`cursor-agents`).
+`work` runs `open` (`issues-open`), `issues` (`issues-in-scope`),
+`issue_sources` (`issues-sources`), `agents` (`agents-with-sessions`), and
+`cursor` (`cursor-agents`).
 `spacequery work`, `spacequery watch work`, `spacequery work --tsv`, and `spacequery ui` render those sections in that order.
 `spacequery work --json` names them in `definition.sections`, with `definition.default_scope` and `definition.refresh`.
 `spacequery --help --json` has the same sections on the `work` report.
-It defaults to `--scope all`, so the issue sections include every ghq root with `.beads`.
-`--scope agents` narrows those sections and does not start ghq.
-Herdr, ghq, sessions, and the Cursor database load together; the two beads commands start after the roots are known.
+It defaults to `--scope all`, so the issue sections include every ghq root with a selected polylinedb project.
+`--scope agents` narrows those sections to roots with an agent.
+Herdr, ghq, sessions, and the Cursor database load together; the polylinedb loader reads each root's selected project after root discovery.
 `--expect-empty` checks the `agents` section.
 `model` on `agents` is the Claude or Codex model for that pane. `model` on `cursor` is the local IDE model. Cloud Cursor agents are not in `cursor`.
 `spacequery watch work` runs this report again on `--interval` (default 2000 milliseconds). `--timeout` defaults to 300 seconds; `0` keeps refreshing until a signal. A snapshot is printed when the sections or provider status change. `--until` is optional and reads the `agents` section. The printed snapshot is still the whole report.
@@ -263,22 +264,34 @@ marketplace ID. `codex-user` covers both `~/.agents/skills` and
 `~/.codex/skills`; a name in both gives two rows. `project-skills-with-agents`
 covers `claude-project` and `codex-project` rows.
 
-## Issues (beads)
+## Issues (polylinedb)
 
 | Query | Parameters | Columns |
 | --- | --- | --- |
-| `issues` | `root` | `id`, `root`, `issue_id`, `title`, `status`, `priority?`, `issue_type?`, `assignee?`, `labels?`, `created_at?`, `updated_at?`, `dependency_count`, `dependent_count`, `comment_count` |
-| `issues-in-scope` | | the same columns, for every repository in scope, ordered by `root`, `priority` |
-| `issues-ready` | | the same columns, for claimable issues in every repository in scope, ordered by `root`, `priority` |
-| `issues-with-agents` | | `root`, `open_issues`, `top_priority?`, `agents` |
-| `issues-unattended` | | `root`, `open_issues`, `top_priority?` |
+| `issues` | `root` | `id`, `root`, `issue_id`, `tool`, `project`, `body`, `status`, `issue_type`, `priority`, `labels`, `created_at`, `updated_at` |
+| `issues-in-scope` | | the same columns, for every configured project in scope, ordered by root, priority, and ID |
+| `issues-open` | | the same columns, for open issues across configured projects in scope |
+| `issues-sources` | | `root`, `store?`, `project?`, `state` |
+| `issues-with-agents` | | `root`, `unclosed_issues`, `top_priority?`, `agents` |
+| `issues-unattended` | | `root`, `unclosed_issues`, `top_priority?` |
 
-`issues` reads open beads issues for one root. `issues-in-scope` is the same rows for every repository the call loaded, including a root with no agent.
-`issues-in-scope` and `issues-ready` take no `--root`. Omitting `--scope` uses `all`: every ghq root that has `.beads`. Herdr and ghq load together, then beads.
-`--scope agents` narrows that load to roots that have an agent and does not start ghq.
-`issues-ready` reads `bd ready` for each of those roots. A claimable issue has no open blockers. The command asks for every row (`--limit 0`) and does not claim one.
-`labels` joins label values with commas.
-`agents` in the count queries excludes `me`.
+`issues` reads the selected polylinedb project for one root. `issues-in-scope` reads every configured project in scope, including roots without agents. A root's store and project come from `pd context --json`.
+The generic issue queries include `open`, `in_progress`, and `deferred`. They omit `closed`. The loader follows every page for each of those three statuses. It reads a shared store and project once, then associates its rows with each root that selects them.
+`issues-in-scope`, `issues-open`, and `issues-sources` take no `--root`. Omitting `--scope` uses `all`: every ghq root. `--scope agents` narrows them to roots that have an agent.
+`issues-sources` includes roots that have no selected project. Its `state` is `configured` or `unconfigured`; store and project are null for an unconfigured root.
+The `store` column is a source identity used to keep same-ID issues from separate stores apart. Treat it as local data.
+The provider fails without publishing partial rows when context, pagination, validation, or a project read fails. It does not switch to another store or the legacy beads source.
+`issues-with-agents` and `issues-unattended` aggregate unclosed issues by root. `agents` excludes `me`.
+
+## Issues (beads, legacy)
+
+| Query | Parameters | Columns |
+| --- | --- | --- |
+| `beads-issues-legacy` | `root` | `id`, `root`, `issue_id`, `title`, `status`, `priority?`, `issue_type?`, `assignee?`, `labels?`, `created_at?`, `updated_at?`, `dependency_count`, `dependent_count`, `comment_count` |
+| `beads-issues-in-scope-legacy` | | the same columns, for every beads root in scope |
+| `beads-ready-legacy` | | the same columns, for claimable beads issues in every beads root in scope |
+
+These explicitly named queries read the retained beads provider. `beads-ready-legacy` reads `bd ready`; it does not claim an issue. Enabling `beads` also enables `beads_ready` unless config sets `beads_ready` itself.
 
 ## Runs (runtag)
 

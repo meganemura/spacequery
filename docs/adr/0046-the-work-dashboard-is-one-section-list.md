@@ -2,7 +2,7 @@
 
 Date: 2026-09-23
 
-Status: accepted. Refreshing the board is ADR 0047. Editing this list is not the refresh path.
+Status: superseded for issue sections by ADR 0051. The dashboard still uses one registered section list. Refreshing the board is ADR 0047. Editing this list is not the refresh path.
 
 ## Context
 

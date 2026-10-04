@@ -173,18 +173,18 @@ export const reportQueries = queries(generated, {
     from skills s join agents a on a.root = s.root
     where s.source in ('claude-project', 'codex-project')
     group by s.root, s.name, s.description order by s.root, s.name`,
-  // Open issues show the work beside agents that occupy the same repository.
   issuesWithAgents: `
-    select i.root, cast(count(distinct i.id) as integer) as open_issues,
+    select s.root, cast(count(distinct i.id) as integer) as unclosed_issues,
            cast(min(i.priority) as integer) as top_priority, cast(count(distinct a.pane_id) as integer) as agents
-    from issues i join agents a on a.root = i.root
-    where :me is null or a.pane_id <> :me
-    group by i.root order by i.root`,
-  // A repository with issues but no pane needs an explicit owner.
+    from pd_issue_sources s join pd_issues i on i.store = s.store and i.project = s.project
+    join agents a on a.root = s.root
+    where i.status <> 'closed' and (:me is null or a.pane_id <> :me)
+    group by s.root order by s.root`,
   issuesUnattended: `
-    select i.root, cast(count(distinct i.id) as integer) as open_issues, cast(min(i.priority) as integer) as top_priority
-    from issues i left join agents a on a.root = i.root
-    where a.pane_id is null group by i.root order by i.root`,
+    select s.root, cast(count(distinct i.id) as integer) as unclosed_issues, cast(min(i.priority) as integer) as top_priority
+    from pd_issue_sources s join pd_issues i on i.store = s.store and i.project = s.project
+    left join agents a on a.root = s.root
+    where i.status <> 'closed' and a.pane_id is null group by s.root order by s.root`,
   // Only a running workflow needs the presence count of non-caller panes.
   runningWorkflowsWithAgents: `
     select w.root, w.workflow, w.phase, w.total_iterations, w.phase_entered_at, cast(count(a.pane_id) as integer) as agents

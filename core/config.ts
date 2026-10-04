@@ -9,7 +9,7 @@ import { dirname, join } from "node:path";
 // These inventories are useful when the tool is installed and unused noise
 // when it is not. Author-owned tools are in this set so a fresh machine does
 // not advertise them. Every other built-in provider stays on.
-export const providersOffByDefault = ["beads", "beads_ready", "brew", "headsign", "runtag"] as const;
+export const providersOffByDefault = ["beads", "beads_ready", "brew", "headsign", "polylinedb", "runtag"] as const;
 
 const offByDefault = new Set<string>(providersOffByDefault);
 
@@ -27,6 +27,7 @@ export const providerSummaries: Readonly<Record<string, string>> = {
   repository_config_files: "Recognized dependency and tool config files. On by default.",
   beads: "Open beads issues. Off until you enable it.",
   beads_ready: "Claimable beads issues. Follows beads unless you set this name.",
+  polylinedb: "Project issues from local or cloud polylinedb stores. Off until you enable it.",
   docker: "Containers and published ports. On by default.",
   sessions: "Live Claude Code and Codex sessions. On by default.",
   cursor: "Recent Cursor agent conversations and their models. On by default.",

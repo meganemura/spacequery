@@ -31,6 +31,7 @@ The report-level `providers` list can include dependencies, such as providers th
 | `repository_config_files` | Recognized dependency, language, and tool configuration file names at repository roots and declared npm workspaces. It reads root package.json only for bounded workspace discovery. |
 | `beads` | Open beads issues from repositories in scope that have `.beads`, including title, status, priority, type, assignee, labels, timestamps, and relationship counts. |
 | `beads_ready` | Claimable beads issues from `bd ready` for those same roots. It follows the beads on/off switch unless config sets `beads_ready` itself. |
+| `polylinedb` | Unclosed project issues and repository-to-project associations selected by `pd context --json`. Reads the selected local or cloud store through `pd`. A context, page, validation, or list failure fails the provider without publishing partial rows. |
 | `docker` | Containers from the current Docker CLI context, including image, lifecycle state, health, Compose identity, repository associations from bind mounts and Compose labels, and exposed or published ports. |
 | `sessions` | Live Claude Code processes and held Codex thread locks, with session id, agent type, process id, working directory, repository root, name, activity times, last transcript branch, and source-specific runtime details. |
 | `cursor` | The newest 32 Cursor agent conversations in the local IDE database, with composer id, name, status, mode, model, worktree, branch, and repository root when those fields are recorded. It starts no process. |
@@ -43,15 +44,18 @@ The report-level `providers` list can include dependencies, such as providers th
 ## Turning a provider off
 
 Lists read `$XDG_CONFIG_HOME/spacequery/config.json`, or `~/.config/spacequery/config.json` when `XDG_CONFIG_HOME` is unset.
-A missing file leaves every built-in provider on except `beads`, `beads_ready`, `brew`, `headsign`, and `runtag`.
-Those are optional inventories. `beads`, `headsign`, and `runtag` are author-owned tools, and Homebrew is a machine inventory you may not want in the short list.
+A missing file leaves every built-in provider on except `beads`, `beads_ready`, `brew`, `headsign`, `polylinedb`, and `runtag`.
+Those are optional inventories. `beads`, `headsign`, and `runtag` are author-owned tools, Homebrew is a machine inventory, and polylinedb is an optional project issue source.
 `beads_ready` is the claimable half of the beads inventory. Setting `beads` to true enables it too, unless the file sets `beads_ready` itself.
+
+The polylinedb CLI 0.1.0 can change an existing SQLite WAL store to DELETE journal mode when it connects. Current polylinedb source preserves an existing journal mode, but that fix has not been released. Use a release with that fix before querying an existing WAL store. The integration check used the current source CLI with an isolated fixture; it did not query a configured user store.
 Set a name to `true` or `false` to override the ship default. Names match the table above, including `github` and `github_reviews` as two providers.
 
 ```json
 {
   "providers": {
     "beads": true,
+    "polylinedb": true,
     "git": false
   },
   "help": { "mode": "short" }

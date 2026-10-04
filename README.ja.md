@@ -10,7 +10,7 @@ spacequery は、コーディングエージェントに開発者の機械 1 台
 spacequery はその問いに答える。
 既存の状態源を観測し、その行を新しい in-memory SQLite database で結合し、結果を印字して終了する。
 **provider** は spacequery が観測する状態源である。
-たとえば herdr、git、ghq、mise、gh、Docker、lsof、beads、session の記録、headsign の file、runtag の job file が provider になる。
+たとえば herdr、git、ghq、mise、gh、Docker、lsof、polylinedb、session の記録、headsign の file、runtag の job file が provider になる。
 spacequery は provider を読む。
 provider の状態は変えない。
 
@@ -33,7 +33,7 @@ spacequery here
 ```
 
 `here` は 1 つのリポジトリについての report である。
-同じリポジトリにいる他のエージェント、現在の git state、linked worktree、branch の pull request、listening port、local process、Docker container と port、mise tool、open beads issue、headsign workflow state を示す。
+同じリポジトリにいる他のエージェント、現在の git state、linked worktree、branch の pull request、listening port、local process、Docker container と port、mise tool、未完了の project issue、headsign workflow state を示す。
 エージェントはその結果から次の行動を選べる。
 
 - 他のエージェントが同じリポジトリで作業していれば待つ。
@@ -99,7 +99,8 @@ spacequery には Node 24.10 以降が要る。
 build と ad hoc SQL の解決が `node:sqlite` の `setAuthorizer` を使うためである。
 
 spacequery に観測させたい道具を `PATH` に置く。
-対象は `herdr`、`git`、`ghq`、`mise`、ログイン済みの `gh`、`docker`、`lsof`、`bd` である。
+対象は `herdr`、`git`、`ghq`、`mise`、ログイン済みの `gh`、`docker`、`lsof`、`pd` である。`bd` は明示的な legacy beads query だけで使う。
+`polylinedb` provider は既定で help list に表示されない。`~/.config/spacequery/config.json` で有効にできる。名前を指定した query は provider が無効でも実行する。
 headsign rows は file から来るので、`PATH` 上の command は要らない。
 session rows は `~/.claude` と `~/.codex` の記録から来る。
 pane と session の結合には、herdr の Claude Code integration と Codex integration が要る。

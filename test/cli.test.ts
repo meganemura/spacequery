@@ -28,7 +28,7 @@ test("help prints the short list and --all prints every enabled query", async ()
     assert.equal(queries.includes("issues"), false);
     assert.equal(queries.includes("runs-in-dir"), false);
     assert.match(stdout, /--help --all/);
-    assert.match(stdout, /beads, beads_ready, brew, headsign, runtag/);
+    assert.match(stdout, /beads, beads_ready, brew, headsign, polylinedb, runtag/);
     assert.equal(names.includes("here"), true);
     assert.equal(names.includes("dependency-report"), false);
     const full = await execFileAsync(process.execPath, ["cli.ts", "--help", "--all"], { cwd: process.cwd(), encoding: "utf8", env });
@@ -37,7 +37,7 @@ test("help prints the short list and --all prints every enabled query", async ()
     assert.doesNotMatch(full.stdout, /^ {2}issues /m);
     mkdirSync(join(root, "config", "spacequery"), { recursive: true });
     writeFileSync(join(root, "config", "spacequery", "config.json"), JSON.stringify({
-      providers: { beads: true, brew: true, headsign: true, runtag: true },
+      providers: { beads: true, brew: true, headsign: true, polylinedb: true, runtag: true },
     }));
     const enabled = await execFileAsync(process.execPath, ["cli.ts", "--help", "--all"], { cwd: process.cwd(), encoding: "utf8", env });
     for (const name of Object.keys(catalog)) assert.match(enabled.stdout, new RegExp(`^ {2}${name} `, "m"));
@@ -59,7 +59,7 @@ test("JSON help is short by default and --all carries the catalog fields", async
       reports: { name: string; sections?: [string, string][]; requires: string[]; enabled: boolean; source: string }[];
     };
     assert.equal(document.mode, "short");
-    assert.deepEqual(document.disabled_providers, ["beads", "beads_ready", "brew", "headsign", "runtag"]);
+    assert.deepEqual(document.disabled_providers, ["beads", "beads_ready", "brew", "headsign", "polylinedb", "runtag"]);
     assert.equal(document.queries.some((query) => query.name === "issues"), false);
     const agents = document.queries.find((query) => query.name === "agents");
     assert.equal(agents?.source, "built-in");
@@ -453,7 +453,7 @@ test("watch work reprints the report until the deadline", async () => {
         assert.match(error.stderr ?? "", /timed out/);
         const board = JSON.parse((error.stdout ?? "").trim().split("\n")[0] ?? "");
         assert.equal(board.report, "work");
-        assert.deepEqual(Object.keys(board.sections), ["ready", "issues", "agents", "cursor"]);
+        assert.deepEqual(Object.keys(board.sections), ["open", "issues", "issue_sources", "agents", "cursor"]);
         assert.equal(board.definition.default_scope, "all");
         assert.match(board.definition.refresh, /watch work/);
         return true;
@@ -509,36 +509,43 @@ test("query documentation names every catalog query", async () => {
 });
 
 
-test("work-list commands default to every ghq beads root", async () => {
+test("generic issue commands use project stores and beads stays explicitly legacy", async () => {
   const home = mkdtempSync(join(tmpdir(), "spacequery-cli-work-"));
   const alpha = join(home, "alpha");
   const gamma = join(home, "gamma");
   const bin = join(home, "bin");
+  const store = join(home, "polylinedb");
   mkdirSync(join(alpha, ".beads"), { recursive: true });
   mkdirSync(join(gamma, ".beads"), { recursive: true });
   mkdirSync(join(alpha, ".git"), { recursive: true });
   mkdirSync(join(gamma, ".git"), { recursive: true });
   mkdirSync(join(home, ".claude", "sessions"), { recursive: true });
+  mkdirSync(join(home, "config", "spacequery"), { recursive: true });
   mkdirSync(bin);
-  const open = {
-    [alpha]: [{ id: "alpha-1", title: "Alpha open", status: "open", priority: 1 }],
-    [gamma]: [{ id: "gamma-1", title: "Gamma open", status: "open", priority: 2 }],
+  writeFileSync(join(home, "config", "spacequery", "config.json"), JSON.stringify({ providers: { beads: true, beads_ready: true, polylinedb: true } }));
+  const issue = (id: string, status: string, priority: number) => ({ id, tool: "synthetic", project: "demo", body: id, status, type: "task", priority, labels: [], created_at: "2026-09-10T00:00:00.000Z", updated_at: "2026-09-10T01:00:00.000Z" });
+  const projectIssues = {
+    open: [issue("pd-1", "open", 1), issue("pd-2", "open", 2)],
+    in_progress: [issue("pd-3", "in_progress", 2)],
+    deferred: [issue("pd-4", "deferred", 3)],
   };
-  const ready = { [alpha]: [], [gamma]: [{ id: "gamma-1", title: "Gamma open", status: "open", priority: 2 }] };
   const snapshot = { result: { snapshot: { agents: [{ pane_id: "pane-alpha", agent: "claude", agent_status: "working", cwd: alpha, name: "Alpha" }] } } };
   writeFileSync(join(bin, "ghq"), `#!/usr/bin/env node\nprocess.stdout.write(${JSON.stringify(`${alpha}\n${gamma}\n`)});\n`);
   writeFileSync(join(bin, "herdr"), `#!/usr/bin/env node\nprocess.stdout.write(${JSON.stringify(JSON.stringify(snapshot))});\n`);
-  writeFileSync(join(bin, "lsof"), "#!/bin/sh\nexit 0\n");
-  writeFileSync(join(bin, "bd"), `#!/usr/bin/env node
+  writeFileSync(join(bin, "pd"), `#!/usr/bin/env node
 const args = process.argv.slice(2);
-const root = args[args.indexOf("-C") + 1];
-const ready = args.includes("ready");
-if (ready && args[args.indexOf("--limit") + 1] !== "0") process.exit(2);
-const rows = (ready ? ${JSON.stringify(ready)} : ${JSON.stringify(open)})[root];
-if (!rows) process.exit(1);
-process.stdout.write(JSON.stringify(rows));
+if (args[0] === "context") {
+  process.stdout.write(JSON.stringify({ mode: "local", connection: null, source: "repository", data_dir: ${JSON.stringify(store)}, database_path: ${JSON.stringify(join(store, "polylinedb.sqlite"))}, project: "demo" }));
+} else if (args.includes("list")) {
+  const status = args[args.indexOf("--status") + 1];
+  process.stdout.write(JSON.stringify({ issues: ${JSON.stringify(projectIssues)}[status], next_cursor: null }));
+} else {
+  process.exit(2);
+}
 `);
-  for (const name of ["ghq", "herdr", "lsof", "bd"]) chmodSync(join(bin, name), 0o755);
+  writeFileSync(join(bin, "lsof"), "#!/bin/sh\nexit 0\n");
+  writeFileSync(join(bin, "bd"), "#!/usr/bin/env node\nprocess.stdout.write(JSON.stringify([{ id: \"legacy-1\", title: \"Legacy ready\", status: \"open\", priority: 2 }]));\n");
+  for (const name of ["ghq", "herdr", "lsof", "pd", "bd"]) chmodSync(join(bin, name), 0o755);
   const env: NodeJS.ProcessEnv = {
     ...process.env,
     HOME: home,
@@ -552,26 +559,32 @@ process.stdout.write(JSON.stringify(rows));
   try {
     const wide = JSON.parse((await run(["issues-in-scope"])).stdout);
     assert.equal(wide.scope, "all");
-    assert.deepEqual(wide.rows.map((row: { issue_id: string }) => row.issue_id), ["alpha-1", "gamma-1"]);
-    assert.deepEqual(wide.providers.map((provider: { name: string }) => provider.name), ["beads", "herdr", "repos"]);
+    assert.deepEqual(wide.rows.map((row: { issue_id: string; status: string }) => [row.issue_id, row.status]), [["pd-1", "open"], ["pd-2", "open"], ["pd-3", "in_progress"], ["pd-4", "deferred"]]);
+    assert.deepEqual(wide.providers.map((provider: { name: string }) => provider.name), ["herdr", "polylinedb", "repos"]);
     const narrow = JSON.parse((await run(["issues-in-scope", "--scope", "agents"])).stdout);
     assert.equal(narrow.scope, "agents");
-    assert.deepEqual(narrow.rows.map((row: { issue_id: string }) => row.issue_id), ["alpha-1"]);
-    assert.deepEqual(narrow.providers.map((provider: { name: string }) => provider.name), ["beads", "herdr"]);
-    const claimable = JSON.parse((await run(["issues-ready"])).stdout);
-    assert.equal(claimable.scope, "all");
-    assert.deepEqual(claimable.rows.map((row: { root: string; issue_id: string }) => [row.root, row.issue_id]), [[gamma, "gamma-1"]]);
-    assert.deepEqual(claimable.providers.map((provider: { name: string }) => provider.name), ["beads_ready", "herdr", "repos"]);
+    assert.deepEqual(narrow.rows.map((row: { issue_id: string }) => row.issue_id), ["pd-1", "pd-2", "pd-3", "pd-4"]);
+    assert.deepEqual(narrow.providers.map((provider: { name: string }) => provider.name), ["herdr", "polylinedb"]);
+    const open = JSON.parse((await run(["issues-open"])).stdout);
+    assert.equal(open.scope, "all");
+    assert.deepEqual(open.rows.map((row: { issue_id: string }) => row.issue_id), ["pd-1", "pd-2"]);
+    const sources = JSON.parse((await run(["issues-sources"])).stdout);
+    assert.deepEqual(sources.rows.map((row: { root: string; project: string; state: string }) => [row.root, row.project, row.state]), [[alpha, "demo", "configured"], [gamma, "demo", "configured"]]);
+    const legacy = JSON.parse((await run(["beads-ready-legacy"])).stdout);
+    assert.equal(legacy.scope, "all");
+    assert.deepEqual(legacy.rows.map((row: { issue_id: string }) => row.issue_id), ["legacy-1", "legacy-1"]);
+    assert.deepEqual(legacy.providers.map((provider: { name: string }) => provider.name), ["beads_ready", "herdr", "repos"]);
     const board = JSON.parse((await run(["work"])).stdout);
     assert.equal(board.scope, "all");
-    assert.deepEqual(Object.keys(board.sections), ["ready", "issues", "agents", "cursor"]);
-    assert.deepEqual(board.sections.ready.map((row: { issue_id: string }) => row.issue_id), ["gamma-1"]);
-    assert.deepEqual(board.sections.issues.map((row: { issue_id: string }) => row.issue_id), ["alpha-1", "gamma-1"]);
+    assert.deepEqual(Object.keys(board.sections), ["open", "issues", "issue_sources", "agents", "cursor"]);
+    assert.deepEqual(board.sections.open.map((row: { issue_id: string }) => row.issue_id), ["pd-1", "pd-2"]);
+    assert.deepEqual(board.sections.issues.map((row: { issue_id: string }) => row.issue_id), ["pd-1", "pd-2", "pd-3", "pd-4"]);
+    assert.deepEqual(board.sections.issue_sources.map((row: { root: string }) => row.root), [alpha, gamma]);
     assert.equal(board.sections.agents[0].pane_id, "pane-alpha");
     assert.equal(board.sections.agents[0].model, null);
     assert.deepEqual(board.sections.cursor, []);
     assert.deepEqual(board.providers.map((provider: { name: string; ok: number }) => [provider.name, provider.ok]), [
-      ["beads", 1], ["beads_ready", 1], ["cursor", 1], ["herdr", 1], ["repos", 1], ["sessions", 1],
+      ["cursor", 1], ["herdr", 1], ["polylinedb", 1], ["repos", 1], ["sessions", 1],
     ]);
   } finally {
     rmSync(home, { recursive: true, force: true });

@@ -33,7 +33,7 @@ test("the browser derives columns and relations from the schema and catalog", ()
   assert.equal(agents.enabled, true);
   const issues = items.find((item) => item.kind === "query" && item.name === "issues")!;
   assert.equal(issues.enabled, false);
-  assert.deepEqual(issues.requires, ["beads"]);
+  assert.deepEqual(issues.requires, ["polylinedb"]);
 });
 
 test("the browser report list is the work dashboard definition", () => {
