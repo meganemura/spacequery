@@ -172,6 +172,7 @@ gh skill install meganemura/spacequery spacequery --scope user --agent codex
 | The workflow an agent follows before it acts | [skills/spacequery/SKILL.md](skills/spacequery/SKILL.md) |
 | Query names, parameters, report sections, and columns | [queries.md](skills/spacequery/references/queries.md) |
 | JSON envelopes, `providers`, `section_status`, flags, `me`, and exit codes | [output.md](skills/spacequery/references/output.md) |
+| Roster and quota reads before a dispatch, with the environment they need | [quota.md](skills/spacequery/references/quota.md) |
 | Exact provider JSON names and state sources | [providers.md](skills/spacequery/references/providers.md) |
 | Provider tables for ad hoc SQL or user queries | [tables.md](skills/spacequery/references/tables.md) |
 | User query files under `~/.config/spacequery/queries/` | [user-queries.md](skills/spacequery/references/user-queries.md) |

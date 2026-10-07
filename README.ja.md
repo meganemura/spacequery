@@ -161,6 +161,7 @@ gh skill install meganemura/spacequery spacequery --scope user --agent codex
 | query name、parameter、report section、column | [queries.md](skills/spacequery/references/queries.md) |
 | JSON envelope、`providers`、`section_status`、flag、`me`、exit code | [output.md](skills/spacequery/references/output.md) |
 | provider の JSON name と状態源 | [providers.md](skills/spacequery/references/providers.md) |
+| dispatch 前の roster と quota の読み方、必要な環境 | [quota.md](skills/spacequery/references/quota.md) |
 | ad hoc SQL や user query のための provider table | [tables.md](skills/spacequery/references/tables.md) |
 | `~/.config/spacequery/queries/` の user query file | [user-queries.md](skills/spacequery/references/user-queries.md) |
 

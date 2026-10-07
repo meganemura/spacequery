@@ -4,6 +4,7 @@ The format follows Keep a Changelog, and the versions follow SemVer. Before 1.0 
 
 ## Unreleased
 
+- Added: `references/quota.md` in the skill: read the agent roster and the Claude and Codex quota before a dispatch, with the environment the providers need and how to tell headroom, exhausted, and unknown apart.
 - Fixed: when `claude -p /usage` prints no quota windows, `claude_usage` now says that the CLI is not signed in to a subscription or cannot read its sign-in. On macOS an unset `USER` causes this.
 
 - Added: a prepare failure of `--sql` or a user query file now names the fix: the close columns or tables, a typed listing of a named table's columns (nullable, and a CHECK enum's allowed values), which table a missing column actually lives in and how it joins, the right alias, and a corrected statement as `try:` when the fix is certain. It also covers a double-quoted value, an ambiguous column, a misused aggregate, an unknown function, and a syntax error near a reserved word. A statement that prepares still warns, without failing, when a comparison the schema makes impossible can never match: the wrong type, a value outside a CHECK enum, or `null` compared with `=`/`<>`. `--json` adds a `warnings` array when any fired. `spacequery doctor` now prepares every user query file the same way a call would and reports each one in `user_queries`; a file that no longer prepares clears `ok`.
