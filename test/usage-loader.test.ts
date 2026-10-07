@@ -21,6 +21,7 @@ test("Claude quota parsing keeps source labels and yearless dates", () => {
   assert.equal(rows[0]?.resets_at, null);
   assert.equal(rows[0]?.recorded_at, 1234);
   for (const bad of [reply("No subscription"), '{}', JSON.stringify({ is_error: true, result: sample }), JSON.stringify({ is_error: false, num_turns: 1, local_command: "usage", result: sample })]) assert.throws(() => parseClaudeUsage(bad, 0));
+  assert.throws(() => parseClaudeUsage(reply("Total cost:            $0.0000\nUsage:                 0 input, 0 output"), 0), /no subscription quota windows/);
 });
 
 test("Codex quota percentages preserve generated values and window durations", () => hegel.test((tc) => {

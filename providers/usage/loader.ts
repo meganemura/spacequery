@@ -25,7 +25,10 @@ export function parseClaudeUsage(text: string, recordedAt: number): Usage[] {
     rows.push({ id: label, limit_id: label, window_minutes: label === "Current session" ? 300 : label.startsWith("Current week") ? 10080 : null,
       used_percent: used, resets_at: null, resets_text: match[3]!, recorded_at: recordedAt, source: "claude /usage" });
   }
-  if (!rows.length || new Set(rows.map((row) => row.id)).size !== rows.length) throw new Error("Claude usage output has no unique quota windows");
+  // Without its subscription sign-in the CLI still succeeds but prints only cost
+  // totals. On macOS an unset USER hides the keychain sign-in from the CLI.
+  if (!rows.length) throw new Error("Claude usage output has no subscription quota windows; the CLI is not signed in to a subscription or cannot read its sign-in (on macOS, set USER)");
+  if (new Set(rows.map((row) => row.id)).size !== rows.length) throw new Error("Claude usage output has duplicate quota windows");
   return rows;
 }
 
