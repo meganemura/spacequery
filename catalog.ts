@@ -24,6 +24,7 @@ import { beadsQueries } from "./providers/beads/public.ts";
 import { polylinedbQueries } from "./providers/polylinedb/public.ts";
 import { headsignQueries } from "./providers/headsign/public.ts";
 import { runtagQueries } from "./providers/runtag/public.ts";
+import { firstlightQueries } from "./providers/firstlight/public.ts";
 import { cursorQueries } from "./providers/cursor/public.ts";
 
 export type Named = {
@@ -119,6 +120,8 @@ export const catalog: Readonly<Record<string, Named>> = {
   "issues-unattended": named(reportQueries.issuesUnattended, "Repositories with unclosed project issues and no agent.", [], "Issues", "When unclosed project issues have no agent in the repository.", true, "all"),
   "workflow": named(headsignQueries.inDir, "The headsign run of one repository.", ["root"], "Workflows", "When you pick up a repository and need its headsign run.", true),
   "runs-in-dir": named(runtagQueries.inDir, "runtag jobs whose repository root or working directory is the given directory or inside it.", ["root"], "Runs", "When you are waiting on a detached runtag job for one directory.", true),
+  "running-checks": named(reportQueries.runningChecks, "firstlight checks that are pending or running in a run whose supervisor is alive, with the repository and branch of the run's root.", [], "Checks", "When you need to know which firstlight checks are still running, and where, before you start or wait on another run.", true),
+  "latest-check-runs": named(firstlightQueries.latest, "The latest firstlight run of each repository, with its outcome and how many checks passed, failed, are running, or were cancelled.", [], "Checks", "When you need the last firstlight result of each repository without reading its state files.", true),
   "workflows": named(headsignQueries.all, "Every headsign run, with its phase.", [], "Workflows", "When you need every headsign run and its phase."),
   "running-workflows-with-agents": named(reportQueries.runningWorkflowsWithAgents, "Running headsign workflows in repositories where an agent works.", [], "Workflows", "When a headsign workflow is running where an agent works."),
   "running-workflows-unattended": named(reportQueries.runningWorkflowsUnattended, "Running headsign workflows with no agent in the repository.", [], "Workflows", "When a headsign workflow is running with no agent in the repository.", true),

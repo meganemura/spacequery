@@ -9,7 +9,7 @@ import { dirname, join } from "node:path";
 // These inventories are useful when the tool is installed and unused noise
 // when it is not. Author-owned tools are in this set so a fresh machine does
 // not advertise them. Every other built-in provider stays on.
-export const providersOffByDefault = ["beads", "beads_ready", "brew", "headsign", "polylinedb", "runtag"] as const;
+export const providersOffByDefault = ["beads", "beads_ready", "brew", "firstlight", "headsign", "polylinedb", "runtag"] as const;
 
 const offByDefault = new Set<string>(providersOffByDefault);
 
@@ -38,6 +38,7 @@ export const providerSummaries: Readonly<Record<string, string>> = {
   claude_usage: "Claude subscription quota. On by default.",
   codex_usage: "Codex quota from local logs. On by default.",
   runtag: "runtag job files. Off until you enable it.",
+  firstlight: "firstlight runs and the status of each check. Off until you enable it.",
 };
 
 export type HelpMode = "short" | "all";

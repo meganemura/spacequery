@@ -310,6 +310,23 @@ That row stays `status` `running` with `exit_code` null, so it does not satisfy 
 Zero rows do not match. After it exits 0, `runtag status <id>` reads `exit_code`.
 A missing jobs directory is an empty answer with `runtag` `ok` 1. An unreadable jobs directory is `ok` 0, including under `spacequery doctor`.
 
+## Checks (firstlight)
+
+| Query | Parameters | Columns |
+| --- | --- | --- |
+| `running-checks` | | `root`, `repo_root?`, `branch?`, `run_id`, `name`, `run`, `status`, `pid?`, `started_at?`, `running_ms?`, `log` |
+| `latest-check-runs` | | `root`, `run_id`, `started_at`, `outcome?`, `supervisor_pid?`, `supervisor_alive`, `current`, `checks`, `passed`, `failed`, `running`, `cancelled` |
+
+Both read the state [firstlight](https://github.com/meganemura/firstlight) ([npm](https://www.npmjs.com/package/firstlight)) writes. spacequery reads it; firstlight runs and stops the checks.
+`running-checks` keeps checks whose `status` is `pending` or `running` in a run whose supervisor is alive, in each run's check order.
+`run` is the check's command. `running_ms` counts from the `running` event and is null for a `pending` check; firstlight writes `elapsed_ms` only when a check ends.
+`repo_root` and `branch` come from `worktrees` for the run's root. They are null when that root is outside the call's scope. The default scope covers roots where an agent works; `--scope all` covers every ghq repository and takes a few seconds.
+`spacequery watch running-checks --until empty` waits until no firstlight check runs.
+`latest-check-runs` has one row per repository: the run its `current` file names, or the newest kept run when that file is missing or names a run that is gone.
+The counts use firstlight's buckets: `failed` holds `failed`, `timed_out`, `skipped`, and `unknown`; `running` holds `pending` and `running`.
+`outcome` is `done`, `cancelled`, or null while the run has not finished. A null `outcome` with `supervisor_alive` 0 is a run whose supervisor died; its unsettled checks are `unknown`.
+For logs, time left, and reruns, use `firstlight results`, `firstlight follow`, and `firstlight run --failed`.
+
 ## Workflows (headsign)
 
 | Query | Parameters | Columns |

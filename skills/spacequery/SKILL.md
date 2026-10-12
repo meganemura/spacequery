@@ -7,7 +7,7 @@ description: Use when an agent wants to know the state of the developer's machin
 # spacequery
 
 spacequery answers questions about one developer's machine.
-Each call observes selected providers (herdr, git, ghq, mise, Homebrew, gh, Docker, ps, lsof, polylinedb, beads, headsign state files, runtag job files, session records, skill and plugin files, and the caller's PATH) at that moment, joins their rows in an in-memory database, and prints the result.
+Each call observes selected providers (herdr, git, ghq, mise, Homebrew, gh, Docker, ps, lsof, polylinedb, beads, headsign state files, runtag job files, firstlight run state, session records, skill and plugin files, and the caller's PATH) at that moment, joins their rows in an in-memory database, and prints the result.
 Nothing is cached, and spacequery never writes to a provider.
 
 Call it from anywhere:
@@ -33,10 +33,11 @@ Exact provider JSON names and their state sources: [references/providers.md](ref
 
 Before you assume empty means none, run `spacequery doctor` when setup is unclear or a provider looks incomplete.
 Doctor loads every enabled built-in provider once on one root, the git toplevel or `--root`, and prints JSON.
-`beads`, `brew`, `headsign`, `polylinedb`, and `runtag` are off until `$XDG_CONFIG_HOME/spacequery/config.json` enables them. Setting `beads` to true also enables `beads_ready` unless the file sets `beads_ready` itself. Doctor lists the names that stay off in `disabled_providers` and does not load them.
+`beads`, `brew`, `firstlight`, `headsign`, `polylinedb`, and `runtag` are off until `$XDG_CONFIG_HOME/spacequery/config.json` enables them. Setting `beads` to true also enables `beads_ready` unless the file sets `beads_ready` itself. Doctor lists the names that stay off in `disabled_providers` and does not load them.
 Read the report's `ok`, then each provider's `ok` and `error`.
 A provider with `ok` 0 left its tables empty. The `error` says why, such as a missing binary.
 A missing runtag jobs directory is `ok` 1 and an empty table. An unreadable jobs directory, or a job file that does not parse, is `ok` 0.
+A missing firstlight state directory is `ok` 1 and empty tables. A run firstlight could not have written is `ok` 0, and the runs that read stay.
 `path` counts PATH entries, missing entries, and duplicates when the search path provider answered. Those are the same facts as `path-entries`.
 `user_providers.present` is 1 when `$XDG_CONFIG_HOME/spacequery/providers` exists.
 Doctor does not run user-provider commands, install tools, or change a provider.
@@ -65,12 +66,14 @@ spacequery watch working --until empty
 spacequery watch in-dir --until agent_status=idle|blocked
 spacequery watch claude-sessions --until status=idle
 spacequery watch runs-in-dir --root <repo> --until status=exited
+spacequery watch running-checks --until empty
 ```
 
 `in-dir`, `working`, and `agents` carry `agent_status` (`working`, `idle`, `blocked`, `unknown`).
 `working` only returns agents that are working, so the wait for idle is `--until empty`.
 `claude-sessions` carries `status`. `runs-in-dir` carries `status` (`running` or `exited`). A column predicate matches when every returned row has one of the values. Zero rows do not match it; use `empty`.
 A [runtag](https://github.com/meganemura/runtag) ([npm](https://www.npmjs.com/package/runtag)) job whose file says `running` while `supervisor_pid` is dead stays `running` with `orphan` 1 and `exit_code` null. It does not satisfy `status=exited`.
+`running-checks` only returns firstlight checks that still run under a live supervisor, so the wait until a run has settled is `--until empty`.
 An incomplete observation does not match `--until`. Empty rows beside a provider with `ok` 0 stay unknown.
 The first snapshot prints immediately. Later snapshots print only when the observation changes.
 JSON from watch is one envelope per line. One-shot JSON stays indented.
@@ -103,7 +106,8 @@ The predicate, the fingerprint, and the exit codes: [references/output.md](refer
     For a work list across projects, `issues-in-scope` reads each selected polylinedb project for every root in scope. The selected store and project come from `pd context --json`. It reads every page for `open`, `in_progress`, and `deferred`, and it omits `closed`. Omitting `--scope` uses `all`; `--scope agents` narrows the list to roots with an agent.
     `issues-open` shows the open subset. `issues-sources` shows which roots have a configured project. A read failure leaves the provider tables empty; the loader does not switch stores or use legacy beads rows. Use `beads-issues-legacy`, `beads-issues-in-scope-legacy`, or `beads-ready-legacy` only when you explicitly need the retained beads inventory.
 11. **When you wait for a detached runtag command**: [runtag](https://github.com/meganemura/runtag) ([npm](https://www.npmjs.com/package/runtag)) records with `runtag exec --detach --cwd <repo> -- <cmd>...` and writes a job file with `id`. Then `spacequery watch runs-in-dir --root <repo> --until status=exited`. When that exits 0, `runtag status <id>` reads `exit_code`. spacequery reads the files and watches. An orphan stays `running` and does not satisfy the wait.
-12. **Before you choose a dependency or tool parser**: `repository-config-files --root DIR`. It inventories recognized file names without interpreting their bodies.
+12. **Before you start or wait on a firstlight run**: [firstlight](https://github.com/meganemura/firstlight) ([npm](https://www.npmjs.com/package/firstlight)) runs every check of a repository at once. `running-checks` lists the checks that still run under a live supervisor, with the repository and branch; `spacequery watch running-checks --until empty` waits for them. `latest-check-runs` gives each repository's latest result. A check whose supervisor died before it settled is `unknown` with `orphan` 1, as `firstlight results` reports it. Read logs and time left with `firstlight results`.
+13. **Before you choose a dependency or tool parser**: `repository-config-files --root DIR`. It inventories recognized file names without interpreting their bodies.
 
 ## Work dashboard
 
@@ -133,7 +137,7 @@ The table is the curated set. It is not one machine's call history.
 `spacequery --help` prints these after it drops any query whose provider is off, then adds queries this machine calls often, up to about 25. The call log only ranks that list.
 `spacequery --help --json` is the same list as data, with `group`, `purpose`, `default`, `enabled`, and `requires`. A report entry also has `sections`. The `work` report adds `default_scope` and `refresh`.
 `spacequery --help --all` and `spacequery --help --all --json` list every enabled query. The columns for the rest are in [references/queries.md](references/queries.md).
-`beads`, `brew`, `headsign`, `polylinedb`, and `runtag` are off until you set them to `true` under `providers` in `$XDG_CONFIG_HOME/spacequery/config.json` (`~/.config/spacequery/config.json` when the variable is unset). Setting `beads` to true also enables `beads_ready` unless the file sets `beads_ready` itself. A named query and `--sql` still run when the provider is off in the list.
+`beads`, `brew`, `firstlight`, `headsign`, `polylinedb`, and `runtag` are off until you set them to `true` under `providers` in `$XDG_CONFIG_HOME/spacequery/config.json` (`~/.config/spacequery/config.json` when the variable is unset). Setting `beads` to true also enables `beads_ready` unless the file sets `beads_ready` itself. A named query and `--sql` still run when the provider is off in the list.
 
 | Query | Parameter | When |
 | --- | --- | --- |
@@ -168,6 +172,8 @@ The table is the curated set. It is not one machine's call history.
 | `running-workflows-unattended` | | When a headsign workflow is running with no agent in the repository. |
 | `workflow` | `--root` | When you pick up a repository and need its headsign run. |
 | `runs-in-dir` | `--root` | When you are waiting on a detached runtag job for one directory. |
+| `running-checks` | | When you need to know which firstlight checks are still running, and where, before you start or wait on another run. |
+| `latest-check-runs` | | When you need the last firstlight result of each repository without reading its state files. |
 
 `--root` defaults to the git toplevel of the current directory.
 A query that takes `--root` looks at that repository only. `--scope all` runs each repository-scoped provider on every ghq repository instead of the repositories with an agent; it takes a few seconds.

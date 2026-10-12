@@ -40,12 +40,13 @@ The report-level `providers` list can include dependencies, such as providers th
 | `skills` | Claude and Codex user, project, admin, system, and plugin skills, plus installed plugin identity, source, version, path, and timestamps when those records exist. |
 | `headsign` | Readable `.headsign/state.json` files for repositories in scope, including workflow, status, phase, iteration counts, attempts, last failure, stop reason, driver agent, and phase entry time. |
 | `runtag` | Job files under `$XDG_DATA_HOME/runtag/jobs/` (default `~/.local/share/runtag/jobs/<id>.json`). Each row has `id`, `status` (`running` or `exited`), `exit_code`, `orphan`, `repo_root`, `cwd`, and `supervisor_pid`. The reader starts no process and does not write a job file. |
+| `firstlight` | [firstlight](https://github.com/meganemura/firstlight) ([npm](https://www.npmjs.com/package/firstlight)) state under `$XDG_STATE_HOME/firstlight/<repo-key>/` (default `~/.local/state/firstlight/`): `runs/<run id>/run.json`, `runs/<run id>/events.jsonl`, and `current`. Fills `firstlight_runs` and `firstlight_checks` for every repository firstlight has recorded. The reader starts no process and does not write, prune, or signal. |
 
 ## Turning a provider off
 
 Lists read `$XDG_CONFIG_HOME/spacequery/config.json`, or `~/.config/spacequery/config.json` when `XDG_CONFIG_HOME` is unset.
-A missing file leaves every built-in provider on except `beads`, `beads_ready`, `brew`, `headsign`, `polylinedb`, and `runtag`.
-Those are optional inventories. `beads`, `headsign`, and `runtag` are author-owned tools, Homebrew is a machine inventory, and polylinedb is an optional project issue source.
+A missing file leaves every built-in provider on except `beads`, `beads_ready`, `brew`, `firstlight`, `headsign`, `polylinedb`, and `runtag`.
+Those are optional inventories. `beads`, `firstlight`, `headsign`, and `runtag` are author-owned tools, Homebrew is a machine inventory, and polylinedb is an optional project issue source.
 `beads_ready` is the claimable half of the beads inventory. Setting `beads` to true enables it too, unless the file sets `beads_ready` itself.
 
 The polylinedb CLI 0.1.0 can change an existing SQLite WAL store to DELETE journal mode when it connects. Current polylinedb source preserves an existing journal mode, but that fix has not been released. Use a release with that fix before querying an existing WAL store. The integration check used the current source CLI with an isolated fixture; it did not query a configured user store.
@@ -86,3 +87,14 @@ A jobs path that exists but cannot be read, and a `*.json` file that is not a jo
 `spacequery doctor` uses this load. A machine with no jobs directory still has `runtag` `ok` 1. An unreadable jobs directory or a job file that does not parse makes doctor's `ok` 0.
 `status` is only `running` or `exited`. When the file says `running` and `supervisor_pid` is not a live process, the row stays `running`, `exit_code` is null, and `orphan` is 1. That row does not satisfy `status=exited`.
 `runs-in-dir` keeps a job whose `repo_root` or `cwd` equals `--root` or is inside it. `repo/pkg` matches `repo`. `repo-other` does not.
+
+## firstlight runs
+
+`firstlight` reads the state [firstlight](https://github.com/meganemura/firstlight) ([npm](https://www.npmjs.com/package/firstlight)) keeps for each repository: `run.json` for the root, the supervisor pid, the start time, and the checks; `events.jsonl` for every status change; and `current` for the latest run.
+A check's `status` is the fold firstlight itself uses. A last line without its newline is not read yet; the supervisor may be writing it.
+A check that never settled, in a run with no outcome whose supervisor pid is not a live process, is `unknown` with `orphan` 1. A zombie supervisor is not alive. `supervisor_alive` is 0 once a run has an outcome.
+`log` is the path firstlight writes that check's output to, derived from the check list with firstlight's naming rule.
+A missing state directory is empty tables and `ok` 1: firstlight has not run here. A run directory without `run.json` yet is skipped.
+A state path that cannot be read, a `run.json` firstlight would refuse, and an `events.jsonl` with an unreadable line or a transition firstlight does not allow are `ok` 0. The error names the run, and the runs that did read stay.
+A relative `XDG_STATE_HOME` is `ok` 0, because firstlight resolves it against a working directory spacequery does not know.
+`spacequery doctor` uses this load when `firstlight` is enabled.
