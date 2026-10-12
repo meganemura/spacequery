@@ -274,6 +274,20 @@ or `exited`. `orphan` is 1 when the file says `running` and `supervisor_pid` is 
 a live process; `exit_code` is null on that row. `orphan` is 0 otherwise.
 A missing jobs directory leaves the table empty and the provider `ok` 1.
 
+## `firstlight_runs` and `firstlight_checks` (firstlight)
+
+`firstlight_runs`: `id` (key, the run id), `repo_key`, `root`, `started_at`, `supervisor_pid?`, `outcome?`, `current`, `supervisor_alive`.
+`firstlight_checks`: `run_id` and `name` (key), `position`, `run`, `status`, `orphan`, `exit_code?`, `started_at?`, `elapsed_ms?`, `pid?`, `cached_from?`, `log`.
+[firstlight](https://github.com/meganemura/firstlight) ([npm](https://www.npmjs.com/package/firstlight)) writes these files. spacequery reads them.
+The tables contain every readable run under `$XDG_STATE_HOME/firstlight/`, or `~/.local/state/firstlight/` when `XDG_STATE_HOME` is unset, for every repository and not only those in scope.
+`repo_key` is firstlight's directory for the root. `current` is 1 for the run the `current` file names. `outcome` is the run's final event, `done` or `cancelled`, and null before it.
+`supervisor_alive` is 1 only while `outcome` is null and the supervisor pid is a live process.
+`run` is the check's command, under its name in `run.json`. `position` is the check's place in that list.
+`status` is `pending`, `running`, `passed`, `failed`, `timed_out`, `cancelled`, `skipped`, or `unknown`. `unknown` and `orphan` 1 mark a check that never settled in a run whose supervisor died without an outcome.
+`elapsed_ms` and `exit_code` are written when a check ends. `cached_from` names the run a reused pass came from; that run may be pruned. `log` is the check's log file.
+Join a run to git through `firstlight_runs.root` = `worktrees.path` or `git_status.root`.
+A missing state directory leaves both tables empty and the provider `ok` 1.
+
 ## `workflow_runs` (headsign)
 
 `root` (key), `workflow`, `workflow_path?`, `status`, `phase?`,

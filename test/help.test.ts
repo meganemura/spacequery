@@ -41,6 +41,7 @@ test("the ship default short list is the visible curated queries", () => {
     assert.equal(names.includes("issues-in-scope"), false);
     assert.equal(names.includes("issues-open"), false);
     assert.equal(names.includes("runs-in-dir"), false);
+    assert.equal(names.includes("running-checks"), false);
     assert.equal(names.includes("brew-packages"), false);
     assert.deepEqual(document.reports.map((report) => report.name), ["here", "work"]);
     for (const query of document.queries) {
@@ -61,7 +62,7 @@ test("the ship default short list is the visible curated queries", () => {
     assert.equal(cursorAgents?.enabled, true);
     assert.deepEqual(cursorAgents?.requires, ["cursor"]);
     const curated = Object.entries(catalog).filter(([, query]) => query.default).map(([name]) => name);
-    assert.equal(curated.length, 29);
+    assert.equal(curated.length, 31);
     assert.ok(curated.includes("issues"));
     assert.equal(reports.here.default, true);
     assert.equal(reports.work.default, true);
@@ -83,7 +84,7 @@ test("enabling an optional provider returns its curated queries, and calls fill 
   const configDir = join(root, "config", "spacequery");
   mkdirSync(configDir, { recursive: true });
   writeFileSync(join(configDir, "config.json"), JSON.stringify({
-    providers: { beads: true, brew: true, headsign: true, polylinedb: true, runtag: true },
+    providers: { beads: true, brew: true, firstlight: true, headsign: true, polylinedb: true, runtag: true },
   }));
   const env = { HOME: root, XDG_CONFIG_HOME: join(root, "config"), XDG_STATE_HOME: join(root, "state") };
   try {
@@ -94,6 +95,7 @@ test("enabling an optional provider returns its curated queries, and calls fill 
     assert.equal(document.queries.some((query) => query.name === "issues-open"), true);
     assert.equal(document.queries.some((query) => query.name === "beads-ready-legacy"), false);
     assert.equal(document.queries.some((query) => query.name === "runs-in-dir"), true);
+    assert.equal(document.queries.some((query) => query.name === "running-checks"), true);
     assert.equal(document.queries.some((query) => query.name === "workflow"), true);
     assert.equal(document.queries.some((query) => query.name === "repos"), false);
     assert.equal(document.queries.length, Object.values(catalog).filter((query) => query.default).length);

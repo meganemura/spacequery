@@ -200,6 +200,20 @@ export const reportQueries = queries(generated, {
   stoppedRuns: `
     select root, workflow, phase, status, end_reason, last_failure from workflow_runs
     where (status <> 'running' and status <> 'complete') or last_failure is not null order by root`,
+  // A pending or running check only means work in flight while its
+  // supervisor lives; the loader already turns an orphaned one into
+  // `unknown`. The worktree row names the repository and branch of the
+  // run's root when git observed that root in this call's scope.
+  // `running_ms` counts from the `running` event, since firstlight writes
+  // `elapsed_ms` only when the check ends.
+  runningChecks: `
+    select r.root, w.repo_root, w.branch, c.run_id, c.name, c.run, c.status, c.pid, c.started_at,
+      cast(case when c.started_at is null then null else round((unixepoch('subsec') - unixepoch(c.started_at, 'subsec')) * 1000) end as integer) as running_ms,
+      c.log
+    from firstlight_checks c join firstlight_runs r on r.id = c.run_id
+    left join worktrees w on w.path = r.root
+    where r.supervisor_alive = 1 and c.status in ('pending', 'running')
+    order by r.root, c.run_id, c.position`,
   // The shell itself sits at depth 0 of `owned`. A pane's shell can be the
   // runaway process on its own. Ownership starts there, before any child
   // process exists.

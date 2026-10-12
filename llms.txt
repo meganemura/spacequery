@@ -22,7 +22,7 @@ Named queries include `here`-style occupancy via catalog entries such as `in-dir
 
 ## Doctor
 
-`spacequery doctor` loads every enabled built-in provider once on one root and prints JSON. `--json` selects that same document. `--root` defaults to the git toplevel of the current directory. Doctor does not take `--scope`, does not install tools, and does not run user-provider commands. `beads`, `brew`, `headsign`, `polylinedb`, and `runtag` are off until config enables them. Doctor lists those names in `disabled_providers`.
+`spacequery doctor` loads every enabled built-in provider once on one root and prints JSON. `--json` selects that same document. `--root` defaults to the git toplevel of the current directory. Doctor does not take `--scope`, does not install tools, and does not run user-provider commands. `beads`, `brew`, `firstlight`, `headsign`, `polylinedb`, and `runtag` are off until config enables them. Doctor lists those names in `disabled_providers`.
 
 Read the report's `ok`, then each provider's `ok` and `error`. `path` counts PATH entries, missing entries, and duplicates when the search path provider answered. `user_providers.present` is 1 when the user-provider directory exists. Exit 0 means the report was printed. When doctor itself cannot run, stdout is an `error` and a `do` command, with no stack.
 

@@ -139,9 +139,11 @@ spacequery watch claude-sessions --until status=idle
 `working` only returns agents that are working, so the wait until nobody is working is `--until empty`.
 `claude-sessions` has `status` from the session record. `workflow` has `status` from the headsign file.
 `runs-in-dir` has `status` from the runtag job file: `running` or `exited`.
+`running-checks` returns only firstlight checks that still run under a live supervisor, so the wait until they settle is `--until empty`.
 
 ```sh
 spacequery watch runs-in-dir --root <repo> --until status=exited
+spacequery watch running-checks --until empty
 ```
 
 A runtag orphan stays `running` with `orphan` 1 and `exit_code` null. `--until status=exited` does not match it.
@@ -183,6 +185,7 @@ Providers that are off in config are named in `disabled_providers` and are not l
 Doctor does not take `--scope`. Repository-scoped providers run on that one root.
 Doctor does not run user-provider commands, install tools, or write the call log.
 When `runtag` is enabled, a missing jobs directory is `ok` 1. An unreadable jobs directory, or a job file that does not parse, is `ok` 0 and clears the report's `ok`. While `runtag` is off, doctor does not load it.
+When `firstlight` is enabled, a missing state directory is `ok` 1. An unreadable state path, or a run firstlight could not have written, is `ok` 0 and clears the report's `ok`.
 
 ```json
 {
@@ -202,7 +205,7 @@ When `runtag` is enabled, a missing jobs directory is `ok` 1. An unreadable jobs
   "user_queries": [
     { "name": "long-running", "path": "/home/u/.config/spacequery/queries/long-running.sql", "ok": 0, "error": "no such column: cpu", "hint": "  did you mean cpu_pct? (processes)\n  ..." }
   ],
-  "disabled_providers": ["beads", "beads_ready", "brew", "headsign", "polylinedb", "runtag"],
+  "disabled_providers": ["beads", "beads_ready", "brew", "firstlight", "headsign", "polylinedb", "runtag"],
   "config": "/home/u/.config/spacequery/config.json"
 }
 ```

@@ -161,6 +161,8 @@ test("tablesRead finds every catalog query's declared tables", () => {
       "issues-with-agents": ["agents", "pd_issue_sources", "pd_issues"],
       "issues-unattended": ["agents", "pd_issue_sources", "pd_issues"],
       "runs-in-dir": ["runtag_jobs"],
+      "running-checks": ["firstlight_checks", "firstlight_runs", "worktrees"],
+      "latest-check-runs": ["firstlight_checks", "firstlight_runs"],
       workflow: ["workflow_runs"],
       workflows: ["workflow_runs"],
       "running-workflows-with-agents": ["agents", "workflow_runs"],

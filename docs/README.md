@@ -57,3 +57,4 @@ Each ADR describes one decision and its consequences.
 | [0049](adr/0049-codex-skills-are-read-from-agents-directories.md) | Codex skills are read from `.agents/skills` directories too. |
 | [0050](adr/0050-ad-hoc-sql-errors-name-the-fix.md) | Ad hoc SQL errors name the fix. |
 | [0051](adr/0051-project-issues-come-from-polylinedb.md) | Generic issue queries read the selected polylinedb project store. |
+| [0052](adr/0052-firstlight-runs-are-read-from-the-state-files.md) | firstlight runs are read from the state files. |

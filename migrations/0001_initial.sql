@@ -113,6 +113,31 @@ CREATE TABLE cursor_agents (
     created_at integer,
     updated_at integer
   ) strict;
+CREATE TABLE firstlight_checks (
+    run_id text not null references firstlight_runs(id),
+    position integer not null,
+    name text not null,
+    run text not null,
+    status text not null check (status in ('pending', 'running', 'passed', 'failed', 'timed_out', 'cancelled', 'skipped', 'unknown')),
+    orphan integer not null check (orphan in (0, 1)),
+    exit_code integer,
+    started_at text,
+    elapsed_ms integer,
+    pid integer,
+    cached_from text,
+    log text not null,
+    primary key (run_id, name)
+  ) strict;
+CREATE TABLE firstlight_runs (
+    id text primary key not null,
+    repo_key text not null,
+    root text not null,
+    started_at text not null,
+    supervisor_pid integer,
+    outcome text check (outcome in ('done', 'cancelled')),
+    current integer not null check (current in (0, 1)),
+    supervisor_alive integer not null check (supervisor_alive in (0, 1))
+  ) strict;
 CREATE TABLE git_status (
     root text primary key not null,
     branch text,

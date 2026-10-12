@@ -4,6 +4,7 @@ The format follows Keep a Changelog, and the versions follow SemVer. Before 1.0 
 
 ## Unreleased
 
+- Added: the `firstlight` provider reads the state [firstlight](https://github.com/meganemura/firstlight) ([npm](https://www.npmjs.com/package/firstlight)) keeps under `$XDG_STATE_HOME/firstlight/` into `firstlight_runs` and `firstlight_checks`. A check's status is folded from `events.jsonl` the way firstlight folds it, including `unknown` with `orphan` 1 when the supervisor died before the check settled. `running-checks` lists pending and running checks under a live supervisor with the repository and branch of the run's root; `spacequery watch running-checks --until empty` waits for them. `latest-check-runs` gives each repository's latest run with its check counts. The provider is off until config enables it, and a missing state directory is an empty answer.
 - Added: `references/quota.md` in the skill: read the agent roster and the Claude and Codex quota before a dispatch, with the environment the providers need and how to tell headroom, exhausted, and unknown apart.
 - Fixed: when `claude -p /usage` prints no quota windows, `claude_usage` now says that the CLI is not signed in to a subscription or cannot read its sign-in. On macOS an unset `USER` causes this.
 

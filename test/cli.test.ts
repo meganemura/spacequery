@@ -28,7 +28,7 @@ test("help prints the short list and --all prints every enabled query", async ()
     assert.equal(queries.includes("issues"), false);
     assert.equal(queries.includes("runs-in-dir"), false);
     assert.match(stdout, /--help --all/);
-    assert.match(stdout, /beads, beads_ready, brew, headsign, polylinedb, runtag/);
+    assert.match(stdout, /beads, beads_ready, brew, firstlight, headsign, polylinedb, runtag/);
     assert.equal(names.includes("here"), true);
     assert.equal(names.includes("dependency-report"), false);
     const full = await execFileAsync(process.execPath, ["cli.ts", "--help", "--all"], { cwd: process.cwd(), encoding: "utf8", env });
@@ -37,7 +37,7 @@ test("help prints the short list and --all prints every enabled query", async ()
     assert.doesNotMatch(full.stdout, /^ {2}issues /m);
     mkdirSync(join(root, "config", "spacequery"), { recursive: true });
     writeFileSync(join(root, "config", "spacequery", "config.json"), JSON.stringify({
-      providers: { beads: true, brew: true, headsign: true, polylinedb: true, runtag: true },
+      providers: { beads: true, brew: true, firstlight: true, headsign: true, polylinedb: true, runtag: true },
     }));
     const enabled = await execFileAsync(process.execPath, ["cli.ts", "--help", "--all"], { cwd: process.cwd(), encoding: "utf8", env });
     for (const name of Object.keys(catalog)) assert.match(enabled.stdout, new RegExp(`^ {2}${name} `, "m"));
@@ -59,7 +59,7 @@ test("JSON help is short by default and --all carries the catalog fields", async
       reports: { name: string; sections?: [string, string][]; requires: string[]; enabled: boolean; source: string }[];
     };
     assert.equal(document.mode, "short");
-    assert.deepEqual(document.disabled_providers, ["beads", "beads_ready", "brew", "headsign", "polylinedb", "runtag"]);
+    assert.deepEqual(document.disabled_providers, ["beads", "beads_ready", "brew", "firstlight", "headsign", "polylinedb", "runtag"]);
     assert.equal(document.queries.some((query) => query.name === "issues"), false);
     const agents = document.queries.find((query) => query.name === "agents");
     assert.equal(agents?.source, "built-in");
