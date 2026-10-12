@@ -151,7 +151,14 @@ setInterval(() => {}, 1000);
     pids = JSON.parse(readFileSync(marker, "utf8"));
     controller.abort();
     await rejection;
-    const alive = (pid: number) => { try { process.kill(pid, 0); return true; } catch { return false; } };
+    // A killed orphan stays a zombie until its new parent reaps it, and signal 0
+    // still reaches a zombie. Some container inits reap orphans on a sweep
+    // about 2 s apart, longer than this wait, so on Linux a zombie counts as
+    // stopped: it has exited and can run no code.
+    const zombie = (pid: number) => {
+      try { return /^\d+ \(.*\) Z /s.test(readFileSync(`/proc/${pid}/stat`, "utf8")); } catch { return false; }
+    };
+    const alive = (pid: number) => { try { process.kill(pid, 0); return !zombie(pid); } catch { return false; } };
     for (let i = 0; i < 100 && pids.some(alive); i++) await delay(10);
     assert.deepEqual(pids.filter(alive), []);
   } finally {
