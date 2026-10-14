@@ -8,12 +8,15 @@ export default {
   surface: ["index.ts", "index.tsx", "index.mts", "index.cts"],
   // Tests import internals on purpose. The two archstrict files are the
   // checker, not a module of the tool. Hidden directories are tool state.
+  // The nukadoko scenario runs the CLI as a process and imports nothing.
   exclude: [
     "archstrict.config.ts",
     "archstrict.types.ts",
     ".*/**",
     "**/.*/**",
     "test/**",
+    "features/**",
+    "nukadoko.config.ts",
   ],
   // Most specific glob wins, so each file carries one tier and one kind.
   // cli.ts is the process entry. ui/ is retagged so the ink/react deny

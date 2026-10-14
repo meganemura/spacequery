@@ -10,3 +10,6 @@ dist/
 
 # The failing-example database of hegel
 .hegel/
+
+# nukadoko run records
+.nukadoko/
