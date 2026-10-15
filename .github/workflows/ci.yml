@@ -1,6 +1,6 @@
 # Runs the release checks, the tests, and the nukadoko scenario on every
 # push to main or queue and on every pull request.
-# Boundary: reads only. It publishes nothing; publish.yml does that for a tag.
+# Boundary: reads only. It publishes nothing; publish.yml does that for a version bump on main.
 name: CI
 
 on:
