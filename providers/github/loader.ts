@@ -29,9 +29,21 @@ export function checkState(state: unknown): "pass" | "fail" | "pending" | "none"
   return "none";
 }
 
+// One line, because the provider row and the warning print it inline. A failed
+// child's message starts with "Command failed:" and the whole command, which
+// for the pull request query is the GraphQL text, so its first line names no
+// cause. gh writes the cause (a 401, a 403, a missing scope) to stderr.
 function githubError(error: unknown): Error {
+  const stderr = (error as { stderr?: unknown } | null)?.stderr;
+  const reason = typeof stderr === "string" ? stderr.split("\n").map((line) => line.trim()).find((line) => line !== "") : undefined;
+  if (reason !== undefined) return new Error(reason);
   const message = error instanceof Error ? error.message : String(error);
-  return new Error(message.split("\n")[0] || "gh failed");
+  const first = message.split("\n")[0] ?? "";
+  if (first.startsWith("Command failed:")) {
+    const code = (error as { code?: unknown } | null)?.code;
+    return new Error(typeof code === "number" ? `gh exited with code ${code}` : "gh failed");
+  }
+  return new Error(first || "gh failed");
 }
 
 export function buildPullRequestsQuery(repos: readonly string[]): string {

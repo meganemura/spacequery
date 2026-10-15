@@ -98,3 +98,33 @@ test("the pull request query preserves generated repository owner and name pairs
   const pairs = [...buildPullRequestsQuery(repos).matchAll(/r\d+: repository\(owner: "([^"]+)", name: "([^"]+)"\)/g)].map(([, owner, name]) => `${owner}/${name}`);
   assert.deepEqual(pairs, repos);
 }));
+
+test("github names gh's own reason, not the query, when gh fails", async () => {
+  const base = githubExec();
+  const failing: Exec = async (command, args, cwd, options) => {
+    if (command === "gh" && args[1] === "graphql") {
+      throw Object.assign(new Error(`Command failed: gh ${args.join(" ")}\ngh: Resource not accessible (HTTP 403)\n`), {
+        code: 1,
+        stdout: '{"message":"Resource not accessible"}',
+        stderr: "gh: Resource not accessible (HTTP 403)\n",
+      });
+    }
+    return base(command, args, cwd, options);
+  };
+  const result = await runSql("select * from pull_requests", { loaders, exec: failing, repo: fixtureRepo, env: {}, params: {} });
+  const provider = result.providers.find((entry) => entry.name === "github");
+  assert.equal(provider?.ok, 0);
+  assert.equal(provider?.error, "gh: Resource not accessible (HTTP 403)");
+});
+
+test("github says gh's exit code when gh fails with nothing on stderr", async () => {
+  const base = githubExec();
+  const failing: Exec = async (command, args, cwd, options) => {
+    if (command === "gh" && args[1] === "graphql") {
+      throw Object.assign(new Error(`Command failed: gh ${args.join(" ")}\n`), { code: 4, stdout: "", stderr: "" });
+    }
+    return base(command, args, cwd, options);
+  };
+  const result = await runSql("select * from pull_requests", { loaders, exec: failing, repo: fixtureRepo, env: {}, params: {} });
+  assert.equal(result.providers.find((entry) => entry.name === "github")?.error, "gh exited with code 4");
+});
