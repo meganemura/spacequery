@@ -4,6 +4,8 @@ The format follows Keep a Changelog, and the versions follow SemVer. Before 1.0 
 
 ## Unreleased
 
+## 0.4.0 (2026-10-16)
+
 - Changed: a version bump in `package.json` that lands on `main` now starts the publish workflow. After `npm publish`, the workflow creates the `v<version>` tag and the GitHub release. Nobody pushes a release tag by hand.
 - Fixed: a `gh` failure in `github` and `github_reviews` now carries the first line `gh` wrote to stderr (for example an HTTP 401 or 403) as the provider error. Before, the error kept only the first line of the failed command, which for `pull_requests` was the GraphQL query and named no cause. With nothing on stderr, the error is `gh exited with code N`.
 - Added: a CI workflow runs `npm run check`, `npm test`, and the new `npm run test:scenarios` on every push to main or queue and on pull requests. The scenario, `features/ask-before-editing.feature`, runs `here` on a scratch repository with nukadoko: the checkout section counts the one uncommitted change, each section whose provider did not answer carries its error, and `--expect-empty` passes while `--strict` exits 4 only when a provider did not answer. nukadoko is a new exact dev dependency; the package's runtime does not change.
