@@ -2,6 +2,8 @@ import { defineStep, z } from "nukadoko";
 import createDirtyRepository from "./create-dirty-repository.ts";
 import { runSpacequery } from "./spacequery-cli.ts";
 
+// The exit code is the gate an agent scripts against, so the step keeps it
+// and not the printed rows.
 export default defineStep({
   description: "Runs `spacequery here --expect-empty`, then the same with `--strict`, and keeps both exit codes.",
   pattern: "the agent gates on other agents in the repository",
@@ -16,11 +18,10 @@ export default defineStep({
     stateHome: [createDirtyRepository, "stateHome"],
   },
   mutates: false,
-  rationale: "The exit code is the gate an agent scripts against, so the step keeps it and not the printed rows.",
-  run({}, { root, configHome, stateHome }) {
+  async run({}, { root, configHome, stateHome }) {
     const homes = { configHome, stateHome };
-    const gate = runSpacequery(["here", "--root", root, "--expect-empty"], homes);
-    const strict = runSpacequery(["here", "--root", root, "--expect-empty", "--strict"], homes);
+    const gate = await runSpacequery(["here", "--root", root, "--expect-empty"], homes);
+    const strict = await runSpacequery(["here", "--root", root, "--expect-empty", "--strict"], homes);
     return { gateExit: gate.exitCode, strictExit: strict.exitCode };
   },
 });

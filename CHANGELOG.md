@@ -4,6 +4,8 @@ The format follows Keep a Changelog, and the versions follow SemVer. Before 1.0 
 
 ## Unreleased
 
+- Changed: the nukadoko scenario runs on nukadoko 0.17.0 (exact dev pin, was 0.14.0). Its steps use the built-in `scratch` fixture and start `git` and the CLI through `runCommand`, so each step record lists the processes it started, and `npm run test:scenarios` is `nuka run`, which checks the steps first. nukadoko no longer installs `playwright`, `tsx`, or `esbuild`. The package's runtime does not change.
+
 ## 0.4.0 (2026-10-16)
 
 - Changed: a version bump in `package.json` that lands on `main` now starts the publish workflow. After `npm publish`, the workflow creates the `v<version>` tag and the GitHub release. Nobody pushes a release tag by hand.

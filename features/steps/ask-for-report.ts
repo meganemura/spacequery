@@ -11,6 +11,8 @@ interface HereReport {
   section_status: Record<string, { ok: number; errors: { name: string; error: string | null }[] }>;
 }
 
+// The JSON envelope is what an agent reads, so the step parses it rather than
+// the table text.
 export default defineStep({
   description: "Runs `spacequery here --root <repo> --json` and reads the checkout section and each section's provider status.",
   pattern: "the agent asks spacequery for the report on that repository",
@@ -27,9 +29,8 @@ export default defineStep({
     stateHome: [createDirtyRepository, "stateHome"],
   },
   mutates: false,
-  rationale: "The JSON envelope is what an agent reads, so the step parses it rather than the table text.",
-  run({}, { root, configHome, stateHome }) {
-    const { exitCode, stdout } = runSpacequery(["here", "--root", root, "--json"], { configHome, stateHome });
+  async run({}, { root, configHome, stateHome }) {
+    const { exitCode, stdout } = await runSpacequery(["here", "--root", root, "--json"], { configHome, stateHome });
     const report = JSON.parse(stdout) as HereReport;
     const git = report.sections.git[0];
     if (git === undefined) throw new Error("the report has no checkout row");
