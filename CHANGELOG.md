@@ -4,7 +4,7 @@ The format follows Keep a Changelog, and the versions follow SemVer. Before 1.0 
 
 ## Unreleased
 
-- Changed: the nukadoko scenario runs on nukadoko 0.17.0 (exact dev pin, was 0.14.0). Its steps use the built-in `scratch` fixture and start `git` and the CLI through `runCommand`, so each step record lists the processes it started, and `npm run test:scenarios` is `nuka run`, which checks the steps first. nukadoko no longer installs `playwright`, `tsx`, or `esbuild`. The package's runtime does not change.
+- Changed: the nukadoko scenario runs on nukadoko 0.22.0 (exact dev pin, was 0.14.0). Its Thens declare claims, which nukadoko compares and records, in place of code that throws. Its steps use the built-in `scratch` fixture and start `git` and the CLI through `runCommand`, so each step record lists the processes it started, and `npm run test:scenarios` is `nuka run`, which checks the steps first. nukadoko no longer installs `playwright`, `tsx`, or `esbuild`. The package's runtime does not change.
 
 ## 0.4.0 (2026-10-16)
 
